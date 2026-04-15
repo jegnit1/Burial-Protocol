@@ -18,9 +18,9 @@ enabled = true
 [node name="SandField" type="Node2D" parent="." unique_id=1497810564]
 script = ExtResource("5")
 
-[node name="Player" parent="." unique_id=1690623974 instance=ExtResource("3")]
-
 [node name="Blocks" type="Node2D" parent="." unique_id=1403920147]
+
+[node name="Player" parent="." unique_id=1690623974 instance=ExtResource("3")]
 
 [node name="HUD" parent="." unique_id=1961653175 instance=ExtResource("4")]
 

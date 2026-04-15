@@ -12,8 +12,8 @@ var jump_buffer_remaining := 0.0
 var coyote_time_remaining := 0.0
 var attack_cooldown := 0.0
 var attack_buffer_remaining := 0.0
-var pending_attack_direction := Vector2i.ZERO
-var attack_visual_direction := Vector2i.ZERO
+var pending_attack_direction := Vector2.ZERO
+var attack_visual_direction := Vector2.RIGHT
 var damage_cooldown := 0.0
 var attack_visual_time := 0.0
 var jump_started_this_frame := false
@@ -49,6 +49,7 @@ func setup(target_world: WorldGrid, target_sand: SandField, target_blocks: Node2
 func _physics_process(delta: float) -> void:
 	if world_grid == null or sand_field == null:
 		return
+	_ride_supporting_block()
 	jump_buffer_remaining = max(jump_buffer_remaining - delta, 0.0)
 	coyote_time_remaining = max(coyote_time_remaining - delta, 0.0)
 	attack_cooldown = max(attack_cooldown - delta, 0.0)
@@ -61,6 +62,7 @@ func _physics_process(delta: float) -> void:
 	_apply_gravity(delta)
 	_apply_horizontal_input()
 	_move_with_collisions(delta)
+	_snap_to_supporting_block()
 	_refresh_contacts()
 	queue_redraw()
 
@@ -70,15 +72,15 @@ func get_body_rect() -> Rect2:
 	return Rect2(position + body.position, body.size)
 
 
-func consume_primary_action_direction() -> Vector2i:
+func consume_primary_action_direction() -> Vector2:
 	if attack_cooldown > 0.0:
-		return Vector2i.ZERO
+		return Vector2.ZERO
 	if attack_buffer_remaining <= 0.0:
-		return Vector2i.ZERO
+		return Vector2.ZERO
 	attack_buffer_remaining = 0.0
 	attack_cooldown = GameConstants.PLAYER_ATTACK_COOLDOWN
 	var direction := pending_attack_direction
-	if direction == Vector2i.ZERO:
+	if direction == Vector2.ZERO:
 		direction = _resolve_attack_direction()
 	attack_visual_direction = direction
 	attack_visual_time = GameConstants.PLAYER_ATTACK_VISUAL_DURATION
@@ -86,9 +88,13 @@ func consume_primary_action_direction() -> Vector2i:
 	return direction
 
 
-func get_attack_rect(direction: Vector2i) -> Rect2:
-	var attack_local := _get_attack_local_rect(direction)
-	return Rect2(position + attack_local.position, attack_local.size)
+func get_attack_shape_data(direction: Vector2) -> Dictionary:
+	var local_data := _get_attack_local_shape_data(direction)
+	return {
+		"center": position + local_data["center"],
+		"size": local_data["size"],
+		"rotation": local_data["rotation"],
+	}
 
 
 func is_rect_blocked_by_falling_block(target_rect: Rect2) -> bool:
@@ -113,32 +119,21 @@ func get_head_y() -> float:
 	return get_body_rect().position.y
 
 
-func get_attack_direction() -> Vector2i:
+func get_attack_direction() -> Vector2:
 	return _resolve_attack_direction()
 
 
-func _get_attack_local_rect(direction: Vector2i) -> Rect2:
-	var body := _get_body_local_rect()
-	var attack_size := Vector2.ONE * GameConstants.CELL_SIZE
-	if direction.x > 0:
-		return Rect2(
-			Vector2(body.end.x, -attack_size.y * 0.5),
-			attack_size
-		)
-	if direction.x < 0:
-		return Rect2(
-			Vector2(body.position.x - attack_size.x, -attack_size.y * 0.5),
-			attack_size
-		)
-	if direction.y < 0:
-		return Rect2(
-			Vector2(-attack_size.x * 0.5, body.position.y - attack_size.y),
-			attack_size
-		)
-	return Rect2(
-		Vector2(-attack_size.x * 0.5, body.end.y),
-		attack_size
-	)
+func get_mining_direction(attack_direction: Vector2) -> Vector2i:
+	if attack_direction == Vector2.ZERO:
+		return Vector2i.ZERO
+	if absf(attack_direction.x) < absf(attack_direction.y):
+		return Vector2i.ZERO
+	return Vector2i.RIGHT if attack_direction.x >= 0.0 else Vector2i.LEFT
+
+
+func get_mining_rect(direction: Vector2i) -> Rect2:
+	var attack_local := _get_axis_attack_local_rect(direction)
+	return Rect2(position + attack_local.position, attack_local.size)
 
 
 func receive_crush_hit() -> bool:
@@ -273,23 +268,137 @@ func _refresh_contacts() -> void:
 	is_on_sand = sand_field.rect_collides(sand_probe)
 
 
-func _resolve_attack_direction() -> Vector2i:
+func _ride_supporting_block() -> void:
+	var support_block := _get_supporting_block()
+	if support_block == null:
+		return
+	var support_motion := support_block.get_frame_motion()
+	if support_motion == Vector2.ZERO:
+		return
+	var moved_rect := get_body_rect()
+	moved_rect.position += support_motion
+	if _rect_collides_excluding_block(moved_rect, support_block):
+		return
+	position += support_motion
+	if velocity.y > 0.0:
+		velocity.y = 0.0
+	motion_remainder.y = 0.0
+
+
+func _get_supporting_block() -> FallingBlock:
+	if blocks_root == null:
+		return null
+	var body := get_body_rect()
+	var body_left := body.position.x + 6.0
+	var body_right := body.end.x - 6.0
+	var best_block: FallingBlock = null
+	var best_top := INF
+	for child in blocks_root.get_children():
+		var block := child as FallingBlock
+		if block == null or not block.active:
+			continue
+		var block_rect := block.get_block_rect()
+		if absf(body.end.y - block_rect.position.y) > 3.0:
+			continue
+		var overlap_left := maxf(body_left, block_rect.position.x)
+		var overlap_right := minf(body_right, block_rect.end.x)
+		if overlap_right <= overlap_left:
+			continue
+		if block_rect.position.y < best_top:
+			best_top = block_rect.position.y
+			best_block = block
+	return best_block
+
+
+func _rect_collides_excluding_block(rect: Rect2, excluded_block: FallingBlock) -> bool:
+	if world_grid.rect_collides_static(rect) or sand_field.rect_collides(rect):
+		return true
+	if blocks_root == null:
+		return false
+	for child in blocks_root.get_children():
+		var block := child as FallingBlock
+		if block == null or block == excluded_block:
+			continue
+		if block.is_blocking_rect(rect):
+			return true
+	return false
+
+
+func _snap_to_supporting_block() -> void:
+	if velocity.y < 0.0:
+		return
+	var support_block := _get_supporting_block()
+	if support_block == null:
+		return
+	var block_rect := support_block.get_block_rect()
+	var target_center_y := block_rect.position.y - GameConstants.PLAYER_SIZE.y * 0.5
+	if position.y <= target_center_y + 3.0:
+		position.y = target_center_y
+		velocity.y = 0.0
+		motion_remainder.y = 0.0
+
+
+func _resolve_attack_direction() -> Vector2:
 	var to_mouse := get_global_mouse_position() - get_body_rect().get_center()
 	if to_mouse.length() <= GameConstants.PLAYER_ATTACK_DIRECTION_DEADZONE:
-		return facing
-	if absf(to_mouse.x) >= absf(to_mouse.y):
-		if to_mouse.x > 0.0:
-			facing = Vector2i.RIGHT
-			return Vector2i.RIGHT
-		if to_mouse.x < 0.0:
-			facing = Vector2i.LEFT
-			return Vector2i.LEFT
-	else:
-		if to_mouse.y < 0.0:
-			return Vector2i.UP
-		if to_mouse.y > 0.0:
-			return Vector2i.DOWN
-	return facing
+		return Vector2(facing)
+	if to_mouse.x > 0.0:
+		facing = Vector2i.RIGHT
+	elif to_mouse.x < 0.0:
+		facing = Vector2i.LEFT
+	return to_mouse.normalized()
+
+
+func _get_attack_local_shape_data(direction: Vector2) -> Dictionary:
+	var attack_direction := direction.normalized()
+	if attack_direction == Vector2.ZERO:
+		attack_direction = Vector2(facing)
+	var attack_size := Vector2(GameConstants.PLAYER_ATTACK_RANGE, GameConstants.PLAYER_ATTACK_THICKNESS)
+	var center_offset := attack_direction * ((GameConstants.PLAYER_SIZE.x + attack_size.x) * 0.5)
+	return {
+		"center": center_offset,
+		"size": attack_size,
+		"rotation": attack_direction.angle(),
+	}
+
+
+func _get_axis_attack_local_rect(direction: Vector2i) -> Rect2:
+	var body := _get_body_local_rect()
+	var attack_size := Vector2.ONE * GameConstants.CELL_SIZE
+	if direction.x > 0:
+		return Rect2(
+			Vector2(body.end.x, -attack_size.y * 0.5),
+			attack_size
+		)
+	if direction.x < 0:
+		return Rect2(
+			Vector2(body.position.x - attack_size.x, -attack_size.y * 0.5),
+			attack_size
+		)
+	if direction.y < 0:
+		return Rect2(
+			Vector2(-attack_size.x * 0.5, body.position.y - attack_size.y),
+			attack_size
+		)
+	return Rect2(
+		Vector2(-attack_size.x * 0.5, body.end.y),
+		attack_size
+	)
+
+
+func _get_attack_preview_polygon(direction: Vector2) -> PackedVector2Array:
+	var shape_data := _get_attack_local_shape_data(direction)
+	var center: Vector2 = shape_data["center"]
+	var size: Vector2 = shape_data["size"]
+	var attack_direction := Vector2.RIGHT.rotated(shape_data["rotation"])
+	var half_forward := attack_direction * (size.x * 0.5)
+	var half_side := attack_direction.orthogonal() * (size.y * 0.5)
+	return PackedVector2Array([
+		center - half_forward - half_side,
+		center + half_forward - half_side,
+		center + half_forward + half_side,
+		center - half_forward + half_side,
+	])
 
 
 func _get_body_local_rect() -> Rect2:
@@ -324,6 +433,8 @@ func _draw() -> void:
 	var fill_color := GameConstants.PLAYER_HURT_COLOR if damage_cooldown > 0.0 else GameConstants.PLAYER_COLOR
 	draw_rect(body, fill_color)
 	if attack_visual_time > 0.0:
-		var local_attack_rect := _get_attack_local_rect(attack_visual_direction)
-		draw_rect(local_attack_rect, GameConstants.ATTACK_PREVIEW_COLOR)
-		draw_rect(local_attack_rect, Color(0.95, 0.45, 0.33, 0.95), false, 2.0)
+		var preview_polygon := _get_attack_preview_polygon(attack_visual_direction)
+		draw_colored_polygon(preview_polygon, GameConstants.ATTACK_PREVIEW_COLOR)
+		for index in range(preview_polygon.size()):
+			var next_index := (index + 1) % preview_polygon.size()
+			draw_line(preview_polygon[index], preview_polygon[next_index], Color(0.95, 0.45, 0.33, 0.95), 2.0)

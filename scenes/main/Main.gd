@@ -32,7 +32,7 @@ func _physics_process(_delta: float) -> void:
 	if Input.is_action_just_pressed("ui_toggle_status"):
 		hud.toggle_debug_panel()
 	var action_direction := player.consume_primary_action_direction()
-	if action_direction != Vector2i.ZERO:
+	if action_direction != Vector2.ZERO:
 		_handle_primary_action(action_direction)
 	sand_field.step_simulation(player.get_body_rect())
 	_refresh_debug()
@@ -49,13 +49,13 @@ func _on_spawn_timer_timeout() -> void:
 	block.decomposed.connect(_on_block_decomposed)
 
 
-func _handle_primary_action(direction: Vector2i) -> void:
-	var attack_rect := player.get_attack_rect(direction)
+func _handle_primary_action(direction: Vector2) -> void:
+	var attack_shape_data := player.get_attack_shape_data(direction)
 	var attack_shape := RectangleShape2D.new()
-	attack_shape.size = attack_rect.size
+	attack_shape.size = attack_shape_data["size"]
 	var query := PhysicsShapeQueryParameters2D.new()
 	query.shape = attack_shape
-	query.transform = Transform2D(0.0, attack_rect.get_center())
+	query.transform = Transform2D(attack_shape_data["rotation"], attack_shape_data["center"])
 	query.collide_with_areas = true
 	query.collide_with_bodies = false
 	query.collision_mask = 1
@@ -72,7 +72,8 @@ func _handle_primary_action(direction: Vector2i) -> void:
 	if hit_count > 0:
 		GameState.set_status_text("Hit %d falling block(s)." % hit_count)
 		return
-	if direction.x != 0 and world_grid.try_mine_in_rect(attack_rect, direction):
+	var mining_direction := player.get_mining_direction(direction)
+	if mining_direction != Vector2i.ZERO and world_grid.try_mine_in_rect(player.get_mining_rect(mining_direction), mining_direction):
 		GameState.set_status_text("Mined a wall cell to open space.")
 		return
 	GameState.set_status_text("The swing missed.")
