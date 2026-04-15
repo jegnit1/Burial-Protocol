@@ -1,0 +1,26 @@
+[gd_scene format=3 uid="uid://dchwijtlkix1g"]
+
+[ext_resource type="Script" uid="uid://dlw2pa4sdu7tq" path="res://scenes/main/Main.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/world/WorldGrid.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/player/Player.tscn" id="3"]
+[ext_resource type="PackedScene" path="res://scenes/ui/HUD.tscn" id="4"]
+[ext_resource type="Script" uid="uid://dbsrpyuebx1oq" path="res://scenes/world/SandField.gd" id="5"]
+
+[node name="Main" type="Node2D" unique_id=1726512354]
+script = ExtResource("1")
+
+[node name="WorldGrid" parent="." unique_id=1162563726 instance=ExtResource("2")]
+
+[node name="SandField" type="Node2D" parent="." unique_id=538532159]
+script = ExtResource("5")
+
+[node name="Player" parent="." unique_id=279004638 instance=ExtResource("3")]
+
+[node name="Blocks" type="Node2D" parent="." unique_id=385877350]
+
+[node name="HUD" parent="." unique_id=601741840 instance=ExtResource("4")]
+
+[node name="SpawnTimer" type="Timer" parent="." unique_id=1646148577]
+wait_time = 1.2
+
+[connection signal="timeout" from="SpawnTimer" to="." method="_on_spawn_timer_timeout"]
