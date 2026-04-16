@@ -82,9 +82,9 @@ const PLAYER_JUMP_BUFFER_TIME := 0.14
 const PLAYER_COYOTE_TIME := 0.1
 # 플레이어 기본 공격 1회의 피해량.
 const PLAYER_ATTACK_DAMAGE := 1
-# 플레이어 몸체 기준 공격 판정이 뻗는 거리.
+# 플레이어 몸체 기준 공격 판정이 뻗는 거리 (1U).
 const PLAYER_ATTACK_RANGE := float(CELL_SIZE)
-# 공격 판정 직사각형의 두께.
+# 공격 판정 직사각형의 두께 (1U).
 const PLAYER_ATTACK_THICKNESS := float(CELL_SIZE)
 # 연속 공격 사이의 최소 간격.
 const PLAYER_ATTACK_COOLDOWN := 0.1
@@ -98,6 +98,18 @@ const PLAYER_ATTACK_DIRECTION_DEADZONE := 12.0
 const PLAYER_CRUSH_DAMAGE := 1
 # 피해를 받은 직후 적용되는 무적 시간.
 const PLAYER_DAMAGE_INVULNERABILITY := 0.5
+
+# 채굴 1회의 피해량 (현재 벽 1셀 기준).
+const PLAYER_MINING_DAMAGE := 1
+# 연속 채굴 사이의 최소 간격.
+const PLAYER_MINING_COOLDOWN := 0.15
+# 채굴 입력을 미리 저장해두는 버퍼 시간.
+const PLAYER_MINING_BUFFER_TIME := 0.12
+# 채굴 범위: 플레이어 몸체에서 뻗는 거리 (0.25U).
+const PLAYER_MINE_RANGE := float(CELL_SIZE) * 0.5
+# 채굴 범위: 세로 높이 (1U).
+const PLAYER_MINE_HEIGHT := float(CELL_SIZE)
+const PLAYER_UPWARD_SAND_CHECK_HEIGHT := 2.0
 
 # 낙하 블록의 낙하 속도(px/s).
 const BLOCK_FALL_SPEED := 226.0
@@ -116,6 +128,8 @@ const SAND_PUSH_CHAIN_LIMIT := 9
 const SAND_FLOW_UPDATES_PER_TICK := 132
 # 플레이어 주변에서 모래 시뮬레이션을 활성 상태로 유지하는 반경.
 const SAND_ACTIVE_RADIUS := 3
+const SAND_MINING_VERTICAL_ONLY_TICKS := 2
+const SAND_MINING_ACTIVE_ABOVE_CELLS := 3
 # 모래를 밀 때 전방으로 추가 확인하는 가로 셀 여유분.
 const SAND_PUSH_FRONT_PADDING := 2
 # 모래 밀기 해결 중 추가 확인하는 세로 셀 여유분.
@@ -155,6 +169,7 @@ const PLAYER_COLOR := Color("d4ede2")
 const PLAYER_HURT_COLOR := Color("f58d7e")
 # 공격 미리보기 오버레이에 쓰는 색상.
 const ATTACK_PREVIEW_COLOR := Color(0.95, 0.35, 0.25, 0.32)
+const MINING_PREVIEW_COLOR := Color(0.86, 0.78, 0.36, 0.28)
 # 디버그 패널 배경색.
 const DEBUG_PANEL_COLOR := Color(0.05, 0.07, 0.09, 0.88)
 # 디버그 패널 테두리 색상.
@@ -240,6 +255,12 @@ const INPUT_BINDINGS := {
 	],
 	"primary_action": [
 		{"type": "mouse_button", "button_index": MOUSE_BUTTON_LEFT},
+	],
+	"attack_action": [
+		{"type": "mouse_button", "button_index": MOUSE_BUTTON_LEFT},
+	],
+	"mine_action": [
+		{"type": "mouse_button", "button_index": MOUSE_BUTTON_RIGHT},
 	],
 	"restart": [
 		{"type": "key", "code": KEY_R},

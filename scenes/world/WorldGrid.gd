@@ -63,7 +63,7 @@ func rect_collides_static(rect: Rect2) -> bool:
 	return false
 
 
-func try_mine_in_rect(attack_rect: Rect2, direction: Vector2i) -> bool:
+func try_mine_in_rect(attack_rect: Rect2, direction: Vector2i, mining_damage: int = 1) -> bool:
 	var min_cell := world_to_cell(attack_rect.position)
 	var max_cell := world_to_cell(attack_rect.position + attack_rect.size - Vector2.ONE)
 	var cell_list: Array[Vector2i] = []
@@ -81,6 +81,7 @@ func try_mine_in_rect(attack_rect: Rect2, direction: Vector2i) -> bool:
 			return a.x > b.x
 		return a.y < b.y
 	)
+	# 현재는 mining_damage에 무관하게 1셀 제거 유지 (향후 확장 가능)
 	wall_cells.erase(cell_list[0])
 	queue_redraw()
 	return true

@@ -31,9 +31,12 @@ func _physics_process(_delta: float) -> void:
 		return
 	if Input.is_action_just_pressed("ui_toggle_status"):
 		hud.toggle_debug_panel()
-	var action_direction := player.consume_primary_action_direction()
-	if action_direction != Vector2.ZERO:
-		_handle_primary_action(action_direction)
+	var attack_direction := player.consume_attack_direction()
+	if attack_direction != Vector2.ZERO:
+		_handle_attack_action(attack_direction)
+	var mine_direction := player.consume_mining_direction()
+	if mine_direction != Vector2.ZERO:
+		_handle_mining_action(mine_direction)
 	sand_field.step_simulation(player.get_body_rect())
 	_refresh_debug()
 
@@ -49,7 +52,7 @@ func _on_spawn_timer_timeout() -> void:
 	block.decomposed.connect(_on_block_decomposed)
 
 
-func _handle_primary_action(direction: Vector2) -> void:
+func _handle_attack_action(direction: Vector2) -> void:
 	var attack_shape_data := player.get_attack_shape_data(direction)
 	var attack_shape := RectangleShape2D.new()
 	attack_shape.size = attack_shape_data["size"]
@@ -71,12 +74,24 @@ func _handle_primary_action(direction: Vector2) -> void:
 			hit_count += 1
 	if hit_count > 0:
 		GameState.set_status_text("Hit %d falling block(s)." % hit_count)
-		return
+	else:
+		GameState.set_status_text("The swing missed.")
+
+
+func _handle_mining_action(direction: Vector2) -> void:
 	var mining_direction := player.get_mining_direction(direction)
-	if mining_direction != Vector2i.ZERO and world_grid.try_mine_in_rect(player.get_mining_rect(mining_direction), mining_direction):
+	if mining_direction == Vector2i.ZERO:
+		GameState.set_status_text("Can't mine in this direction.")
+		return
+	var mine_rect := player.get_mining_rect(mining_direction)
+	var sand_removed := sand_field.try_mine_in_rect(mine_rect, mining_direction, GameConstants.PLAYER_MINING_DAMAGE)
+	if sand_removed > 0:
+		GameState.set_status_text("Mined %d sand cell(s)." % sand_removed)
+		return
+	if world_grid.try_mine_in_rect(mine_rect, mining_direction, GameConstants.PLAYER_MINING_DAMAGE):
 		GameState.set_status_text("Mined a wall cell to open space.")
 		return
-	GameState.set_status_text("The swing missed.")
+	GameState.set_status_text("Nothing to mine here.")
 
 
 func _on_block_destroyed(block: FallingBlock) -> void:

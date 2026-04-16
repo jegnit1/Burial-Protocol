@@ -14,8 +14,13 @@ var attack_cooldown := 0.0
 var attack_buffer_remaining := 0.0
 var pending_attack_direction := Vector2.ZERO
 var attack_visual_direction := Vector2.RIGHT
-var damage_cooldown := 0.0
 var attack_visual_time := 0.0
+var mining_cooldown := 0.0
+var mining_buffer_remaining := 0.0
+var pending_mine_direction := Vector2.ZERO
+var mining_visual_direction := Vector2i.RIGHT
+var mining_visual_time := 0.0
+var damage_cooldown := 0.0
 var jump_started_this_frame := false
 var is_on_floor := false
 var is_on_sand := false
@@ -31,11 +36,17 @@ func _ready() -> void:
 func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("jump"):
 		jump_buffer_remaining = GameConstants.PLAYER_JUMP_BUFFER_TIME
-	if event.is_action_pressed("primary_action"):
+	if event.is_action_pressed("attack_action"):
 		attack_buffer_remaining = GameConstants.PLAYER_ATTACK_BUFFER_TIME
 		pending_attack_direction = _resolve_attack_direction()
 		attack_visual_direction = pending_attack_direction
 		attack_visual_time = GameConstants.PLAYER_ATTACK_VISUAL_DURATION
+		queue_redraw()
+	if event.is_action_pressed("mine_action"):
+		mining_buffer_remaining = GameConstants.PLAYER_MINING_BUFFER_TIME
+		pending_mine_direction = _resolve_attack_direction()
+		mining_visual_direction = get_mining_direction(pending_mine_direction)
+		mining_visual_time = GameConstants.PLAYER_ATTACK_VISUAL_DURATION
 		queue_redraw()
 
 
@@ -54,8 +65,11 @@ func _physics_process(delta: float) -> void:
 	coyote_time_remaining = max(coyote_time_remaining - delta, 0.0)
 	attack_cooldown = max(attack_cooldown - delta, 0.0)
 	attack_buffer_remaining = max(attack_buffer_remaining - delta, 0.0)
+	mining_cooldown = max(mining_cooldown - delta, 0.0)
+	mining_buffer_remaining = max(mining_buffer_remaining - delta, 0.0)
 	damage_cooldown = max(damage_cooldown - delta, 0.0)
 	attack_visual_time = max(attack_visual_time - delta, 0.0)
+	mining_visual_time = max(mining_visual_time - delta, 0.0)
 	jump_started_this_frame = false
 	_refresh_contacts()
 	_apply_jump_input()
@@ -73,6 +87,10 @@ func get_body_rect() -> Rect2:
 
 
 func consume_primary_action_direction() -> Vector2:
+	return consume_attack_direction()
+
+
+func consume_attack_direction() -> Vector2:
 	if attack_cooldown > 0.0:
 		return Vector2.ZERO
 	if attack_buffer_remaining <= 0.0:
@@ -84,6 +102,22 @@ func consume_primary_action_direction() -> Vector2:
 		direction = _resolve_attack_direction()
 	attack_visual_direction = direction
 	attack_visual_time = GameConstants.PLAYER_ATTACK_VISUAL_DURATION
+	queue_redraw()
+	return direction
+
+
+func consume_mining_direction() -> Vector2:
+	if mining_cooldown > 0.0:
+		return Vector2.ZERO
+	if mining_buffer_remaining <= 0.0:
+		return Vector2.ZERO
+	mining_buffer_remaining = 0.0
+	mining_cooldown = GameConstants.PLAYER_MINING_COOLDOWN
+	var direction := pending_mine_direction
+	if direction == Vector2.ZERO:
+		direction = _resolve_attack_direction()
+	mining_visual_direction = get_mining_direction(direction)
+	mining_visual_time = GameConstants.PLAYER_ATTACK_VISUAL_DURATION
 	queue_redraw()
 	return direction
 
@@ -132,8 +166,8 @@ func get_mining_direction(attack_direction: Vector2) -> Vector2i:
 
 
 func get_mining_rect(direction: Vector2i) -> Rect2:
-	var attack_local := _get_axis_attack_local_rect(direction)
-	return Rect2(position + attack_local.position, attack_local.size)
+	var local_rect := _get_local_mining_rect(direction)
+	return Rect2(position + local_rect.position, local_rect.size)
 
 
 func receive_crush_hit() -> bool:
@@ -163,14 +197,12 @@ func _apply_jump_input() -> void:
 	if is_on_floor or coyote_time_remaining > 0.0:
 		jump_buffer_remaining = 0.0
 		coyote_time_remaining = 0.0
-		sand_field.try_clear_jump_space(get_body_rect(), facing.x)
 		velocity.y = GameConstants.PLAYER_JUMP_SPEED
 		jump_started_this_frame = true
 		return
 	if is_on_left_wall or is_on_right_wall:
 		jump_buffer_remaining = 0.0
 		var wall_direction := 1 if is_on_left_wall else -1
-		sand_field.try_clear_jump_space(get_body_rect(), wall_direction)
 		velocity.x = wall_direction * GameConstants.PLAYER_WALL_JUMP_SPEED_X
 		velocity.y = GameConstants.PLAYER_JUMP_SPEED
 		extra_jumps_left = GameConstants.PLAYER_EXTRA_JUMPS
@@ -180,7 +212,6 @@ func _apply_jump_input() -> void:
 	if extra_jumps_left > 0:
 		jump_buffer_remaining = 0.0
 		extra_jumps_left -= 1
-		sand_field.try_clear_jump_space(get_body_rect(), facing.x)
 		velocity.y = GameConstants.PLAYER_JUMP_SPEED
 		jump_started_this_frame = true
 
@@ -401,6 +432,23 @@ func _get_attack_preview_polygon(direction: Vector2) -> PackedVector2Array:
 	])
 
 
+func _get_local_mining_rect(direction: Vector2i) -> Rect2:
+	var body := _get_body_local_rect()
+	var width := GameConstants.PLAYER_MINE_RANGE
+	var height := GameConstants.PLAYER_MINE_HEIGHT
+	if direction.x > 0:
+		return Rect2(
+			Vector2(body.end.x, -height * 0.5),
+			Vector2(width, height)
+		)
+	if direction.x < 0:
+		return Rect2(
+			Vector2(body.position.x - width, -height * 0.5),
+			Vector2(width, height)
+		)
+	return Rect2(body.position, Vector2.ZERO)
+
+
 func _get_body_local_rect() -> Rect2:
 	return Rect2(-GameConstants.PLAYER_SIZE * 0.5, GameConstants.PLAYER_SIZE)
 
@@ -413,10 +461,9 @@ func _get_lower_sand_rect(rect: Rect2) -> Rect2:
 func _get_upward_sand_rect(rect: Rect2) -> Rect2:
 	var side_margin := float(GameConstants.SAND_CELL_SIZE)
 	var width: float = maxf(rect.size.x - side_margin * 2.0, side_margin * 2.0)
-	var head_height: float = maxf(float(GameConstants.SAND_CELL_SIZE) * 2.0, rect.size.y * 0.55)
 	return Rect2(
 		Vector2(rect.position.x + (rect.size.x - width) * 0.5, rect.position.y),
-		Vector2(width, head_height)
+		Vector2(width, GameConstants.PLAYER_UPWARD_SAND_CHECK_HEIGHT)
 	)
 
 
@@ -438,3 +485,7 @@ func _draw() -> void:
 		for index in range(preview_polygon.size()):
 			var next_index := (index + 1) % preview_polygon.size()
 			draw_line(preview_polygon[index], preview_polygon[next_index], Color(0.95, 0.45, 0.33, 0.95), 2.0)
+	if mining_visual_time > 0.0 and mining_visual_direction != Vector2i.ZERO:
+		var mining_rect := _get_local_mining_rect(mining_visual_direction)
+		draw_rect(mining_rect, GameConstants.MINING_PREVIEW_COLOR)
+		draw_rect(mining_rect, Color(0.93, 0.84, 0.43, 0.95), false, 2.0)

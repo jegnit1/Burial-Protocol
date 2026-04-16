@@ -4,6 +4,7 @@ class_name SandField
 var world_grid: WorldGrid
 var sand_cells: Dictionary = {}
 var active_cells: Dictionary = {}
+var mining_triggered_cells: Dictionary = {}
 var flow_flip := false
 var blocked_push_signature := ""
 var blocked_jump_signature := ""
@@ -21,6 +22,7 @@ func setup(target_world: WorldGrid) -> void:
 	world_grid = target_world
 	sand_cells.clear()
 	active_cells.clear()
+	mining_triggered_cells.clear()
 	blocked_push_signature = ""
 	blocked_jump_signature = ""
 	blocked_jump_retry_frame = -1
@@ -93,11 +95,21 @@ func step_simulation(focus_rect: Rect2) -> void:
 	var processed := 0
 	for cell in cells:
 		if processed >= GameConstants.SAND_FLOW_UPDATES_PER_TICK:
-			_mark_active(cell, 0)
+			_mark_active_cell(cell)
 			continue
 		if not sand_cells.has(cell):
+			mining_triggered_cells.erase(cell)
 			continue
-		if _try_move_cell(cell):
+		var mining_ttl := _get_mining_trigger_ttl(cell)
+		if mining_ttl > 0:
+			_update_stability_for_cell(cell)
+			if sand_cells[cell].stable:
+				mining_triggered_cells.erase(cell)
+			elif _try_move_cell(cell, mining_ttl):
+				moved = true
+			else:
+				_advance_mining_trigger(cell, mining_ttl)
+		elif _try_move_cell(cell):
 			moved = true
 		else:
 			_update_stability_for_cell(cell)
@@ -211,6 +223,55 @@ func try_clear_jump_space(player_rect: Rect2, facing_direction: int) -> bool:
 	return moved
 
 
+# 모래 채굴: mine_rect 안의 sand_cells를 방향 기준 정렬하여 앞쪽에서 mining_damage개 즉시 삭제.
+# 삭제 후 전체 적층 재계산 금지 - 삭제 셀 주변만 active 처리.
+# 반환: 실제 삭제된 셀 수 (0이면 채굴 실패).
+func try_mine_in_rect(mine_rect: Rect2, direction: Vector2i, mining_damage: int = 1) -> int:
+	if world_grid == null or sand_cells.is_empty():
+		return 0
+	var min_cell := world_to_sand_cell(mine_rect.position)
+	var max_cell := world_to_sand_cell(mine_rect.position + mine_rect.size - Vector2.ONE)
+	var candidates: Array[Vector2i] = []
+	for y in range(min_cell.y, max_cell.y + 1):
+		for x in range(min_cell.x, max_cell.x + 1):
+			var cell := Vector2i(x, y)
+			if sand_cells.has(cell) and get_sand_cell_rect(cell).intersects(mine_rect):
+				candidates.append(cell)
+	if candidates.is_empty():
+		return 0
+	# 방향 기준 정렬: 진행 방향의 앞쪽(가장 가까운) 셀을 먼저 제거
+	candidates.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+		if direction.x < 0:
+			return a.x > b.x   # 왼쪽 채굴: x가 큰(오른쪽) 셀이 앞쪽
+		if direction.x > 0:
+			return a.x < b.x   # 오른쪽 채굴: x가 작은(왼쪽) 셀이 앞쪽
+		if direction.y < 0:
+			return a.y > b.y   # 위 채굴: y가 큰(아래쪽) 셀이 앞쪽
+		return a.y < b.y       # 아래 채굴: y가 작은(위쪽) 셀이 앞쪽
+	)
+	var removal_limit := candidates.size()
+	if mining_damage > 0:
+		removal_limit = max(removal_limit, mining_damage)
+	var removed := 0
+	var removed_cells: Array[Vector2i] = []
+	for cell in candidates:
+		if removed >= removal_limit:
+			break
+		if not sand_cells.has(cell):
+			continue
+		sand_cells.erase(cell)
+		mining_triggered_cells.erase(cell)
+		removed_cells.append(cell)
+		# 삭제 셀 주변만 active 표시 - 전체 재계산 금지
+		removed += 1
+	if removed > 0:
+		blocked_push_signature = ""
+		blocked_jump_signature = ""
+		_mark_active_after_mining(removed_cells)
+		queue_redraw()
+	return removed
+
+
 func get_sand_count() -> int:
 	return sand_cells.size()
 
@@ -290,11 +351,14 @@ func _try_jump_clear(cell: Vector2i, direction: int, depth: int) -> bool:
 	return false
 
 
-func _try_move_cell(cell: Vector2i) -> bool:
+func _try_move_cell(cell: Vector2i, mining_trigger_ttl: int = 0) -> bool:
 	var down := cell + Vector2i.DOWN
 	if _can_occupy(down):
-		_move_cell(cell, down)
+		var next_mining_ttl: int = max(mining_trigger_ttl - 1, 0)
+		_move_cell(cell, down, next_mining_ttl, mining_trigger_ttl > 0)
 		return true
+	if mining_trigger_ttl > 0:
+		return false
 	var side_order := [Vector2i.LEFT, Vector2i.RIGHT]
 	if flow_flip:
 		side_order.reverse()
@@ -306,9 +370,14 @@ func _try_move_cell(cell: Vector2i) -> bool:
 	return false
 
 
-func _move_cell(from_cell: Vector2i, to_cell: Vector2i) -> void:
+func _move_cell(from_cell: Vector2i, to_cell: Vector2i, next_mining_ttl: int = 0, conservative_activation: bool = false) -> void:
 	sand_cells[to_cell] = sand_cells[from_cell]
 	sand_cells.erase(from_cell)
+	mining_triggered_cells.erase(from_cell)
+	if next_mining_ttl > 0:
+		mining_triggered_cells[to_cell] = next_mining_ttl
+	else:
+		mining_triggered_cells.erase(to_cell)
 	if push_move_budget > 0:
 		push_move_budget -= 1
 	if jump_move_budget > 0:
@@ -316,8 +385,11 @@ func _move_cell(from_cell: Vector2i, to_cell: Vector2i) -> void:
 	blocked_push_signature = ""
 	blocked_jump_signature = ""
 	blocked_jump_retry_frame = -1
-	_mark_active(from_cell, 1)
-	_mark_active(to_cell, 1)
+	if conservative_activation:
+		_mark_active_after_mining([from_cell, to_cell])
+	else:
+		_mark_active(from_cell, 1)
+		_mark_active(to_cell, 1)
 	_update_stability_for_cell(to_cell)
 	_update_stability_for_cell(from_cell + Vector2i.UP)
 
@@ -335,10 +407,52 @@ func _update_stability_for_cell(cell: Vector2i) -> void:
 	sand_cells[cell].stable = _is_static_blocked(below) or sand_cells.has(below)
 
 
+func _mark_active_after_mining(mined_cells: Array[Vector2i]) -> void:
+	for cell in mined_cells:
+		_mark_conservative_active(cell, false)
+		for offset in range(1, GameConstants.SAND_MINING_ACTIVE_ABOVE_CELLS + 1):
+			_mark_conservative_active(cell + Vector2i.UP * offset, true)
+		_mark_conservative_active(cell + Vector2i.LEFT, true)
+		_mark_conservative_active(cell + Vector2i.RIGHT, true)
+		_mark_conservative_active(cell + Vector2i.DOWN, true)
+
+
+func _mark_conservative_active(cell: Vector2i, mark_mining_trigger: bool) -> void:
+	_mark_active_cell(cell)
+	if not mark_mining_trigger:
+		return
+	if sand_cells.has(cell):
+		var existing_ttl := _get_mining_trigger_ttl(cell)
+		mining_triggered_cells[cell] = max(existing_ttl, GameConstants.SAND_MINING_VERTICAL_ONLY_TICKS)
+
+
+func _advance_mining_trigger(cell: Vector2i, mining_ttl: int) -> void:
+	if not sand_cells.has(cell):
+		mining_triggered_cells.erase(cell)
+		return
+	var next_ttl: int = max(mining_ttl - 1, 0)
+	if next_ttl > 0:
+		mining_triggered_cells[cell] = next_ttl
+	else:
+		mining_triggered_cells.erase(cell)
+	if not sand_cells[cell].stable:
+		_mark_active_cell(cell)
+
+
+func _get_mining_trigger_ttl(cell: Vector2i) -> int:
+	if not mining_triggered_cells.has(cell):
+		return 0
+	return int(mining_triggered_cells[cell])
+
+
+func _mark_active_cell(cell: Vector2i) -> void:
+	active_cells[cell] = true
+
+
 func _mark_active(cell: Vector2i, radius: int) -> void:
 	for y in range(cell.y - radius, cell.y + radius + 1):
 		for x in range(cell.x - radius, cell.x + radius + 1):
-			active_cells[Vector2i(x, y)] = true
+			_mark_active_cell(Vector2i(x, y))
 
 
 func _mark_active_rect(rect: Rect2, radius: int) -> void:
@@ -346,7 +460,7 @@ func _mark_active_rect(rect: Rect2, radius: int) -> void:
 	var max_cell := world_to_sand_cell(rect.position + rect.size - Vector2.ONE)
 	for y in range(min_cell.y - radius, max_cell.y + radius + 1):
 		for x in range(min_cell.x - radius, max_cell.x + radius + 1):
-			active_cells[Vector2i(x, y)] = true
+			_mark_active_cell(Vector2i(x, y))
 
 
 func _is_static_blocked(cell: Vector2i) -> bool:
