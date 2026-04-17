@@ -17,10 +17,15 @@ func _ready() -> void:
 	_on_status_text_changed(GameState.status_text)
 
 
-func set_runtime_debug(block_count: int, sand_count: int, wall_count: int) -> void:
+func set_runtime_debug(block_count: int, sand_count: int, wall_count: int, extra_lines: PackedStringArray = PackedStringArray()) -> void:
 	if debug_label == null:
 		return
-	debug_label.text = "Blocks %d | Sand %d | Wall %d" % [block_count, sand_count, wall_count]
+	var debug_lines: PackedStringArray = PackedStringArray([
+		"Blocks %d | Sand %d | Wall %d" % [block_count, sand_count, wall_count]
+	])
+	for line in extra_lines:
+		debug_lines.append(line)
+	debug_label.text = "\n".join(debug_lines)
 
 
 func toggle_debug_panel() -> void:

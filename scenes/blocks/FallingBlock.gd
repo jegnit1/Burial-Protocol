@@ -28,7 +28,7 @@ func setup(data: BlockData, spawn_position: Vector2, target_world: WorldGrid, ta
 	world_grid = target_world
 	sand_field = target_sand
 	player = target_player
-	current_health = block_data.health
+	current_health = block_data.get_effective_health()
 	active = true
 	frame_motion = Vector2.ZERO
 	collision_layer = 1
@@ -80,6 +80,18 @@ func get_frame_motion() -> Vector2:
 	return frame_motion
 
 
+func get_block_base_id() -> StringName:
+	if block_data == null:
+		return StringName()
+	return block_data.block_base
+
+
+func get_block_base_debug_text() -> String:
+	if block_data == null:
+		return ""
+	return block_data.get_block_base_debug_text()
+
+
 func apply_damage(amount: int) -> void:
 	if not active:
 		return
@@ -105,7 +117,7 @@ func _draw() -> void:
 	if block_data == null:
 		return
 	var rect := Rect2(-block_data.get_size_pixels() * 0.5, block_data.get_size_pixels())
-	draw_rect(rect, block_data.block_color)
+	draw_rect(rect, block_data.block_base_color)
 	draw_rect(rect, Color(0.05, 0.05, 0.05, 1.0), false, 2.0)
 
 

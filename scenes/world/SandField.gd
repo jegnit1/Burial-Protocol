@@ -226,6 +226,46 @@ func try_clear_jump_space(player_rect: Rect2, facing_direction: int) -> bool:
 # 모래 채굴: mine_rect 안의 sand_cells를 방향 기준 정렬하여 앞쪽에서 mining_damage개 즉시 삭제.
 # 삭제 후 전체 적층 재계산 금지 - 삭제 셀 주변만 active 처리.
 # 반환: 실제 삭제된 셀 수 (0이면 채굴 실패).
+func try_mine_in_shape(shape_data: Dictionary, mining_damage: int = 1) -> Dictionary:
+	var result := {
+		"hit_count": 0,
+		"removed_count": 0,
+	}
+	if world_grid == null or sand_cells.is_empty() or mining_damage <= 0:
+		return result
+	var shape_bounds := GameConstants.get_shape_bounds(shape_data)
+	var min_cell := world_to_sand_cell(shape_bounds.position)
+	var max_cell := world_to_sand_cell(shape_bounds.position + shape_bounds.size - Vector2.ONE)
+	var removed_cells: Array[Vector2i] = []
+	for y in range(min_cell.y, max_cell.y + 1):
+		for x in range(min_cell.x, max_cell.x + 1):
+			var cell := Vector2i(x, y)
+			if not sand_cells.has(cell):
+				continue
+			var cell_rect := get_sand_cell_rect(cell)
+			if not cell_rect.intersects(shape_bounds):
+				continue
+			if not GameConstants.is_point_inside_shape(cell_rect.get_center(), shape_data):
+				continue
+			result["hit_count"] += 1
+			var sand_cell: SandCellData = sand_cells[cell]
+			sand_cell.hp -= mining_damage
+			if sand_cell.hp > 0:
+				continue
+			sand_cells.erase(cell)
+			mining_triggered_cells.erase(cell)
+			removed_cells.append(cell)
+			result["removed_count"] += 1
+	if int(result["removed_count"]) > 0:
+		blocked_push_signature = ""
+		blocked_jump_signature = ""
+		_mark_active_after_mining(removed_cells)
+		queue_redraw()
+	elif int(result["hit_count"]) > 0:
+		queue_redraw()
+	return result
+
+
 func try_mine_in_rect(mine_rect: Rect2, direction: Vector2i, mining_damage: int = 1) -> int:
 	if world_grid == null or sand_cells.is_empty():
 		return 0
@@ -563,10 +603,86 @@ func _can_accept_push_target(cell: Vector2i) -> bool:
 	return not push_origin_occupied.has(cell)
 
 
+func _get_shape_polygon(shape_data: Dictionary) -> PackedVector2Array:
+	var center: Vector2 = shape_data["center"]
+	var size: Vector2 = shape_data["size"]
+	var forward := Vector2.RIGHT.rotated(shape_data["rotation"])
+	var half_forward := forward * (size.x * 0.5)
+	var half_side := forward.orthogonal() * (size.y * 0.5)
+	return PackedVector2Array([
+		center - half_forward - half_side,
+		center + half_forward - half_side,
+		center + half_forward + half_side,
+		center - half_forward + half_side,
+	])
+
+
+func _get_polygon_bounds(polygon: PackedVector2Array) -> Rect2:
+	if polygon.is_empty():
+		return Rect2()
+	var min_x := polygon[0].x
+	var max_x := polygon[0].x
+	var min_y := polygon[0].y
+	var max_y := polygon[0].y
+	for point in polygon:
+		min_x = minf(min_x, point.x)
+		max_x = maxf(max_x, point.x)
+		min_y = minf(min_y, point.y)
+		max_y = maxf(max_y, point.y)
+	return Rect2(Vector2(min_x, min_y), Vector2(max_x - min_x, max_y - min_y))
+
+
+func _polygon_intersects_rect(polygon: PackedVector2Array, rect: Rect2) -> bool:
+	var rect_polygon := PackedVector2Array([
+		rect.position,
+		Vector2(rect.end.x, rect.position.y),
+		rect.end,
+		Vector2(rect.position.x, rect.end.y),
+	])
+	return _polygons_intersect(polygon, rect_polygon)
+
+
+func _polygons_intersect(polygon_a: PackedVector2Array, polygon_b: PackedVector2Array) -> bool:
+	var axes := _get_polygon_axes(polygon_a)
+	axes.append_array(_get_polygon_axes(polygon_b))
+	for axis in axes:
+		if axis == Vector2.ZERO:
+			continue
+		var normalized_axis := axis.normalized()
+		var range_a := _get_projection_range(polygon_a, normalized_axis)
+		var range_b := _get_projection_range(polygon_b, normalized_axis)
+		if range_a.y < range_b.x or range_b.y < range_a.x:
+			return false
+	return true
+
+
+func _get_polygon_axes(polygon: PackedVector2Array) -> Array[Vector2]:
+	var axes: Array[Vector2] = []
+	for index in range(polygon.size()):
+		var next_index := (index + 1) % polygon.size()
+		var edge := polygon[next_index] - polygon[index]
+		axes.append(edge.orthogonal())
+	return axes
+
+
+func _get_projection_range(polygon: PackedVector2Array, axis: Vector2) -> Vector2:
+	var projection := polygon[0].dot(axis)
+	var min_projection := projection
+	var max_projection := projection
+	for index in range(1, polygon.size()):
+		projection = polygon[index].dot(axis)
+		min_projection = minf(min_projection, projection)
+		max_projection = maxf(max_projection, projection)
+	return Vector2(min_projection, max_projection)
+
+
 func _draw() -> void:
 	if world_grid == null:
 		return
 	for key in sand_cells.keys():
 		var cell: Vector2i = key
 		var rect := get_sand_cell_rect(cell)
-		draw_rect(rect, sand_cells[cell].color)
+		var sand_cell: SandCellData = sand_cells[cell]
+		var damage_ratio := 1.0 - float(sand_cell.hp) / float(sand_cell.max_hp)
+		var draw_color := sand_cell.color.darkened(damage_ratio * GameConstants.MINING_DAMAGED_COLOR_RATIO)
+		draw_rect(rect, draw_color)

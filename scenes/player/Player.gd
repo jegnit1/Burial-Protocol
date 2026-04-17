@@ -1,6 +1,17 @@
 extends Node2D
 class_name Player
 
+const IDLE_ANIMATION: StringName = &"idle"
+const RUN_ANIMATION: StringName = &"run"
+const DASH_HORIZONTAL_SAND_PUSH_ATTEMPTS := 2
+const DASH_DOWNWARD_SAND_SIDE_MARGIN := 6.0
+const DASH_FEEDBACK_DURATION := 0.14
+const DASH_TRAIL_ALPHA := 0.32
+const DASH_OUTLINE_WIDTH := 3.0
+# 스프라이트 시각 영역에 맞게 충돌 박스를 줄이는 inset (픽셀).
+# x: 좌우 각각 줄임. y는 반드시 0 — y를 바꾸면 바닥/블록 감지가 깨짐.
+const COLLISION_INSET := Vector2(28.0, 0.0)
+
 var world_grid: WorldGrid
 var sand_field: SandField
 var blocks_root: Node2D
@@ -18,18 +29,37 @@ var attack_visual_time := 0.0
 var mining_cooldown := 0.0
 var mining_buffer_remaining := 0.0
 var pending_mine_direction := Vector2.ZERO
-var mining_visual_direction := Vector2i.RIGHT
+var mining_visual_direction := Vector2.RIGHT
 var mining_visual_time := 0.0
+var is_dashing := false
+var dash_requested := false
+var dash_direction := Vector2.ZERO
+var pending_dash_direction := Vector2.ZERO
+var dash_time_remaining := 0.0
+var dash_cooldown_remaining := 0.0
+var dash_distance_remaining := 0.0
+var dash_motion_remainder := 0.0
+var last_left_tap_time := -1.0
+var last_right_tap_time := -1.0
+var last_down_tap_time := -1.0
+var dash_debug_last_event := ""
+var dash_feedback_time := 0.0
+var dash_feedback_state: StringName = &""
 var damage_cooldown := 0.0
 var jump_started_this_frame := false
 var is_on_floor := false
 var is_on_sand := false
 var is_on_left_wall := false
 var is_on_right_wall := false
+var animated_sprite_base_scale := Vector2.ONE
+
+@onready var animated_sprite: AnimatedSprite2D = $AnimatedSprite2D
 
 
 func _ready() -> void:
 	position = GameConstants.PLAYER_SPAWN_POSITION
+	_cache_sprite_base_scale()
+	_update_sprite_visuals(0.0)
 	queue_redraw()
 
 
@@ -45,9 +75,15 @@ func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("mine_action"):
 		mining_buffer_remaining = GameConstants.PLAYER_MINING_BUFFER_TIME
 		pending_mine_direction = _resolve_attack_direction()
-		mining_visual_direction = get_mining_direction(pending_mine_direction)
+		mining_visual_direction = pending_mine_direction
 		mining_visual_time = GameConstants.PLAYER_ATTACK_VISUAL_DURATION
 		queue_redraw()
+	if event.is_action_pressed("move_left", false, false):
+		last_left_tap_time = _register_dash_tap(Vector2.LEFT, last_left_tap_time)
+	if event.is_action_pressed("move_right", false, false):
+		last_right_tap_time = _register_dash_tap(Vector2.RIGHT, last_right_tap_time)
+	if GameConstants.PLAYER_DASH_DOWN_ENABLED and event.is_action_pressed("move_down", false, false):
+		last_down_tap_time = _register_dash_tap(Vector2.DOWN, last_down_tap_time)
 
 
 func setup(target_world: WorldGrid, target_sand: SandField, target_blocks: Node2D) -> void:
@@ -60,6 +96,7 @@ func setup(target_world: WorldGrid, target_sand: SandField, target_blocks: Node2
 func _physics_process(delta: float) -> void:
 	if world_grid == null or sand_field == null:
 		return
+	var previous_position := position
 	_ride_supporting_block()
 	jump_buffer_remaining = max(jump_buffer_remaining - delta, 0.0)
 	coyote_time_remaining = max(coyote_time_remaining - delta, 0.0)
@@ -67,17 +104,26 @@ func _physics_process(delta: float) -> void:
 	attack_buffer_remaining = max(attack_buffer_remaining - delta, 0.0)
 	mining_cooldown = max(mining_cooldown - delta, 0.0)
 	mining_buffer_remaining = max(mining_buffer_remaining - delta, 0.0)
+	dash_cooldown_remaining = max(dash_cooldown_remaining - delta, 0.0)
+	dash_time_remaining = max(dash_time_remaining - delta, 0.0)
+	dash_feedback_time = max(dash_feedback_time - delta, 0.0)
 	damage_cooldown = max(damage_cooldown - delta, 0.0)
 	attack_visual_time = max(attack_visual_time - delta, 0.0)
 	mining_visual_time = max(mining_visual_time - delta, 0.0)
+	_process_pending_dash_request()
+	_update_dash_state()
 	jump_started_this_frame = false
 	_refresh_contacts()
-	_apply_jump_input()
-	_apply_gravity(delta)
-	_apply_horizontal_input()
-	_move_with_collisions(delta)
+	if is_dashing:
+		_apply_dash_movement(delta)
+	else:
+		_apply_jump_input()
+		_apply_gravity(delta)
+		_apply_horizontal_input()
+		_move_with_collisions(delta)
 	_snap_to_supporting_block()
 	_refresh_contacts()
+	_update_sprite_visuals(position.x - previous_position.x)
 	queue_redraw()
 
 
@@ -90,7 +136,31 @@ func consume_primary_action_direction() -> Vector2:
 	return consume_attack_direction()
 
 
+func consume_dash_request() -> Vector2:
+	var request_direction := pending_dash_direction
+	pending_dash_direction = Vector2.ZERO
+	dash_requested = false
+	return request_direction
+
+
+func can_dash() -> bool:
+	return dash_cooldown_remaining <= 0.0 and not is_dashing
+
+
+func get_dash_debug_text() -> String:
+	var pending_text := "yes" if pending_dash_direction != Vector2.ZERO or dash_requested else "no"
+	return "Dash %s | Dir %s | CD %.2f | Pending %s | Event %s" % [
+		"ON" if is_dashing else "off",
+		_vector_to_debug_text(dash_direction),
+		dash_cooldown_remaining,
+		pending_text,
+		String(dash_debug_last_event),
+	]
+
+
 func consume_attack_direction() -> Vector2:
+	if is_dashing:
+		return Vector2.ZERO
 	if attack_cooldown > 0.0:
 		return Vector2.ZERO
 	if attack_buffer_remaining <= 0.0:
@@ -107,6 +177,8 @@ func consume_attack_direction() -> Vector2:
 
 
 func consume_mining_direction() -> Vector2:
+	if is_dashing:
+		return Vector2.ZERO
 	if mining_cooldown > 0.0:
 		return Vector2.ZERO
 	if mining_buffer_remaining <= 0.0:
@@ -116,7 +188,8 @@ func consume_mining_direction() -> Vector2:
 	var direction := pending_mine_direction
 	if direction == Vector2.ZERO:
 		direction = _resolve_attack_direction()
-	mining_visual_direction = get_mining_direction(direction)
+	direction = get_mining_direction(direction)
+	mining_visual_direction = direction
 	mining_visual_time = GameConstants.PLAYER_ATTACK_VISUAL_DURATION
 	queue_redraw()
 	return direction
@@ -157,17 +230,21 @@ func get_attack_direction() -> Vector2:
 	return _resolve_attack_direction()
 
 
-func get_mining_direction(attack_direction: Vector2) -> Vector2i:
+func get_mining_direction(attack_direction: Vector2) -> Vector2:
 	if attack_direction == Vector2.ZERO:
-		return Vector2i.ZERO
-	if absf(attack_direction.x) < absf(attack_direction.y):
-		return Vector2i.ZERO
-	return Vector2i.RIGHT if attack_direction.x >= 0.0 else Vector2i.LEFT
+		return Vector2.ZERO
+	return attack_direction.normalized()
 
 
-func get_mining_rect(direction: Vector2i) -> Rect2:
-	var local_rect := _get_local_mining_rect(direction)
-	return Rect2(position + local_rect.position, local_rect.size)
+func get_mining_shape_data(direction: Vector2) -> Dictionary:
+	var local_data := _get_mining_local_shape_data(direction)
+	return {
+		"center": position + local_data["center"],
+		"size": local_data["size"],
+		"rotation": local_data["rotation"],
+		"direction": local_data["direction"],
+		"origin": position + local_data["origin"],
+	}
 
 
 func receive_crush_hit() -> bool:
@@ -176,6 +253,173 @@ func receive_crush_hit() -> bool:
 	damage_cooldown = GameConstants.PLAYER_DAMAGE_INVULNERABILITY
 	GameState.damage_player(GameConstants.PLAYER_CRUSH_DAMAGE)
 	return true
+
+
+func _register_dash_tap(direction: Vector2, previous_tap_time: float) -> float:
+	var current_time := _get_input_time_seconds()
+	if previous_tap_time >= 0.0 and current_time - previous_tap_time <= GameConstants.PLAYER_DASH_DOUBLE_TAP_WINDOW:
+		_queue_dash_request(direction)
+		return -1.0
+	return current_time
+
+
+func _queue_dash_request(direction: Vector2) -> void:
+	if not _is_dash_direction_enabled(direction):
+		dash_debug_last_event = "dash_direction_disabled"
+		_set_dash_feedback(&"blocked")
+		return
+	if not can_dash():
+		dash_debug_last_event = "dash_on_cooldown"
+		_set_dash_feedback(&"cooldown")
+		GameState.set_status_text("Dash is on cooldown.")
+		return
+	pending_dash_direction = direction.normalized()
+	dash_requested = true
+	dash_debug_last_event = "dash_requested"
+	_set_dash_feedback(&"queued")
+
+
+func _process_pending_dash_request() -> void:
+	if not dash_requested or pending_dash_direction == Vector2.ZERO:
+		return
+	if not can_dash():
+		return
+	is_dashing = true
+	dash_direction = pending_dash_direction
+	dash_time_remaining = GameConstants.PLAYER_DASH_DURATION
+	dash_cooldown_remaining = GameConstants.PLAYER_DASH_COOLDOWN
+	dash_distance_remaining = GameConstants.PLAYER_DASH_DISTANCE
+	dash_motion_remainder = 0.0
+	motion_remainder = Vector2.ZERO
+	if dash_direction.x != 0.0:
+		facing = Vector2i(_sign_to_int(dash_direction.x), 0)
+	dash_requested = false
+	pending_dash_direction = Vector2.ZERO
+	dash_debug_last_event = "dash_armed"
+	_set_dash_feedback(&"armed")
+
+
+func _update_dash_state() -> void:
+	if not is_dashing:
+		return
+	if dash_time_remaining > 0.0 and dash_distance_remaining > 0.0:
+		return
+	_finish_dash("dash_finished")
+
+
+func _is_dash_direction_enabled(direction: Vector2) -> bool:
+	if direction == Vector2.ZERO:
+		return false
+	if direction.y < 0.0:
+		return GameConstants.PLAYER_DASH_UP_ENABLED
+	if direction.y > 0.0:
+		return GameConstants.PLAYER_DASH_DOWN_ENABLED
+	return true
+
+
+func _get_input_time_seconds() -> float:
+	return Time.get_ticks_msec() * 0.001
+
+
+func _update_sprite_visuals(horizontal_motion: float) -> void:
+	if animated_sprite == null:
+		return
+	var animation_name := IDLE_ANIMATION
+	if absf(horizontal_motion) > 0.25:
+		animation_name = RUN_ANIMATION
+	if animated_sprite.sprite_frames != null and animated_sprite.sprite_frames.has_animation(animation_name):
+		animated_sprite.play(animation_name)
+	animated_sprite.flip_h = facing.x < 0
+	var sprite_modulate := Color.WHITE
+	if damage_cooldown > 0.0:
+		sprite_modulate = sprite_modulate.lerp(GameConstants.PLAYER_HURT_COLOR, 0.45)
+	if is_dashing:
+		sprite_modulate = sprite_modulate.lerp(_get_dash_visual_color(), 0.35)
+	animated_sprite.modulate = sprite_modulate
+	if is_dashing:
+		if dash_direction.y > 0.0:
+			animated_sprite.scale = animated_sprite_base_scale * Vector2(0.92, 1.08)
+		else:
+			animated_sprite.scale = animated_sprite_base_scale * Vector2(1.08, 0.92)
+	else:
+		animated_sprite.scale = animated_sprite_base_scale
+
+
+func _cache_sprite_base_scale() -> void:
+	if animated_sprite == null:
+		return
+	var editor_scale := animated_sprite.scale
+	if not editor_scale.is_equal_approx(Vector2.ONE):
+		animated_sprite_base_scale = editor_scale
+		return
+	var fit_scale := _get_sprite_fit_scale()
+	animated_sprite_base_scale = fit_scale
+
+
+func _get_sprite_fit_scale() -> Vector2:
+	if animated_sprite == null or animated_sprite.sprite_frames == null:
+		return Vector2.ONE
+	if not animated_sprite.sprite_frames.has_animation(IDLE_ANIMATION):
+		return Vector2.ONE
+	var frame_texture := animated_sprite.sprite_frames.get_frame_texture(IDLE_ANIMATION, 0)
+	if frame_texture == null:
+		return Vector2.ONE
+	var frame_size := frame_texture.get_size()
+	if frame_size.x <= 0.0 or frame_size.y <= 0.0:
+		return Vector2.ONE
+	return Vector2(
+		GameConstants.PLAYER_SIZE.x / frame_size.x,
+		GameConstants.PLAYER_SIZE.y / frame_size.y
+	)
+
+
+func _apply_dash_movement(delta: float) -> void:
+	if not is_dashing or dash_direction == Vector2.ZERO:
+		return
+	var dash_speed := GameConstants.PLAYER_DASH_DISTANCE / GameConstants.PLAYER_DASH_DURATION
+	var target_distance := minf(dash_speed * delta, dash_distance_remaining)
+	if target_distance <= 0.0:
+		_finish_dash("dash_finished")
+		return
+	dash_motion_remainder += target_distance
+	var step_count := int(floor(dash_motion_remainder))
+	if step_count <= 0:
+		return
+	dash_motion_remainder -= step_count
+	var requested_steps := step_count * _dash_axis_sign()
+	var moved_steps := 0
+	if dash_direction.x != 0.0:
+		moved_steps = _move_axis(requested_steps, true)
+	else:
+		moved_steps = _move_axis(requested_steps, false)
+	dash_distance_remaining = maxf(dash_distance_remaining - absf(float(moved_steps)), 0.0)
+	if moved_steps != requested_steps:
+		_finish_dash("dash_blocked")
+
+
+func _finish_dash(debug_event: String) -> void:
+	is_dashing = false
+	dash_requested = false
+	dash_direction = Vector2.ZERO
+	pending_dash_direction = Vector2.ZERO
+	dash_time_remaining = 0.0
+	dash_distance_remaining = 0.0
+	dash_motion_remainder = 0.0
+	dash_debug_last_event = debug_event
+	if debug_event == "dash_blocked":
+		_set_dash_feedback(&"blocked")
+
+
+func _dash_axis_sign() -> int:
+	if dash_direction.x != 0.0:
+		return _sign_to_int(dash_direction.x)
+	return _sign_to_int(dash_direction.y)
+
+
+func _set_dash_feedback(state: StringName) -> void:
+	dash_feedback_state = state
+	dash_feedback_time = DASH_FEEDBACK_DURATION
+	queue_redraw()
 
 
 func _apply_horizontal_input() -> void:
@@ -246,17 +490,19 @@ func _move_with_collisions(delta: float) -> void:
 	_move_axis(step_y, false)
 
 
-func _move_axis(steps: int, horizontal: bool) -> void:
+func _move_axis(steps: int, horizontal: bool) -> int:
 	if steps == 0:
-		return
+		return 0
 	var direction := 1 if steps > 0 else -1
+	var moved_steps := 0
 	for _index in range(abs(steps)):
 		var next_position := position
 		if horizontal:
 			next_position.x += direction
 		else:
 			next_position.y += direction
-		var next_rect := Rect2(next_position + _get_body_local_rect().position, GameConstants.PLAYER_SIZE)
+		var body_local := _get_body_local_rect()
+		var next_rect := Rect2(next_position + body_local.position, body_local.size)
 		if _movement_collides(next_rect, horizontal, direction):
 			if horizontal:
 				velocity.x = 0.0
@@ -264,6 +510,8 @@ func _move_axis(steps: int, horizontal: bool) -> void:
 				velocity.y = 0.0
 			break
 		position = next_position
+		moved_steps += direction
+	return moved_steps
 
 
 func _movement_collides(rect: Rect2, horizontal: bool, direction: int) -> bool:
@@ -274,12 +522,30 @@ func _movement_collides(rect: Rect2, horizontal: bool, direction: int) -> bool:
 		sand_rect = _get_lower_sand_rect(rect)
 	elif direction < 0:
 		sand_rect = _get_upward_sand_rect(rect)
+	elif is_dashing and direction > 0:
+		sand_rect = _get_dash_downward_sand_rect(rect)
 	if sand_field.rect_collides(sand_rect):
 		if not horizontal and direction < 0 and sand_field.try_clear_jump_space(rect, facing.x):
 			return sand_field.rect_collides(sand_rect)
-		if horizontal and sand_field.try_push_for_body(rect, direction):
-			return sand_field.rect_collides(rect)
+		if horizontal and _try_resolve_horizontal_sand_collision(rect, sand_rect, direction):
+			return false
 		return true
+	return false
+
+
+func _try_resolve_horizontal_sand_collision(rect: Rect2, sand_rect: Rect2, direction: int) -> bool:
+	var push_attempts := 1
+	if is_dashing:
+		push_attempts = DASH_HORIZONTAL_SAND_PUSH_ATTEMPTS
+	for _attempt in range(push_attempts):
+		if not sand_field.try_push_for_body(rect, direction):
+			return false
+		if is_dashing:
+			if not sand_field.rect_collides(sand_rect):
+				return true
+			continue
+		if not sand_field.rect_collides(rect):
+			return true
 	return false
 
 
@@ -362,7 +628,7 @@ func _snap_to_supporting_block() -> void:
 	if support_block == null:
 		return
 	var block_rect := support_block.get_block_rect()
-	var target_center_y := block_rect.position.y - GameConstants.PLAYER_SIZE.y * 0.5
+	var target_center_y := block_rect.position.y - _get_body_local_rect().size.y * 0.5
 	if position.y <= target_center_y + 3.0:
 		position.y = target_center_y
 		velocity.y = 0.0
@@ -384,8 +650,12 @@ func _get_attack_local_shape_data(direction: Vector2) -> Dictionary:
 	var attack_direction := direction.normalized()
 	if attack_direction == Vector2.ZERO:
 		attack_direction = Vector2(facing)
-	var attack_size := Vector2(GameConstants.PLAYER_ATTACK_RANGE, GameConstants.PLAYER_ATTACK_THICKNESS)
-	var center_offset := attack_direction * ((GameConstants.PLAYER_SIZE.x + attack_size.x) * 0.5)
+	var attack_size := Vector2(
+		GameConstants.PLAYER_ATTACK_RANGE_WIDTH,
+		GameConstants.PLAYER_ATTACK_RANGE_HEIGHT
+	)
+	var support_distance := _get_body_support_distance(attack_direction)
+	var center_offset := attack_direction * (support_distance + attack_size.x * 0.5)
 	return {
 		"center": center_offset,
 		"size": attack_size,
@@ -419,11 +689,39 @@ func _get_axis_attack_local_rect(direction: Vector2i) -> Rect2:
 
 func _get_attack_preview_polygon(direction: Vector2) -> PackedVector2Array:
 	var shape_data := _get_attack_local_shape_data(direction)
+	return _get_preview_polygon(shape_data)
+
+
+func _get_mining_preview_polygon(direction: Vector2) -> PackedVector2Array:
+	var shape_data := _get_mining_local_shape_data(direction)
+	return _get_preview_polygon(shape_data)
+
+
+func _get_mining_local_shape_data(direction: Vector2) -> Dictionary:
+	var mining_direction := direction.normalized()
+	if mining_direction == Vector2.ZERO:
+		mining_direction = Vector2(facing)
+	var mining_size := Vector2(
+		GameConstants.PLAYER_MINING_RANGE_DISTANCE,
+		GameConstants.PLAYER_MINING_RANGE_HEIGHT
+	)
+	var support_distance := _get_body_support_distance(mining_direction)
+	var center_offset := mining_direction * (support_distance + mining_size.x * 0.5)
+	return {
+		"center": center_offset,
+		"size": mining_size,
+		"rotation": mining_direction.angle(),
+		"direction": mining_direction,
+		"origin": Vector2.ZERO,
+	}
+
+
+func _get_preview_polygon(shape_data: Dictionary) -> PackedVector2Array:
 	var center: Vector2 = shape_data["center"]
 	var size: Vector2 = shape_data["size"]
-	var attack_direction := Vector2.RIGHT.rotated(shape_data["rotation"])
-	var half_forward := attack_direction * (size.x * 0.5)
-	var half_side := attack_direction.orthogonal() * (size.y * 0.5)
+	var forward := Vector2.RIGHT.rotated(shape_data["rotation"])
+	var half_forward := forward * (size.x * 0.5)
+	var half_side := forward.orthogonal() * (size.y * 0.5)
 	return PackedVector2Array([
 		center - half_forward - half_side,
 		center + half_forward - half_side,
@@ -432,25 +730,17 @@ func _get_attack_preview_polygon(direction: Vector2) -> PackedVector2Array:
 	])
 
 
-func _get_local_mining_rect(direction: Vector2i) -> Rect2:
-	var body := _get_body_local_rect()
-	var width := GameConstants.PLAYER_MINE_RANGE
-	var height := GameConstants.PLAYER_MINE_HEIGHT
-	if direction.x > 0:
-		return Rect2(
-			Vector2(body.end.x, -height * 0.5),
-			Vector2(width, height)
-		)
-	if direction.x < 0:
-		return Rect2(
-			Vector2(body.position.x - width, -height * 0.5),
-			Vector2(width, height)
-		)
-	return Rect2(body.position, Vector2.ZERO)
+func _get_body_support_distance(direction: Vector2) -> float:
+	var normalized_direction := direction.normalized()
+	if normalized_direction == Vector2.ZERO:
+		normalized_direction = Vector2(facing)
+	var body_half_size := _get_body_local_rect().size * 0.5
+	return absf(normalized_direction.x) * body_half_size.x + absf(normalized_direction.y) * body_half_size.y
 
 
 func _get_body_local_rect() -> Rect2:
-	return Rect2(-GameConstants.PLAYER_SIZE * 0.5, GameConstants.PLAYER_SIZE)
+	var collision_size := GameConstants.PLAYER_SIZE - COLLISION_INSET * 2.0
+	return Rect2(-collision_size * 0.5, collision_size)
 
 
 func _get_lower_sand_rect(rect: Rect2) -> Rect2:
@@ -467,6 +757,14 @@ func _get_upward_sand_rect(rect: Rect2) -> Rect2:
 	)
 
 
+func _get_dash_downward_sand_rect(rect: Rect2) -> Rect2:
+	var width := maxf(rect.size.x - DASH_DOWNWARD_SAND_SIDE_MARGIN * 2.0, rect.size.x * 0.5)
+	return Rect2(
+		Vector2(rect.position.x + (rect.size.x - width) * 0.5, rect.position.y + rect.size.y * 0.18),
+		Vector2(width, rect.size.y * 0.82)
+	)
+
+
 func _sign_to_int(value: float) -> int:
 	if value > 0.0:
 		return 1
@@ -475,17 +773,57 @@ func _sign_to_int(value: float) -> int:
 	return 0
 
 
+func _vector_to_debug_text(value: Vector2) -> String:
+	if value == Vector2.ZERO:
+		return "(0,0)"
+	return "(%d,%d)" % [_sign_to_int(value.x), _sign_to_int(value.y)]
+
+
+func _get_dash_visual_color() -> Color:
+	if is_dashing:
+		return Color("7fe7d6")
+	if dash_feedback_time <= 0.0:
+		return Color.TRANSPARENT
+	match String(dash_feedback_state):
+		"queued":
+			return Color(0.92, 0.88, 0.42, 0.85)
+		"armed":
+			return Color(0.55, 0.92, 0.82, 0.9)
+		"cooldown":
+			return Color(0.95, 0.56, 0.36, 0.88)
+		"blocked":
+			return Color(0.86, 0.34, 0.34, 0.88)
+	return Color(0.78, 0.84, 0.92, 0.75)
+
+
 func _draw() -> void:
 	var body := _get_body_local_rect()
-	var fill_color := GameConstants.PLAYER_HURT_COLOR if damage_cooldown > 0.0 else GameConstants.PLAYER_COLOR
-	draw_rect(body, fill_color)
+	draw_rect(body, Color(1.0, 1.0, 1.0, 0.18), false, 1.0)
+	var dash_visual_color := _get_dash_visual_color()
+	if is_dashing and dash_direction != Vector2.ZERO:
+		var trail_rect := body
+		var trail_offset := dash_direction * -12.0
+		if dash_direction.x != 0.0:
+			trail_rect.size.x += 14.0
+			if dash_direction.x < 0.0:
+				trail_rect.position.x -= 14.0
+		elif dash_direction.y > 0.0:
+			trail_rect.size.y += 16.0
+		var trail_color := dash_visual_color
+		trail_color.a = DASH_TRAIL_ALPHA
+		draw_rect(Rect2(trail_rect.position + trail_offset, trail_rect.size), trail_color)
+		draw_rect(body.grow(2.0), Color(dash_visual_color, 0.95), false, DASH_OUTLINE_WIDTH)
+	elif dash_feedback_time > 0.0 and dash_visual_color.a > 0.0:
+		draw_rect(body.grow(1.5), dash_visual_color, false, 2.0)
 	if attack_visual_time > 0.0:
 		var preview_polygon := _get_attack_preview_polygon(attack_visual_direction)
 		draw_colored_polygon(preview_polygon, GameConstants.ATTACK_PREVIEW_COLOR)
 		for index in range(preview_polygon.size()):
 			var next_index := (index + 1) % preview_polygon.size()
 			draw_line(preview_polygon[index], preview_polygon[next_index], Color(0.95, 0.45, 0.33, 0.95), 2.0)
-	if mining_visual_time > 0.0 and mining_visual_direction != Vector2i.ZERO:
-		var mining_rect := _get_local_mining_rect(mining_visual_direction)
-		draw_rect(mining_rect, GameConstants.MINING_PREVIEW_COLOR)
-		draw_rect(mining_rect, Color(0.93, 0.84, 0.43, 0.95), false, 2.0)
+	if mining_visual_time > 0.0 and mining_visual_direction != Vector2.ZERO:
+		var mining_polygon := _get_mining_preview_polygon(mining_visual_direction)
+		draw_colored_polygon(mining_polygon, GameConstants.MINING_PREVIEW_COLOR)
+		for index in range(mining_polygon.size()):
+			var next_index := (index + 1) % mining_polygon.size()
+			draw_line(mining_polygon[index], mining_polygon[next_index], Color(0.93, 0.84, 0.43, 0.95), 2.0)

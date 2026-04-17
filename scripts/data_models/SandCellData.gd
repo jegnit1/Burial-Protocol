@@ -5,6 +5,8 @@ var color_key: StringName
 var color := Color.WHITE
 var weight := 1.0
 var stable := false
+var max_hp := GameConstants.SAND_CELL_MAX_HP
+var hp := GameConstants.SAND_CELL_MAX_HP
 
 
 static func from_block(block_data: BlockData) -> SandCellData:
@@ -12,6 +14,8 @@ static func from_block(block_data: BlockData) -> SandCellData:
 	cell.color_key = block_data.color_key
 	cell.color = GameConstants.get_sand_color(block_data.color_key)
 	cell.weight = block_data.sand_weight
+	cell.max_hp = GameConstants.SAND_CELL_MAX_HP
+	cell.hp = cell.max_hp
 	return cell
 
 
@@ -21,4 +25,6 @@ func clone() -> SandCellData:
 	copy.color = color
 	copy.weight = weight
 	copy.stable = stable
+	copy.max_hp = max_hp
+	copy.hp = hp
 	return copy

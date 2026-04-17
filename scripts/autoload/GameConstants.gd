@@ -1,7 +1,7 @@
 extends Node
 
 # 레이아웃과 카메라 fit 계산의 기준이 되는 기본 뷰포트 크기.
-const VIEWPORT_SIZE := Vector2i(1920, 1664)
+const VIEWPORT_SIZE := Vector2i(1920, 1080)
 # 월드 설계의 기본 픽셀 단위. 1U는 이 픽셀 수와 같다.
 const UNIT_SIZE := 64
 # 게임플레이 그리드의 한 칸은 월드 1U와 동일하다.
@@ -13,7 +13,7 @@ const CENTER_COLUMNS := 10
 # 좌우 벽과 중앙 샤프트를 모두 포함한 월드 전체 가로 칸 수.
 const WORLD_COLUMNS := CENTER_COLUMNS + WALL_COLUMNS * 2
 # 월드 전체 세로 칸 수.
-const WORLD_ROWS := 26
+const WORLD_ROWS := 200
 # 월드 맨 아래에 있는 고정 바닥 행의 인덱스.
 const FLOOR_ROW := WORLD_ROWS - 1
 # 월드 전체 가로 길이의 픽셀 값.
@@ -48,11 +48,11 @@ const WORLD_ORIGIN := Vector2i(WORLD_SIDE_MARGIN, WORLD_TOP_MARGIN)
 const WORLD_CAMERA_FIT_MARGIN_RATIO := 0.98
 
 # 월드 기준 플레이어의 충돌/표시 크기.
-const PLAYER_SIZE := Vector2(float(CELL_SIZE), float(CELL_SIZE))
+const PLAYER_SIZE := Vector2(128.0, 128.0)
 # 샤프트 하단부 근처의 플레이어 시작 위치.
 const PLAYER_SPAWN_POSITION := Vector2(
 	WORLD_ORIGIN.x + CELL_SIZE * (WORLD_COLUMNS * 0.5),
-	WORLD_ORIGIN.y + CELL_SIZE * 22.0
+	WORLD_ORIGIN.y + CELL_SIZE * (WORLD_ROWS - 5)
 )
 # 런 시작 시 플레이어의 최대 체력.
 const PLAYER_MAX_HEALTH := 5
@@ -81,11 +81,13 @@ const PLAYER_JUMP_BUFFER_TIME := 0.14
 # 발판에서 떨어진 직후에도 점프가 허용되는 코요테 타임.
 const PLAYER_COYOTE_TIME := 0.1
 # 플레이어 기본 공격 1회의 피해량.
-const PLAYER_ATTACK_DAMAGE := 1
+const PLAYER_ATTACK_DAMAGE := 10
 # 플레이어 몸체 기준 공격 판정이 뻗는 거리 (1U).
-const PLAYER_ATTACK_RANGE := float(CELL_SIZE)
+const PLAYER_ATTACK_RANGE_WIDTH := float(CELL_SIZE)
+const PLAYER_ATTACK_RANGE := PLAYER_ATTACK_RANGE_WIDTH
 # 공격 판정 직사각형의 두께 (1U).
-const PLAYER_ATTACK_THICKNESS := float(CELL_SIZE)
+const PLAYER_ATTACK_RANGE_HEIGHT := float(CELL_SIZE)
+const PLAYER_ATTACK_THICKNESS := PLAYER_ATTACK_RANGE_HEIGHT
 # 연속 공격 사이의 최소 간격.
 const PLAYER_ATTACK_COOLDOWN := 0.1
 # 공격 입력을 미리 저장해두는 버퍼 시간.
@@ -106,10 +108,18 @@ const PLAYER_MINING_COOLDOWN := 0.15
 # 채굴 입력을 미리 저장해두는 버퍼 시간.
 const PLAYER_MINING_BUFFER_TIME := 0.12
 # 채굴 범위: 플레이어 몸체에서 뻗는 거리 (0.25U).
-const PLAYER_MINE_RANGE := float(CELL_SIZE) * 0.5
+const PLAYER_MINING_RANGE_DISTANCE := float(CELL_SIZE) * 0.25
 # 채굴 범위: 세로 높이 (1U).
-const PLAYER_MINE_HEIGHT := float(CELL_SIZE)
+const PLAYER_MINING_RANGE_HEIGHT := float(CELL_SIZE)
 const PLAYER_UPWARD_SAND_CHECK_HEIGHT := 2.0
+const PLAYER_DASH_DISTANCE := CELL_SIZE * 4.0
+const PLAYER_DASH_DOUBLE_TAP_WINDOW := 0.22
+const PLAYER_DASH_DURATION := 0.08
+const PLAYER_DASH_COOLDOWN := 0.45
+const PLAYER_DASH_DOWN_ENABLED := true
+const PLAYER_DASH_UP_ENABLED := false
+const SAND_CELL_MAX_HP := 3
+const WALL_SUBCELL_MAX_HP := 3
 
 # 낙하 블록의 낙하 속도(px/s).
 const BLOCK_FALL_SPEED := 226.0
@@ -122,6 +132,8 @@ const BLOCK_SPAWN_Y_OFFSET := 16.0
 const SAND_CELLS_PER_UNIT := 6
 # 모래 시뮬레이션 셀 1칸의 픽셀 크기.
 const SAND_CELL_SIZE := CELL_SIZE / SAND_CELLS_PER_UNIT
+const WALL_SUBCELLS_PER_UNIT := 4
+const WALL_SUBCELL_SIZE := CELL_SIZE / WALL_SUBCELLS_PER_UNIT
 # 한 번의 계산에서 연쇄적으로 이어질 수 있는 모래 밀기 최대 횟수.
 const SAND_PUSH_CHAIN_LIMIT := 9
 # 시뮬레이션 한 틱마다 처리하는 모래 흐름 업데이트 수.
@@ -170,6 +182,7 @@ const PLAYER_HURT_COLOR := Color("f58d7e")
 # 공격 미리보기 오버레이에 쓰는 색상.
 const ATTACK_PREVIEW_COLOR := Color(0.95, 0.35, 0.25, 0.32)
 const MINING_PREVIEW_COLOR := Color(0.86, 0.78, 0.36, 0.28)
+const MINING_DAMAGED_COLOR_RATIO := 0.28
 # 디버그 패널 배경색.
 const DEBUG_PANEL_COLOR := Color(0.05, 0.07, 0.09, 0.88)
 # 디버그 패널 테두리 색상.
@@ -206,31 +219,168 @@ const SAND_COLOR_CONFIG := {
 	},
 }
 
+const DEFAULT_BLOCK_BASE: StringName = &"rock"
+const BLOCK_SPECIAL_RESULT_NONE: StringName = &"none"
+const BLOCK_SPECIAL_RESULT_GLASS_SHATTER_DAMAGE: StringName = &"glass_shatter_damage"
+const BLOCK_SPECIAL_RESULT_BONUS_GOLD: StringName = &"bonus_gold"
+const BLOCK_SPECIAL_RESULT_EXPLOSION: StringName = &"explosion"
+
+const BLOCK_BASES := {
+	"glass": {
+		"id": "glass",
+		"display_name": "Glass",
+		"color": Color("b8d8f4"),
+		"spawn_weight": 1.0,
+		"hp_multiplier": 1.0,
+		"reward_multiplier": 1.0,
+		"special_result_type": BLOCK_SPECIAL_RESULT_GLASS_SHATTER_DAMAGE,
+	},
+	"wood": {
+		"id": "wood",
+		"display_name": "Wood",
+		"color": Color("9a6d43"),
+		"spawn_weight": 1.1,
+		"hp_multiplier": 1.0,
+		"reward_multiplier": 1.0,
+		"special_result_type": BLOCK_SPECIAL_RESULT_NONE,
+	},
+	"rock": {
+		"id": "rock",
+		"display_name": "Rock",
+		"color": Color("7d8591"),
+		"spawn_weight": 1.2,
+		"hp_multiplier": 1.0,
+		"reward_multiplier": 1.0,
+		"special_result_type": BLOCK_SPECIAL_RESULT_NONE,
+	},
+	"marble": {
+		"id": "marble",
+		"display_name": "Marble",
+		"color": Color("d9dde4"),
+		"spawn_weight": 0.85,
+		"hp_multiplier": 1.5,
+		"reward_multiplier": 1.0,
+		"special_result_type": BLOCK_SPECIAL_RESULT_NONE,
+	},
+	"gold": {
+		"id": "gold",
+		"display_name": "Gold",
+		"color": Color("d7b94d"),
+		"spawn_weight": 0.55,
+		"hp_multiplier": 2.0,
+		"reward_multiplier": 1.5,
+		"special_result_type": BLOCK_SPECIAL_RESULT_BONUS_GOLD,
+	},
+	"cement": {
+		"id": "cement",
+		"display_name": "Cement",
+		"color": Color("707983"),
+		"spawn_weight": 0.9,
+		"hp_multiplier": 2.0,
+		"reward_multiplier": 1.0,
+		"special_result_type": BLOCK_SPECIAL_RESULT_NONE,
+	},
+	"steel": {
+		"id": "steel",
+		"display_name": "Steel",
+		"color": Color("5d6979"),
+		"spawn_weight": 0.75,
+		"hp_multiplier": 3.0,
+		"reward_multiplier": 1.0,
+		"special_result_type": BLOCK_SPECIAL_RESULT_NONE,
+	},
+	"bomb": {
+		"id": "bomb",
+		"display_name": "Bomb",
+		"color": Color("d45858"),
+		"spawn_weight": 0.5,
+		"hp_multiplier": 1.5,
+		"reward_multiplier": 1.0,
+		"special_result_type": BLOCK_SPECIAL_RESULT_EXPLOSION,
+	},
+}
+
 # 생성 시스템이 사용하는 낙하 블록 타입 정의.
 const BLOCK_TYPES := [
 	{
 		"id": "amber_small",
 		"size_cells": Vector2i(1, 1),
-		"health": 1,
+		"health": 8,
 		"sand_units": 27,
 		"reward": 2,
 		"color_key": "amber",
+		"spawn_weight": 1.0,
+		"block_base": "glass",
+	},
+	{
+		"id": "amber_tall_wood",
+		"size_cells": Vector2i(1, 2),
+		"health": 14,
+		"sand_units": 54,
+		"reward": 3,
+		"color_key": "amber",
+		"spawn_weight": 1.0,
+		"block_base": "wood",
 	},
 	{
 		"id": "cobalt_tall",
 		"size_cells": Vector2i(1, 2),
-		"health": 2,
+		"health": 21,
 		"sand_units": 54,
 		"reward": 4,
 		"color_key": "cobalt",
+		"spawn_weight": 1.0,
+		"block_base": "rock",
+	},
+	{
+		"id": "cobalt_marble",
+		"size_cells": Vector2i(2, 1),
+		"health": 20,
+		"sand_units": 54,
+		"reward": 4,
+		"color_key": "cobalt",
+		"spawn_weight": 0.85,
+		"block_base": "marble",
+	},
+	{
+		"id": "cobalt_gold",
+		"size_cells": Vector2i(1, 1),
+		"health": 24,
+		"sand_units": 27,
+		"reward": 5,
+		"color_key": "cobalt",
+		"spawn_weight": 0.75,
+		"block_base": "gold",
+	},
+	{
+		"id": "ember_cement",
+		"size_cells": Vector2i(1, 2),
+		"health": 20,
+		"sand_units": 54,
+		"reward": 4,
+		"color_key": "ember",
+		"spawn_weight": 0.9,
+		"block_base": "cement",
 	},
 	{
 		"id": "ember_wide",
 		"size_cells": Vector2i(2, 1),
-		"health": 2,
+		"health": 24,
 		"sand_units": 54,
 		"reward": 4,
 		"color_key": "ember",
+		"spawn_weight": 0.8,
+		"block_base": "steel",
+	},
+	{
+		"id": "ember_bomb",
+		"size_cells": Vector2i(1, 1),
+		"health": 14,
+		"sand_units": 27,
+		"reward": 3,
+		"color_key": "ember",
+		"spawn_weight": 0.65,
+		"block_base": "bomb",
 	},
 ]
 
@@ -273,6 +423,39 @@ const INPUT_BINDINGS := {
 
 func _ready() -> void:
 	ensure_input_actions()
+
+
+func get_block_base_definition(base_id: StringName) -> Dictionary:
+	var resolved_base_id := base_id
+	if resolved_base_id == StringName():
+		resolved_base_id = DEFAULT_BLOCK_BASE
+	if BLOCK_BASES.has(resolved_base_id):
+		return BLOCK_BASES[resolved_base_id]
+	return BLOCK_BASES[DEFAULT_BLOCK_BASE]
+
+
+func get_block_type_spawn_weight(definition: Dictionary) -> float:
+	var base_id := StringName(definition.get("block_base", DEFAULT_BLOCK_BASE))
+	var base_definition := get_block_base_definition(base_id)
+	var base_weight := float(base_definition.get("spawn_weight", 1.0))
+	var type_weight := float(definition.get("spawn_weight", 1.0))
+	return maxf(base_weight * type_weight, 0.0)
+
+
+func pick_block_type_definition(rng: RandomNumberGenerator) -> Dictionary:
+	var total_weight := 0.0
+	for raw_definition in BLOCK_TYPES:
+		var definition: Dictionary = raw_definition
+		total_weight += get_block_type_spawn_weight(definition)
+	if total_weight <= 0.0:
+		return BLOCK_TYPES[0]
+	var remaining_weight := rng.randf_range(0.0, total_weight)
+	for raw_definition in BLOCK_TYPES:
+		var definition: Dictionary = raw_definition
+		remaining_weight -= get_block_type_spawn_weight(definition)
+		if remaining_weight <= 0.0:
+			return definition
+	return BLOCK_TYPES[BLOCK_TYPES.size() - 1]
 
 
 func ensure_input_actions() -> void:
@@ -320,6 +503,42 @@ func get_center_rect() -> Rect2:
 		Vector2(WORLD_ORIGIN.x + WALL_COLUMNS * CELL_SIZE, WORLD_ORIGIN.y),
 		Vector2(CENTER_COLUMNS * CELL_SIZE, WORLD_PIXEL_HEIGHT)
 	)
+
+
+func is_point_inside_shape(point: Vector2, shape_data: Dictionary) -> bool:
+	var local_point: Vector2 = (point - shape_data["center"]).rotated(-shape_data["rotation"])
+	var half_size: Vector2 = shape_data["size"] * 0.5
+	return absf(local_point.x) <= half_size.x and absf(local_point.y) <= half_size.y
+
+
+func get_shape_bounds(shape_data: Dictionary) -> Rect2:
+	var corners := get_shape_corners(shape_data)
+	if corners.is_empty():
+		return Rect2()
+	var min_x := corners[0].x
+	var max_x := corners[0].x
+	var min_y := corners[0].y
+	var max_y := corners[0].y
+	for corner in corners:
+		min_x = minf(min_x, corner.x)
+		max_x = maxf(max_x, corner.x)
+		min_y = minf(min_y, corner.y)
+		max_y = maxf(max_y, corner.y)
+	return Rect2(Vector2(min_x, min_y), Vector2(max_x - min_x, max_y - min_y))
+
+
+func get_shape_corners(shape_data: Dictionary) -> PackedVector2Array:
+	var center: Vector2 = shape_data["center"]
+	var size: Vector2 = shape_data["size"]
+	var forward := Vector2.RIGHT.rotated(shape_data["rotation"])
+	var half_forward := forward * (size.x * 0.5)
+	var half_side := forward.orthogonal() * (size.y * 0.5)
+	return PackedVector2Array([
+		center - half_forward - half_side,
+		center + half_forward - half_side,
+		center + half_forward + half_side,
+		center - half_forward + half_side,
+	])
 
 
 func get_block_color(color_key: StringName) -> Color:
