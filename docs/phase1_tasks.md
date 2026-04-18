@@ -1,218 +1,217 @@
 # Burial Protocol - Phase 1 Tasks
 
-## 0. Snapshot
+## 0. 스냅샷
 
-Updated for current source state on `2026-04-19`.
+이 문서는 `2026-04-19` 기준 현재 소스 상태에 맞춰 갱신되었다.
 
-Phase 1 is no longer just a bootstrap task list.
-The project already has a playable run loop, so this document now tracks:
+Phase 1은 더 이상 단순한 부트스트랩 체크리스트가 아니다.
+이미 플레이 가능한 런 루프가 존재하므로, 이 문서는 이제 아래를 추적한다.
 
-- what has been completed
-- what still needs cleanup or polish
-- what should come next without breaking the current loop
-
----
-
-## 1. Completed In The Current Phase
-
-### 1-1. Menu And Flow
-
-- title screen to main hub flow
-- main hub to gameplay flow
-- character list scene and selection state
-- result screen flow back to hub
-- placeholder achievement, growth, and item-list scenes
-
-### 1-2. State And Persistence
-
-- save profile bootstrap at `user://profile.save`
-- selected character persistence
-- last selected difficulty persistence
-- difficulty clear tracking
-- per-character best record tracking
-- placeholder currencies, settings, growth, unlock arrays
-
-### 1-3. World And Run Loop
-
-- fixed-size world layout
-- center lane plus mineable side walls
-- bottom floor
-- camera follow in vertical play space
-- spawn timer driven falling blocks
-- rush days and boss days
-- day timer and automatic day advance
-- Day 30 clear and failure flow
-
-### 1-4. Player Core Systems
-
-- movement
-- jump, coyote time, buffer jump
-- extra jump
-- wall jump and wall slide
-- fast fall
-- attack
-- mining
-- double-tap dash
-- falling block support riding
-
-### 1-5. Environment Systems
-
-- falling block HP and destruction
-- block decomposition into sand
-- sand simulation with active-cell stepping
-- wall subcell mining
-- player sand push and jump-space clearance helpers
-- temporary weight overload fail condition
-
-### 1-6. Progression And Feedback
-
-- gold gain from block destruction
-- XP gain from block destruction and sand mining
-- level-up popup with three random cards
-- temporary run bonuses
-- damage popup
-- gold popup
-- HUD for day, gold, weight, HP, XP, and level
-- optional debug panel
-
-### 1-7. Data And Localization
-
-- centralized tunables in `GameConstants.gd`
-- block bases and block types data tables
-- locale autoload with Korean and English tables
+- 무엇이 이미 완료되었는가
+- 무엇이 아직 비어 있거나 다듬어져야 하는가
+- 현재 루프를 깨지 않고 다음에 무엇을 붙여야 하는가
 
 ---
 
-## 2. Current Open Work
+## 1. 현재 Phase에서 완료된 것
 
-These are the most important unfinished areas that already touch the live loop.
+### 1-1. 메뉴와 흐름
 
-### 2-1. Inter-Day Structure
+- 타이틀 -> 메인 허브 흐름
+- 메인 허브 -> 게임플레이 진입
+- 캐릭터 리스트와 캐릭터 선택 상태
+- 결과 화면 -> 허브 복귀 흐름
+- 업적, 성장, 아이템 목록 placeholder 장면
 
-- merchant/shop phase between days is still not implemented
-- day transition currently auto-advances from timer expiry to next day
-- related UI and economy decision flow are still missing
+### 1-2. 상태와 저장
 
-### 2-2. Menu Depth
+- `user://profile.save` 기반 프로필 저장 초기화
+- 선택 캐릭터 저장
+- 마지막 선택 난이도 저장
+- 난이도 클리어 기록 저장
+- 캐릭터별 최고 기록 저장
+- placeholder 재화/설정/성장/해금 배열 저장
 
-- achievement screen is still placeholder-only
-- growth screen is still placeholder-only
-- item list screen is still placeholder-only
-- title-side settings/profile/ranking buttons are still placeholder-only
+### 1-3. 월드와 런 루프
 
-### 2-3. HUD Polish
+- 고정 크기 월드 레이아웃
+- 중앙 라인 + 좌우 채굴 벽 구조
+- 바닥
+- 세로형 카메라 추적
+- 스폰 타이머 기반 낙하 블록
+- Rush Day / Boss Day
+- Day 타이머와 자동 Day 진행
+- Day 30 클리어 / 실패 처리
 
-- `GameState.status_text` is updated but not surfaced as a dedicated HUD widget
-- some HUD labels are hardcoded rather than routed through `Locale`
-- sensor panel can be improved further for clarity and consistency
+### 1-4. 플레이어 코어 시스템
 
-### 2-4. Run Presentation
+- 이동
+- 점프, 코요테 타임, 버퍼 점프
+- 추가 점프
+- 벽점프와 벽 슬라이드
+- 급강하
+- 공격
+- 채굴
+- 더블탭 대시
+- 낙하 블록 탑승 이동
 
-- result screen is functional but minimal
-- boss presentation is currently rule-based, not event-driven or cinematic
-- current block special-result ids exist in data but are only lightly expressed
+### 1-5. 환경 시스템
 
-### 2-5. Localization And Text Cleanup
+- 낙하 블록 HP와 파괴
+- 블록의 모래 분해
+- active-cell 기반 모래 시뮬레이션
+- 벽 서브셀 채굴
+- 플레이어의 모래 밀기와 점프 공간 확보 보조
+- 임시 중량 초과 실패 조건
 
-- runtime locale support exists, but not every visible label is localized
-- some recent UI strings are still direct English strings in code
+### 1-6. 성장과 피드백
 
----
+- 블록 파괴 골드 획득
+- 블록 파괴 / 모래 채굴 XP 획득
+- 3장 선택형 레벨업 팝업
+- 런 한정 보너스
+- 데미지 팝업
+- 골드 팝업
+- Day, 골드, 중량, HP, XP, 레벨 HUD
+- 선택 가능한 디버그 패널
 
-## 3. Recommended Next Priorities
+### 1-7. 데이터와 로컬라이즈
 
-### Priority A - Make Day Transitions A Real Gameplay Layer
-
-Target:
-
-- implement the missing inter-day merchant/shop phase
-- connect day end to a real decision moment instead of instant advance
-
-Suggested scope:
-
-- day-end pause or overlay
-- next-day button or shop confirmation
-- gold spending path
-- explicit day transition messaging
-
-### Priority B - Promote Status Feedback Into HUD
-
-Target:
-
-- expose gameplay status text directly in the HUD
-
-Suggested scope:
-
-- recent attack result
-- mining result
-- crush warning
-- block destruction reward text
-
-### Priority C - Turn Placeholder Meta Screens Into Real Systems
-
-Target:
-
-- choose one of achievements, permanent growth, or inventory and make it real
-
-Recommendation:
-
-- start with permanent growth or achievements before inventory breadth
-
-### Priority D - Tighten Localization Pass
-
-Target:
-
-- move recent hardcoded UI text into `Locale.gd`
-- keep Korean and English outputs consistent
+- `GameConstants.gd`에 주요 수치 집중
+- 블록 베이스 / 블록 타입 데이터 테이블
+- 한글/영문 문자열을 가진 `Locale` 오토로드
 
 ---
 
-## 4. Guardrails For The Next Phase
+## 2. 현재 남아 있는 일
 
-The next phase should not destabilize the current playable loop.
+이미 플레이 루프에 걸쳐 있는 것 중, 아직 비어 있는 핵심 영역은 아래와 같다.
 
-Before adding new content, preserve:
+### 2-1. Day 사이 구조
 
-- movement feel
-- dash usability
-- attack and mining responsiveness
-- block spawn readability
-- sand overload tension
-- day timer progression
-- result screen return flow
+- Day 종료 후 상점/상인 단계가 아직 없음
+- 지금은 타이머 종료 후 자동으로 다음 Day로 넘어감
+- 관련 UI와 경제 선택 흐름이 빠져 있음
 
-Do not replace the current loop with a large speculative refactor unless the
-project is explicitly moving to a new architecture.
+### 2-2. 메뉴 깊이
 
----
+- 업적 화면은 아직 placeholder
+- 성장 화면은 아직 placeholder
+- 아이템 목록 화면은 아직 placeholder
+- 타이틀의 설정/프로필/랭킹도 아직 placeholder
 
-## 5. Verification Checklist
+### 2-3. HUD 다듬기
 
-Use this checklist after major gameplay or UI changes:
+- `GameState.status_text`가 갱신되지만 HUD에 전용 출력 위젯이 없음
+- 일부 HUD 라벨이 아직 `Locale`로 빠지지 않음
+- 센서 패널은 가독성 개선 여지가 있음
 
-- title opens the hub correctly
-- hub starts a run only after difficulty selection
-- locked difficulties stay locked until previous clear
-- character selection persists
-- attack hits falling blocks
-- mining affects sand and walls
-- dash still triggers on double tap
-- day timer counts down correctly
-- day 1 to 29 still advance
-- Day 30 still clears or fails correctly
-- result screen shows the latest run data
-- docs are updated in the same cycle
+### 2-4. 런 연출
+
+- 결과 화면은 기능은 있지만 최소 정보만 보여 줌
+- 보스는 현재 규칙 기반 스폰 중심이지, 연출 중심 구조는 아님
+- 블록 특수 결과 id는 데이터에는 있으나 표현이 아직 약함
+
+### 2-5. 텍스트와 로컬라이즈 정리
+
+- 로컬라이즈 구조는 생겼지만 모든 visible 텍스트가 들어간 상태는 아님
+- 최근 UI 문자열 중 일부는 여전히 코드 안에 직접 적혀 있음
 
 ---
 
-## 6. Phase Summary
+## 3. 다음 우선순위 제안
 
-Phase 1 has already moved beyond bootstrap.
-The current milestone is best described as:
+### 우선순위 A - Day 전환을 실제 게임플레이 단계로 만들기
 
-"a playable vertical run prototype with strong core movement and environment systems,
-but incomplete inter-day meta structure."
+목표:
 
-That means the best next work is not rebuilding the core loop.
-It is turning the missing day-end and meta layers into real gameplay while keeping
-the current run systems stable.
+- 빠져 있는 Day 종료 후 상점/상인 단계를 구현
+- 자동 진행 대신 의미 있는 선택 구간을 만들기
+
+추천 범위:
+
+- Day 종료 후 일시정지 또는 오버레이
+- 다음 Day 버튼 또는 상점 확인 흐름
+- 골드 소비 경로
+- Day 전환 메시지
+
+### 우선순위 B - 상태 피드백을 HUD에 올리기
+
+목표:
+
+- `GameState.status_text`를 HUD에 직접 노출
+
+추천 범위:
+
+- 공격 성공/실패
+- 채굴 결과
+- 압사 경고
+- 블록 파괴 보상 문구
+
+### 우선순위 C - Placeholder 메타 화면 하나를 실제 시스템으로 전환
+
+목표:
+
+- 업적, 영구 성장, 인벤토리 중 하나를 실제 시스템으로 만들기
+
+추천:
+
+- 인벤토리보다 먼저 영구 성장 또는 업적부터 진행하는 편이 안전함
+
+### 우선순위 D - 로컬라이즈 정리
+
+목표:
+
+- 최근 하드코딩 UI 텍스트를 `Locale.gd`로 이동
+- 한글/영문 출력을 맞추기
+
+---
+
+## 4. 다음 Phase에서 지켜야 할 것
+
+다음 확장은 현재 플레이 가능한 루프를 깨지 않는 것이 우선이다.
+
+반드시 유지해야 하는 것:
+
+- 이동 감각
+- 대시 사용성
+- 공격/채굴 반응성
+- 블록 스폰 가독성
+- 모래 과적 긴장감
+- Day 타이머 진행
+- 결과 화면 복귀 흐름
+
+명시적인 구조 개편이 아닌 이상,
+지금 코어 루프를 큰 추측성 리팩터로 갈아엎지 않는다.
+
+---
+
+## 5. 검증 체크리스트
+
+게임플레이나 UI 변경 후 아래를 확인한다.
+
+- 타이틀에서 허브로 정상 진입하는가
+- 허브에서 난이도 선택 후 런이 시작되는가
+- 잠긴 난이도가 올바르게 잠겨 있는가
+- 캐릭터 선택이 저장되는가
+- 공격이 낙하 블록에 맞는가
+- 채굴이 모래와 벽에 적용되는가
+- 대시가 더블탭으로 발동하는가
+- Day 타이머가 정상 감소하는가
+- Day 1~29가 정상 진행되는가
+- Day 30이 정상적으로 실패 또는 클리어 처리되는가
+- 결과 화면이 최신 런 데이터를 보여 주는가
+- 관련 문서가 같은 작업에서 함께 갱신되었는가
+
+---
+
+## 6. Phase 요약
+
+Phase 1은 이미 부트스트랩 단계를 넘어섰다.
+현재 상태를 한 문장으로 요약하면 아래와 같다.
+
+"이동과 환경 시스템은 강한데, Day 사이 메타 구조는 아직 비어 있는
+플레이 가능한 세로형 런 프로토타입"
+
+즉, 다음에 해야 할 일은 코어 루프를 다시 만드는 것이 아니라,
+비어 있는 Day 종료 이후 메타 계층을 실제 게임플레이로 바꾸는 것이다.

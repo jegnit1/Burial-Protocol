@@ -1,82 +1,82 @@
 # Burial Protocol - Game Structure Specification
 
-## 0. Purpose
+## 0. 목적
 
-This document describes the game structure that is actually implemented in the
-current codebase. It focuses on the scene flow, run loop, day progression,
-world layout, and run end rules used by the present prototype.
-
----
-
-## 1. High-Level Loop
-
-The current game loop is:
-
-1. open the title screen
-2. enter the main hub
-3. optionally choose a character
-4. open the difficulty popup
-5. begin a run
-6. survive the falling-block and sand-management loop
-7. end the run by failure, manual exit, or clear
-8. move to the result screen
-9. return to the main hub
-
-This loop is already playable end to end.
+이 문서는 현재 코드베이스에 실제로 구현된 게임 구조를 정리한다.
+장면 흐름, 런 루프, Day 진행, 월드 레이아웃, 런 종료 규칙을
+현재 프로토타입 기준으로 기록하는 것이 목적이다.
 
 ---
 
-## 2. Scene Structure
+## 1. 상위 루프
 
-### 2-1. Title
+현재 게임의 전체 흐름은 아래와 같다.
 
-`Title.tscn` is the entry scene.
+1. 타이틀 화면 진입
+2. 메인 허브 진입
+3. 필요 시 캐릭터 선택
+4. 난이도 팝업 열기
+5. 런 시작
+6. 낙하 블록과 모래 관리 중심의 생존 루프 진행
+7. 실패, 수동 종료, 또는 클리어로 런 종료
+8. 결과 화면 이동
+9. 메인 허브 복귀
 
-Current behavior:
+이 루프는 현재 끝까지 플레이 가능한 상태다.
 
-- shows the title presentation screen
-- routes into the main hub
-- exposes placeholder buttons for settings, profile, and ranking
-- can quit the game
+---
 
-### 2-2. Main Hub
+## 2. 장면 구조
 
-`MainHub.tscn` is the central menu hub.
+### 2-1. 타이틀
 
-Current behavior:
+`Title.tscn`은 시작 장면이다.
 
-- shows placeholder persistent currencies
-- shows selected character summary
-- shows best record summary
-- opens the difficulty popup before gameplay starts
-- routes to character list, achievements, growth, and item list
+현재 역할:
 
-### 2-3. Character List
+- 타이틀 프레젠테이션 화면 표시
+- 메인 허브로 진입
+- 설정, 프로필, 랭킹 버튼 placeholder 제공
+- 게임 종료 가능
 
-`CharacterList.tscn` lets the player pick the active character slot.
+### 2-2. 메인 허브
 
-Current behavior:
+`MainHub.tscn`은 중앙 메뉴 허브다.
 
-- one default character is unlocked
-- nine additional character slots exist as locked placeholders
-- each slot shows status and best record summary
-- locked slots show unlock text as tooltip
+현재 역할:
 
-### 2-4. Placeholder Menu Screens
+- placeholder 영구 재화 표시
+- 현재 선택 캐릭터 표시
+- 최고 기록 요약 표시
+- 게임 시작 전에 난이도 팝업 열기
+- 캐릭터 선택, 업적, 성장, 아이템 목록으로 이동
 
-These scenes currently exist as navigable placeholders only:
+### 2-3. 캐릭터 선택
+
+`CharacterList.tscn`은 현재 사용할 캐릭터 슬롯을 고르는 장면이다.
+
+현재 상태:
+
+- 기본 캐릭터 1개는 해금 상태
+- 추가 슬롯 9개는 잠긴 placeholder
+- 각 슬롯은 상태와 최고 기록을 표시
+- 잠긴 슬롯은 툴팁으로 해금 문구를 표시
+
+### 2-4. Placeholder 메뉴 장면
+
+아래 장면은 현재 진입만 가능한 placeholder 장면이다.
 
 - `Achievement.tscn`
 - `Growth.tscn`
 - `ItemList.tscn`
 
-They are part of the menu loop, but not full gameplay systems yet.
+메뉴 흐름에는 포함되지만, 본격적인 게임플레이 시스템은 아직 아니다.
 
-### 2-5. Main Gameplay
+### 2-5. 메인 게임플레이
 
-`Main.tscn` owns the active run.
+`Main.tscn`은 실제 런을 담당한다.
 
-Its core children are:
+핵심 자식 노드는 아래와 같다.
 
 - `WorldGrid`
 - `SandField`
@@ -86,134 +86,133 @@ Its core children are:
 - `WorldCamera`
 - `SpawnTimer`
 
-### 2-6. Result
+### 2-6. 결과 화면
 
-`Result.tscn` displays the last finished run and sends the player back to the hub.
+`Result.tscn`은 방금 끝난 런의 결과를 표시하고 허브로 되돌린다.
 
-Current output:
+현재 표시 정보:
 
-- clear or fail header
-- run end reason
-- character name
-- difficulty name
-- highest day reached
-- latest run record text
+- 클리어/실패 헤더
+- 종료 사유
+- 캐릭터 이름
+- 난이도 이름
+- 도달한 최고 Day
+- 최신 런 기록 문자열
 
 ---
 
-## 3. Save And Session Structure
+## 3. 저장과 세션 구조
 
-The project uses `GameState.gd` as the shared state layer.
+프로젝트는 `GameState.gd`를 공유 상태 레이어로 사용한다.
 
-There are two important categories of state:
+상태는 크게 두 범주로 나뉜다.
 
-### 3-1. Persistent Profile State
+### 3-1. 영구 프로필 상태
 
-Saved in `user://profile.save`:
+`user://profile.save`에 저장된다.
 
-- selected character
-- last selected difficulty
-- cleared difficulty ids
-- best records by character and difficulty
-- unlocked characters
-- unlocked achievements
-- placeholder currencies
-- placeholder settings
-- placeholder growth data
+- 선택 캐릭터
+- 마지막 선택 난이도
+- 클리어한 난이도 id
+- 캐릭터/난이도별 최고 기록
+- 해금 캐릭터
+- 해금 업적
+- placeholder 영구 재화
+- placeholder 설정
+- placeholder 성장 데이터
 
-### 3-2. Per-Run State
+### 3-2. 런 한정 상태
 
-Reset when a run begins:
+런 시작 시 초기화된다.
 
-- gold
-- player health
-- current day
-- remaining day time
-- current run difficulty
-- current run character
-- current run stage reached
-- clear flag
+- 골드
+- 플레이어 체력
+- 현재 Day
+- Day 남은 시간
+- 현재 런 난이도
+- 현재 런 캐릭터
+- 현재 런 도달 단계
+- 클리어 여부
 - XP
-- level
-- temporary run bonuses from level-up cards
+- 레벨
+- 레벨업 카드로 얻는 런 한정 보너스
 
 ---
 
-## 4. Run Start Flow
+## 4. 런 시작 흐름
 
-The current start flow is:
+현재 런 시작 흐름은 아래와 같다.
 
-1. player enters `MainHub`
-2. player may change character in `CharacterList`
-3. player presses `Start Game`
-4. hub opens a difficulty popup
-5. chosen difficulty is validated against unlock rules
-6. `GameState.begin_run()` stores current run selection
-7. scene changes to `Main.tscn`
-8. `Main._ready()` calls `GameState.reset_run()`
+1. 플레이어가 `MainHub`에 들어간다
+2. 필요하면 `CharacterList`에서 캐릭터를 바꾼다
+3. `Start Game`을 누른다
+4. 허브가 난이도 팝업을 연다
+5. 선택 난이도를 해금 규칙으로 검사한다
+6. `GameState.begin_run()`이 현재 런 선택값을 저장한다
+7. 장면이 `Main.tscn`으로 바뀐다
+8. `Main._ready()`에서 `GameState.reset_run()`이 호출된다
 
-The run always starts at:
+런 시작 기본값:
 
-- day `1`
-- timer `40.0` seconds
-- stage reached `1`
-- gold `0`
-- level `1`
+- Day `1`
+- 타이머 `40.0초`
+- 도달 단계 `1`
+- 골드 `0`
+- 레벨 `1`
 - XP `0 / 50`
 
 ---
 
-## 5. Day Structure
+## 5. Day 구조
 
-### 5-1. Global Day Rules
+### 5-1. 기본 Day 규칙
 
-The current run is defined as:
+현재 런 전체는 아래 규칙을 따른다.
 
-- total days: `30`
-- day duration: `40` seconds each
+- 총 Day 수: `30`
+- Day 시간: 각 `40초`
 
-The game updates a day timer every physics frame.
+Day 타이머는 물리 프레임마다 감소한다.
 
-### 5-2. Day Types
+### 5-2. Day 타입
 
-Current day types are:
+현재 Day 타입은 아래와 같다.
 
-- normal day
-- rush day: `5`, `15`, `25`
-- boss day: `10`, `20`, `30`
+- 일반 Day
+- Rush Day: `5`, `15`, `25`
+- Boss Day: `10`, `20`, `30`
 
-Rush days reduce spawn interval.
-Boss days also reduce spawn interval and force a boss block spawn.
+Rush Day는 스폰 간격을 줄인다.
+Boss Day는 스폰 간격을 줄이고 보스 블록을 강제로 스폰한다.
 
-### 5-3. Day Transition
+### 5-3. Day 전환
 
-Current implemented behavior:
+현재 구현된 동작:
 
-- days `1` to `29` automatically advance when time expires
-- there is no merchant scene or shop scene yet
-- advancing to the next day resets the day timer
-- the next boss day warning in the HUD updates automatically
+- Day `1`부터 `29`까지는 시간이 끝나면 자동으로 다음 Day로 진행
+- 아직 상인/상점 장면은 없음
+- 다음 Day로 넘어갈 때 Day 타이머를 다시 채움
+- HUD의 다음 보스 경고도 함께 갱신
 
-This is important: older planning docs referenced a merchant/shop step,
-but the current code does not implement that phase yet.
+즉, 예전 계획 문서에서 말하던 상점 단계는 현재 코드에는 아직 구현되지 않았다.
 
-### 5-4. Day 30 Outcome
+### 5-4. Day 30 처리
 
-Day 30 is special.
+Day 30은 특별 처리다.
 
-Clear can happen in two ways:
+클리어는 아래 두 경우 중 하나로 판정된다.
 
-1. the Day 30 boss block is destroyed
-2. the Day 30 boss decomposes into sand, while the player is still alive and
-   total sand count stays below the overload threshold
+1. Day 30 보스 블록을 직접 파괴했을 때
+2. Day 30 보스가 모래로 분해됐지만 플레이어가 살아 있고,
+   전체 모래 수가 과적 한계 아래일 때
 
-If Day 30 time expires before clear, the run fails.
+Day 30에서 시간이 먼저 끝나면 실패다.
 
 ---
 
-## 6. Difficulty Structure
+## 6. 난이도 구조
 
-The current difficulty list is:
+현재 난이도 목록은 아래와 같다.
 
 - `normal`
 - `hard`
@@ -221,135 +220,135 @@ The current difficulty list is:
 - `hell`
 - `nightmare`
 
-Unlock rule:
+해금 규칙:
 
-- `normal` starts unlocked
-- each higher difficulty requires clearing the previous one
+- `normal`은 처음부터 해금
+- 상위 난이도는 바로 아래 난이도를 클리어해야 해금
 
-Current difficulty effects in code:
+현재 난이도가 코드에 주는 영향:
 
-- multiplier to block HP
-- multiplier to mining HP value in definitions exists, but is not yet applied by gameplay code
+- 블록 HP 배수
+- 채굴 HP 배수 값도 데이터에는 있으나, 현재 실제 게임플레이에는 아직 적극 반영되지 않음
 
-Difficulty choice is made in the hub before entering the run.
-
----
-
-## 7. World Layout
-
-### 7-1. Fixed World Dimensions
-
-The current world is fixed-size, not infinite:
-
-- width: `30` columns
-- height: `200` rows
-- cell size: `64px`
-
-Horizontal structure:
-
-- left wall: `10` columns
-- center lane: `10` columns
-- right wall: `10` columns
-
-### 7-2. Walls And Floor
-
-The side walls are static mineable regions.
-The floor is the last row and acts as solid ground.
-
-The center lane is the active falling-block lane and player movement space.
-
-### 7-3. Camera
-
-The current camera rules are:
-
-- horizontal center is fixed to world center
-- vertical position follows the player
-- zoom is `Vector2.ONE`
-- camera limits are clamped to the world bounds
-
-This means the prototype presents the run as a fixed-width vertical survival space.
+난이도 선택은 허브에서 런 시작 직전에 한다.
 
 ---
 
-## 8. Spawn Structure
+## 7. 월드 레이아웃
 
-Falling blocks are spawned by `SpawnTimer`.
+### 7-1. 고정 월드 크기
 
-Current spawn behavior:
+현재 월드는 무한 확장 구조가 아니라 고정 크기다.
 
-- uses weighted block type selection
-- spawns inside the center lane only
-- spawns above the current camera view
-- avoids immediate overlap with player and active blocks when possible
-- avoids repeating the same spawn column on the first attempt
+- 가로: `30칸`
+- 세로: `200칸`
+- 셀 크기: `64px`
 
-Boss days also inject a guaranteed boss block spawn using the `ember_wide` block type.
+가로 구성:
 
----
+- 왼쪽 벽: `10칸`
+- 중앙 라인: `10칸`
+- 오른쪽 벽: `10칸`
 
-## 9. Run End Rules
+### 7-2. 벽과 바닥
 
-The run currently ends for any of these reasons:
+좌우 벽은 채굴 가능한 정적 벽 영역이다.
+바닥은 마지막 행이며 고정 지지면 역할을 한다.
 
-- manual end with `R`
-- player health reaches `0`
-- sand count reaches or exceeds the temporary overload threshold `240`
-- Day 30 time expires before clear
-- Day 30 boss clear condition is met
+중앙 라인은 낙하 블록과 플레이어가 실제로 부딪히는 전투 공간이다.
 
-Days `1` to `29` ending by timer are not run-fail states.
-They are automatic progression states.
+### 7-3. 카메라
 
----
+현재 카메라 규칙:
 
-## 10. HUD Role In Structure
+- 가로 중심은 월드 중앙에 고정
+- 세로 위치는 플레이어를 따라감
+- 줌은 `Vector2.ONE`
+- 카메라 한계는 월드 바깥으로 나가지 않도록 고정
 
-The HUD is part of the run structure, not just decoration.
-
-It currently provides:
-
-- day number and total day count
-- difficulty display
-- next boss warning
-- day timer
-- player level, HP, XP
-- total gold and day gold
-- weight load meter
-- sensor panel for player/block vertical awareness
-- optional debug panel via `Tab`
-
-The HUD is therefore one of the main structural layers of the playable loop.
+즉, 현재 프로토타입은 "고정 폭의 세로 생존 공간"을 보여 주는 구조다.
 
 ---
 
-## 11. Current Out-Of-Scope Or Placeholder Areas
+## 8. 스폰 구조
 
-The following remain outside current implemented structure:
+낙하 블록은 `SpawnTimer`로 생성된다.
 
-- inter-day merchant or shop scene
-- fully realized growth tree
-- achievement progression logic
-- inventory ownership loop
-- detailed result breakdown
-- multiple unique playable character kits
-- advanced boss scripting beyond current boss spawn and clear rules
+현재 스폰 규칙:
 
-These should stay clearly separated from the current structure docs.
+- 가중치 기반 블록 타입 선택
+- 중앙 라인 안에서만 스폰
+- 현재 카메라 상단 바깥에서 스폰
+- 가능하면 플레이어 및 활성 블록과 즉시 겹치지 않도록 조정
+- 첫 시도에서는 직전 스폰 열을 반복하지 않도록 완화
+
+Boss Day에는 `ember_wide` 기반 보스 블록이 추가로 강제 스폰된다.
 
 ---
 
-## 12. Summary
+## 9. 런 종료 규칙
 
-Burial Protocol currently ships as a playable vertical run prototype with:
+현재 런 종료 조건은 아래와 같다.
 
-- title to hub to run to result flow
-- persistent selection and record state
-- fixed 30-day run structure
-- rush and boss day variants
-- fixed-width vertical world presentation
-- automatic day progression
-- multiple fail states and one clear path
+- `R`로 수동 종료
+- 플레이어 체력이 `0`이 됨
+- 모래 수가 임시 과적 한계 `240` 이상이 됨
+- Day 30 시간이 클리어 전에 끝남
+- Day 30 보스 클리어 조건 충족
 
-The biggest structural gap between older planning documents and current code is that
-the day-to-day merchant/shop phase is still not implemented, while run-time combat,
-movement, sand handling, and HUD readability are much further along.
+Day `1`부터 `29`까지는 타이머 종료가 곧 런 실패가 아니다.
+그냥 다음 Day로 진행되는 상태다.
+
+---
+
+## 10. 구조 안에서 HUD의 역할
+
+HUD는 장식이 아니라 현재 런 구조의 일부다.
+
+현재 HUD가 제공하는 정보:
+
+- 현재 Day와 총 Day 수
+- 난이도 표시
+- 다음 보스 경고
+- Day 타이머
+- 플레이어 레벨, HP, XP
+- 총 골드와 Day 골드
+- 중량 게이지
+- 플레이어/블록 세로 위치 인지용 센서 패널
+- `Tab`으로 여는 디버그 패널
+
+즉, 현재 HUD는 플레이 가능한 루프의 주요 구조 레이어다.
+
+---
+
+## 11. 현재 구조 밖에 있는 것
+
+아래는 아직 현재 구현 구조 밖에 있다.
+
+- Day 사이 상점/상인 장면
+- 완성된 영구 성장 트리
+- 업적 진행 로직
+- 인벤토리 보유 루프
+- 상세 결과 통계
+- 캐릭터별 고유 플레이 차이
+- 현재 보스 스폰 규칙을 넘는 확장 보스 연출/행동
+
+이 항목들은 현재 구조 문서와 반드시 분리해서 적어야 한다.
+
+---
+
+## 12. 정리
+
+Burial Protocol은 현재 아래 특징을 가진 플레이 가능한 세로형 런 프로토타입이다.
+
+- 타이틀 -> 허브 -> 런 -> 결과 -> 허브 흐름
+- 선택 상태와 기록의 영구 저장
+- 30일 기준 런 구조
+- Rush/Boss Day 변형
+- 고정 폭 세로 월드
+- 자동 Day 진행
+- 여러 실패 조건과 하나의 클리어 경로
+
+현재 구조 문서와 예전 계획 문서의 가장 큰 차이는,
+"Day 종료 후 상점 단계"는 아직 없지만
+"실제 전투, 이동, 모래 처리, HUD 가독성"은 훨씬 앞서 있다는 점이다.

@@ -1,103 +1,103 @@
 # Burial Protocol - Gameplay Systems Specification
 
-## 0. Purpose
+## 0. 목적
 
-This document describes the gameplay systems that are currently implemented in the
-prototype. It focuses on controls, movement, combat, mining, blocks, sand, walls,
-progression, and run-end logic.
-
----
-
-## 1. Input Map
-
-Current default bindings:
-
-- move left: `A`, `Left Arrow`
-- move right: `D`, `Right Arrow`
-- jump: `W`, `Up Arrow`, `Space`
-- move down / fast fall: `S`, `Down Arrow`
-- attack: `Left Mouse Button`
-- mine: `Right Mouse Button`
-- end run: `R`
-- toggle HUD debug panel: `Tab`
-
-Input actions are created at runtime by `GameConstants.ensure_input_actions()`.
+이 문서는 현재 프로토타입에 실제로 구현된 게임플레이 시스템을 정리한다.
+입력, 이동, 전투, 채굴, 블록, 모래, 벽, 성장, 런 종료 규칙을
+현재 코드 기준으로 기록하는 문서다.
 
 ---
 
-## 2. Player Movement
+## 1. 입력 맵
 
-### 2-1. Baseline Values
+현재 기본 입력은 아래와 같다.
 
-- move speed: `426 px/s`
-- air speed: `373 px/s`
-- sand speed multiplier: `0.62`
-- gravity: `2000 px/s^2`
-- jump speed: `-853`
-- extra jumps: `1`
-- wall jump horizontal speed: `480`
-- wall slide cap: `200`
-- jump buffer: `0.14s`
-- coyote time: `0.1s`
+- 좌이동: `A`, `Left Arrow`
+- 우이동: `D`, `Right Arrow`
+- 점프: `W`, `Up Arrow`, `Space`
+- 아래입력 / 급강하: `S`, `Down Arrow`
+- 공격: `Left Mouse Button`
+- 채굴: `Right Mouse Button`
+- 런 종료: `R`
+- HUD 디버그 패널 토글: `Tab`
 
-### 2-2. Implemented Movement Features
-
-The player currently supports:
-
-- ground movement
-- air movement
-- buffered jump
-- coyote jump
-- one extra jump
-- wall jump
-- wall slide
-- fast fall by holding down
-- riding on top of falling blocks
-
-The movement controller is pixel-stepped and uses custom collision handling rather
-than full rigid-body motion.
-
-### 2-3. Sand Interaction
-
-The player is slowed when standing in sand.
-
-Special support exists for:
-
-- pushing sand sideways while moving through it
-- clearing sand above the player to make jump paths possible
-- resolving dash movement through sand differently from normal movement
+입력 액션은 `GameConstants.ensure_input_actions()`에서 런타임에 보장된다.
 
 ---
 
-## 3. Dash System
+## 2. 플레이어 이동
 
-The current dash system is active and bound to double-tap input.
+### 2-1. 기본 수치
 
-### 3-1. Trigger Rules
+- 이동 속도: `426 px/s`
+- 공중 이동 속도: `373 px/s`
+- 모래 속도 배수: `0.62`
+- 중력: `2000 px/s^2`
+- 점프 속도: `-853`
+- 추가 점프 수: `1`
+- 벽점프 가로 속도: `480`
+- 벽 슬라이드 최대 낙하 속도: `200`
+- 점프 버퍼: `0.14초`
+- 코요테 타임: `0.1초`
 
-- double tap left to dash left
-- double tap right to dash right
-- double tap down to dash downward
-- upward dash is currently disabled
+### 2-2. 현재 구현된 이동 기능
 
-### 3-2. Dash Values
+현재 플레이어는 아래 기능을 가진다.
 
-- double-tap window: `0.22s`
-- dash distance: `4 cells`
-- dash duration: `0.08s`
-- dash cooldown: `0.45s`
+- 지상 이동
+- 공중 이동
+- 점프 버퍼
+- 코요테 점프
+- 추가 점프 1회
+- 벽점프
+- 벽 슬라이드
+- 아래 입력 기반 급강하
+- 낙하 블록 위 탑승 이동
 
-### 3-3. Dash Behavior
+이동은 픽셀 단위 수동 충돌 처리 기반이며,
+완전한 물리 바디 이동 구조는 아니다.
 
-During dash:
+### 2-3. 모래와의 상호작용
 
-- the player becomes a special movement state
-- horizontal or downward motion is applied in a burst
-- sand push attempts are more aggressive than normal movement
-- the sprite gains dash feedback visuals
-- attack and mining are blocked
+플레이어가 모래 위에 있으면 속도가 감소한다.
 
-Current feedback states include:
+현재 모래 관련 보조 기능:
+
+- 수평 이동 중 모래를 옆으로 밀기
+- 플레이어 위 모래를 비워 점프 공간 확보 시도
+- 대시 중에는 일반 이동보다 강한 모래 밀기 시도
+
+---
+
+## 3. 대시 시스템
+
+현재 대시는 더블탭 입력 기반으로 실제 구현되어 있다.
+
+### 3-1. 발동 규칙
+
+- 왼쪽 더블탭 -> 왼쪽 대시
+- 오른쪽 더블탭 -> 오른쪽 대시
+- 아래 더블탭 -> 아래 대시
+- 위 대시는 현재 비활성
+
+### 3-2. 대시 수치
+
+- 더블탭 판정 시간: `0.22초`
+- 대시 거리: `4칸`
+- 대시 지속 시간: `0.08초`
+- 대시 쿨다운: `0.45초`
+
+### 3-3. 대시 동작
+
+대시 중에는:
+
+- 플레이어가 별도 이동 상태가 된다
+- 짧은 시간 동안 가로 또는 아래 방향으로 강하게 이동한다
+- 일반 이동보다 더 적극적으로 모래 밀기를 시도한다
+- 스프라이트와 외곽선에 대시 피드백이 들어간다
+- 공격과 채굴은 막힌다
+
+현재 피드백 상태:
 
 - queued
 - armed
@@ -106,148 +106,148 @@ Current feedback states include:
 
 ---
 
-## 4. Attack System
+## 4. 공격 시스템
 
-### 4-1. Attack Direction
+### 4-1. 공격 방향
 
-Attack direction is resolved from the mouse position relative to the player.
+공격 방향은 플레이어 기준 마우스 위치로 계산된다.
 
-Rules:
+규칙:
 
-- mouse direction is used when distance exceeds the deadzone
-- facing direction is used as fallback
-- player facing flips with horizontal aim
+- 마우스 거리가 deadzone을 넘으면 마우스 방향 사용
+- 너무 가까우면 현재 facing 방향 사용
+- 가로 조준 방향에 따라 플레이어 facing도 갱신
 
-### 4-2. Attack Shape
+### 4-2. 공격 판정 형태
 
-Current attack shape:
+현재 공격 판정은 아래와 같다.
 
-- rotated rectangle
-- width: `1U`
-- height: `1U`
-- positioned directly outside the player body in the chosen direction
+- 회전 가능한 직사각형
+- 가로 길이: `1U`
+- 세로 두께: `1U`
+- 플레이어 몸체 바깥쪽에 붙어서 배치
 
-### 4-3. Attack Values
+### 4-3. 공격 수치
 
-- base damage: `10`
-- cooldown: `0.25s`
-- buffer time: `0.12s`
-- preview duration: `0.12s`
+- 기본 공격력: `10`
+- 공격 쿨다운: `0.25초`
+- 공격 버퍼: `0.12초`
+- 공격 프리뷰 시간: `0.12초`
 
-Current run bonuses can increase attack damage and effective attack speed.
+레벨업 보너스로 공격력과 사실상의 공격 속도가 증가할 수 있다.
 
-### 4-4. Attack Targets
+### 4-4. 공격 대상
 
-Attack currently hits active falling blocks through shape query results.
+현재 공격은 shape query를 통해 활성 낙하 블록에만 적용된다.
 
-Current behavior:
+현재 동작:
 
-- can hit multiple blocks in one swing
-- applies damage to each block only once per swing
-- updates status text for hit or miss
-
----
-
-## 5. Mining System
-
-### 5-1. Mining Direction
-
-Mining uses the same directional resolution baseline as attack.
-
-### 5-2. Mining Shape
-
-Current mining shape:
-
-- rotated rectangle
-- forward distance: `0.25U`
-- vertical size: `1U`
-- positioned adjacent to the player body
-
-### 5-3. Mining Values
-
-- base mining damage: `1`
-- cooldown: `0.15s`
-- buffer time: `0.12s`
-
-Current run bonuses can increase mining damage and mining speed.
-
-### 5-4. Mining Targets
-
-Mining can affect:
-
-- sand cells
-- wall subcells
-
-Mining does not currently damage falling blocks.
-
-### 5-5. Mining Rewards
-
-Current reward rules:
-
-- removing sand grants XP
-- mining wall sections does not grant XP
-- mining does not directly grant gold
-
-Status text reports sand and wall hits separately when both are affected.
+- 한 번에 여러 블록을 때릴 수 있음
+- 같은 스윙에서 같은 블록은 한 번만 맞음
+- 맞췄는지 빗나갔는지 상태 문구 갱신
 
 ---
 
-## 6. Falling Block System
+## 5. 채굴 시스템
 
-### 6-1. Active Falling Blocks
+### 5-1. 채굴 방향
 
-Blocks spawn as active falling entities inside the center lane and fall downward
-at a fixed speed.
+채굴도 공격과 같은 방향 해석 기준을 사용한다.
 
-Current fall speed:
+### 5-2. 채굴 판정 형태
+
+현재 채굴 판정은 아래와 같다.
+
+- 회전 가능한 직사각형
+- 전방 거리: `0.25U`
+- 세로 높이: `1U`
+- 플레이어 몸체 바깥에 인접 배치
+
+### 5-3. 채굴 수치
+
+- 기본 채굴 데미지: `1`
+- 채굴 쿨다운: `0.15초`
+- 채굴 버퍼: `0.12초`
+
+레벨업 보너스로 채굴 데미지와 채굴 속도를 증가시킬 수 있다.
+
+### 5-4. 채굴 대상
+
+현재 채굴이 영향을 줄 수 있는 것은 아래 두 가지다.
+
+- 모래 셀
+- 벽 서브셀
+
+낙하 블록은 현재 채굴 대상이 아니다.
+
+### 5-5. 채굴 보상
+
+현재 보상 규칙:
+
+- 모래 제거 시 XP 획득
+- 벽 채굴은 XP 없음
+- 채굴 자체로 골드는 직접 지급되지 않음
+
+모래와 벽이 동시에 맞았으면 상태 문구에서 둘 다 따로 보고된다.
+
+---
+
+## 6. 낙하 블록 시스템
+
+### 6-1. 활성 낙하 블록
+
+블록은 중앙 라인 위에서 활성 낙하 객체로 스폰되고,
+고정 속도로 아래로 떨어진다.
+
+현재 낙하 속도:
 
 - `226 px/s`
 
-Base spawn interval:
+기본 스폰 간격:
 
-- `1.2s`
+- `1.2초`
 
-### 6-2. Block Outcomes
+### 6-2. 블록의 종료 방식
 
-A falling block can end in three major ways:
+낙하 블록은 현재 크게 세 방식으로 끝난다.
 
-1. destroyed by player attack
-2. decomposed when it settles on static terrain or sand
-3. decomposed after crushing the player
+1. 플레이어 공격으로 파괴
+2. 바닥/벽/모래 등에 닿아 분해
+3. 플레이어를 압사시키며 분해
 
-If a falling block touches the player from above but does not crush them,
-the current code can briefly position it onto the player's head area.
+플레이어와 닿았지만 바로 압사 조건이 아니면,
+현재 코드상 잠시 플레이어 머리 위에 걸치는 식으로 멈출 수도 있다.
 
-### 6-3. HP And Overlay
+### 6-3. HP와 오버레이
 
-Blocks have HP and show a temporary HP bar overlay when damaged.
+블록은 HP를 가지며, 맞았을 때 잠시 HP 바 오버레이를 표시한다.
 
-The overlay uses:
+현재 오버레이 특징:
 
-- short visible duration
-- color interpolation from low HP to high HP
+- 짧은 유지 시간
+- 남은 HP 비율에 따른 색 보간
 
-### 6-4. Destroyed Block Rewards
+### 6-4. 블록 파괴 보상
 
-When a block is destroyed:
+블록이 파괴되면:
 
-- gold is awarded
-- XP is awarded
-- a gold popup is spawned
-- a status message is updated
+- 골드 지급
+- XP 지급
+- 골드 팝업 생성
+- 상태 문구 갱신
 
-When a block decomposes:
+블록이 분해되면:
 
-- it becomes sand according to its sand unit count
-- no gold is awarded
+- 블록의 sand unit 수만큼 모래가 생성
+- 골드는 지급되지 않음
 
 ---
 
-## 7. Block Data Model
+## 7. 블록 데이터 모델
 
-### 7-1. Block Bases
+### 7-1. 블록 베이스
 
-Current block bases:
+현재 블록 베이스는 아래와 같다.
 
 - glass
 - wood
@@ -258,29 +258,30 @@ Current block bases:
 - steel
 - bomb
 
-Each base defines:
+각 베이스는 아래 정보를 가진다.
 
-- display name
-- color
-- spawn weight contribution
-- HP multiplier
-- reward multiplier
-- special result type
+- 표시 이름
+- 색
+- 스폰 가중치 기여
+- HP 배수
+- 보상 배수
+- 특수 결과 타입
 
-### 7-2. Special Result Types
+### 7-2. 특수 결과 타입
 
-Current special-result ids exist in code for:
+현재 코드에 존재하는 특수 결과 id:
 
 - none
 - glass shatter damage
 - bonus gold
 - explosion
 
-These ids are part of the data model, but their gameplay expansion is still limited.
+이 값들은 데이터 모델에는 반영돼 있지만,
+게임플레이 표현은 아직 제한적이다.
 
-### 7-3. Block Types
+### 7-3. 현재 활성 블록 타입
 
-Current active block types are:
+현재 실제 사용되는 블록 타입:
 
 - `amber_small`
 - `amber_tall_wood`
@@ -291,232 +292,234 @@ Current active block types are:
 - `ember_wide`
 - `ember_bomb`
 
-Each block type defines:
+각 블록 타입은 아래 정보를 가진다.
 
 - id
-- size in world cells
-- base health
-- sand unit count
-- gold reward
+- 월드 셀 기준 크기
+- 기본 체력
+- sand unit 수
+- 골드 보상
 - color key
-- spawn weight
+- 스폰 가중치
 - block base
 
-### 7-4. Difficulty And Boss Multipliers
+### 7-4. 난이도와 보스 배수
 
-Current block HP may be modified by:
+현재 블록 HP에는 아래 배수가 추가될 수 있다.
 
-- selected difficulty HP multiplier
-- boss extra HP multiplier for boss spawn blocks
+- 선택 난이도의 HP 배수
+- 보스 블록 전용 추가 HP 배수
 
-Day 30 boss tracking uses the boss block spawned from `ember_wide`.
-
----
-
-## 8. World Grid And Mining Walls
-
-### 8-1. Static Structure
-
-The world grid currently contains:
-
-- left mining wall
-- right mining wall
-- center open lane
-- bottom floor
-
-### 8-2. Wall Structure
-
-Each wall cell is subdivided into a `4 x 4` grid of subcells.
-
-Each wall subcell currently has:
-
-- max HP `3`
-
-This allows partial wall mining instead of all-or-nothing wall removal.
-
-### 8-3. Wall Collision
-
-Static collision checks respect:
-
-- world bounds
-- floor
-- remaining wall subcells
-
-Mined wall cells visually track touched cells and partially damaged subcells.
+Day 30 보스 추적은 `ember_wide` 기반 보스 블록으로 처리한다.
 
 ---
 
-## 9. Sand System
+## 8. 월드 그리드와 채굴 벽
 
-### 9-1. Representation
+### 8-1. 정적 구조
 
-Sand is simulated as a dictionary of small cells.
+현재 월드 그리드는 아래 구조를 가진다.
 
-Current density:
+- 왼쪽 채굴 벽
+- 오른쪽 채굴 벽
+- 중앙 오픈 라인
+- 하단 바닥
 
-- `6 x 6` sand cells per `1U`
+### 8-2. 벽 구조
 
-Each sand cell currently has:
+벽 셀 하나는 현재 `4 x 4` 서브셀로 쪼개져 있다.
 
-- color
-- weight value from color family
+각 서브셀의 현재 HP:
+
+- 최대 HP `3`
+
+그래서 벽은 한 칸 단위 통삭제가 아니라 부분 채굴이 가능하다.
+
+### 8-3. 벽 충돌
+
+정적 충돌은 아래를 기준으로 계산된다.
+
+- 월드 바깥 경계
+- 바닥
+- 아직 HP가 남아 있는 벽 서브셀
+
+채굴된 벽 셀은 touched 셀 표시와 부분 손상 서브셀 드로우를 유지한다.
+
+---
+
+## 9. 모래 시스템
+
+### 9-1. 표현 방식
+
+모래는 작은 셀 딕셔너리로 시뮬레이션된다.
+
+현재 밀도:
+
+- `1U`당 `6 x 6` 모래 셀
+
+현재 모래 셀 데이터:
+
+- 색
+- 색 계열에 따른 중량값
 - HP
-- stable flag
+- stable 플래그
 
-### 9-2. Sand Creation
+### 9-2. 모래 생성
 
-Sand is spawned from block decomposition.
+모래는 블록 분해 결과로 생성된다.
 
-The number of spawned sand cells is based on block data `sand_units`.
+생성량은 블록 데이터의 `sand_units`를 따른다.
 
-### 9-3. Sand Simulation
+### 9-3. 모래 시뮬레이션
 
-The simulation is selective, not full-world brute force.
+현재 시뮬레이션은 전체 월드를 매 프레임 돌리는 구조가 아니다.
 
-Current behavior:
+현재 특징:
 
-- active cells are tracked
-- only active regions are stepped
-- movement priority alternates left/right by frame
-- simulation is concentrated near the player and recently modified areas
+- active 셀 추적
+- 활성 영역만 업데이트
+- 프레임마다 좌/우 우선순위 교대
+- 플레이어 주변과 최근 변동 영역에 계산 집중
 
-### 9-4. Sand Movement
+### 9-4. 모래 이동 규칙
 
-Sand currently tries to:
+현재 모래는 아래 순서를 시도한다.
 
-- fall straight down first
-- move diagonally down-left or down-right if possible
-- react conservatively after mining
+- 먼저 아래로 낙하
+- 불가능하면 좌하 또는 우하 대각 이동
+- 채굴 직후에는 보수적인 재활성화
 
-### 9-5. Sand And Player Interaction
+### 9-5. 모래와 플레이어 상호작용
 
-Current special handling includes:
+현재 구현된 보조 처리:
 
-- pushing sand sideways during movement
-- limited chain push logic
-- jump clearance attempts through sand above the player
-- aggressive push attempts during dash
+- 수평 이동 시 모래 밀기
+- 제한된 체인 push 로직
+- 플레이어 위 점프 공간 비우기 시도
+- 대시 중 더 공격적인 모래 밀기
 
-### 9-6. Weight Load
+### 9-6. 중량
 
-The run currently fails when:
+현재 런은 아래 조건에서 실패한다.
 
-- total sand cell count reaches or exceeds `240`
+- 전체 모래 셀 수가 `240` 이상일 때
 
-The HUD presents this as a weight load meter.
-
----
-
-## 10. XP, Level, And Temporary Bonuses
-
-### 10-1. XP Sources
-
-Current XP sources:
-
-- destroying a falling block
-- removing sand through mining
-
-Current formulas:
-
-- block XP = `width_cells * height_cells * 2`
-- sand XP = `removed_sand_count * 1`
-
-### 10-2. Level Thresholds
-
-Current starting values:
-
-- level `1`
-- current XP `0`
-- next level XP `50`
-
-After each level-up:
-
-- current XP is reduced by the threshold
-- level increases by `1`
-- next threshold becomes `level * 50`
-
-### 10-3. Level-Up UI
-
-When XP reaches the threshold:
-
-- `GameState.level_up_ready` is emitted
-- gameplay pauses
-- `LevelUpUI` appears
-- three random cards are shown
-- the player selects one card
-- gameplay resumes
-
-If overflow XP is still enough for another level, the popup can trigger again.
-
-### 10-4. Current Level-Up Cards
-
-Current cards:
-
-- attack damage up
-- attack speed up
-- max HP up
-- move speed up
-- mining damage up
-- mining speed up
-
-These bonuses are temporary run bonuses, not permanent profile growth.
+HUD에서는 이 값을 중량 게이지로 보여 준다.
 
 ---
 
-## 11. Gold And Feedback
+## 10. XP, 레벨, 런 한정 보너스
 
-### 11-1. Gold
+### 10-1. XP 획득원
 
-Gold is currently granted only from destroyed falling blocks.
+현재 XP 획득원:
 
-The HUD tracks:
+- 낙하 블록 파괴
+- 모래 채굴 제거
 
-- total gold
-- gold earned during the current day
+현재 공식:
 
-### 11-2. Visual Feedback
+- 블록 XP = `width_cells * height_cells * 2`
+- 모래 XP = `removed_sand_count * 1`
 
-Current feedback systems include:
+### 10-2. 레벨 기준치
 
-- attack preview shape
-- mining preview shape
-- dash outline and trail
-- damage popup
-- gold popup
-- block HP overlay
-- status text updates
+현재 시작 값:
 
-Note: `GameState.status_text` is updated during gameplay, but the current HUD
-does not display a dedicated status-text widget yet.
+- 레벨 `1`
+- 현재 XP `0`
+- 다음 레벨 XP `50`
+
+레벨업 이후:
+
+- 현재 XP에서 요구치를 차감
+- 레벨 `1` 증가
+- 다음 요구치는 `level * 50`
+
+### 10-3. 레벨업 UI
+
+XP가 기준치를 넘으면:
+
+- `GameState.level_up_ready`가 emit 됨
+- 게임이 일시정지됨
+- `LevelUpUI`가 뜸
+- 랜덤 카드 3장이 표시됨
+- 플레이어가 1장을 선택함
+- 게임이 재개됨
+
+초과 XP가 남아 또 레벨업 가능하면 팝업이 다시 이어질 수 있다.
+
+### 10-4. 현재 레벨업 카드
+
+현재 카드 종류:
+
+- 공격력 증가
+- 공격 속도 증가
+- 최대 HP 증가
+- 이동 속도 증가
+- 채굴 데미지 증가
+- 채굴 속도 증가
+
+이 보너스들은 영구 성장값이 아니라 "현재 런 한정 보너스"다.
 
 ---
 
-## 12. Run End And Clear Conditions
+## 11. 골드와 시각 피드백
 
-Current fail conditions:
+### 11-1. 골드
 
-- health reaches `0`
-- sand count reaches `240` or more
-- player presses `R`
-- Day 30 timer expires before clear
+현재 골드는 낙하 블록 파괴에서만 지급된다.
 
-Current clear conditions:
+HUD는 아래 두 값을 추적한다.
 
-- Day 30 boss is destroyed
-- or Day 30 boss decomposes while the player survives and sand remains below overload
+- 총 골드
+- 현재 Day 동안 번 골드
+
+### 11-2. 시각 피드백
+
+현재 피드백 요소:
+
+- 공격 프리뷰
+- 채굴 프리뷰
+- 대시 외곽선과 트레일
+- 데미지 팝업
+- 골드 팝업
+- 블록 HP 오버레이
+- 상태 문구 갱신
+
+중요:
+`GameState.status_text`는 게임 중 계속 갱신되지만,
+현재 HUD에는 이 텍스트를 직접 보여 주는 전용 위젯이 아직 없다.
 
 ---
 
-## 13. Current Gaps
+## 12. 런 종료와 클리어 조건
 
-The following gameplay-adjacent systems are not yet fully realized:
+현재 실패 조건:
 
-- merchant/shop between days
-- permanent growth gameplay
-- achievement gameplay effects
-- inventory ownership gameplay
-- expanded block special-result behaviors
-- advanced boss scripting
+- 체력이 `0`이 됨
+- 모래 수가 `240` 이상이 됨
+- 플레이어가 `R`을 눌러 종료
+- Day 30 타이머가 클리어 전에 끝남
 
-The current codebase is strongest in movement, falling-block handling, sand simulation,
-and run readability systems.
+현재 클리어 조건:
+
+- Day 30 보스를 직접 파괴
+- 또는 Day 30 보스가 분해됐지만 플레이어가 살아 있고,
+  모래가 과적 한계 아래에 남아 있음
+
+---
+
+## 13. 현재 남아 있는 공백
+
+아래 시스템은 아직 본격 구현 전이다.
+
+- Day 사이 상점/상인 단계
+- 영구 성장 게임플레이
+- 업적 효과
+- 인벤토리 보유 게임플레이
+- 블록 특수 결과의 확장 표현
+- 더 진한 보스 스크립팅
+
+현재 코드베이스는 이동, 낙하 블록 처리, 모래 시뮬레이션,
+런 가독성 쪽이 가장 강한 상태다.

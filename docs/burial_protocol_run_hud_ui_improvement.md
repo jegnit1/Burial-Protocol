@@ -1,120 +1,122 @@
-# Burial Protocol - Run HUD UI Improvement
+# Burial Protocol - Run HUD UI 개선안
 
-## 0. Purpose
+## 0. 목적
 
-This document records the current HUD structure and the remaining improvement targets
-based on the live implementation in `scenes/ui/HUD.gd`.
+이 문서는 현재 `scenes/ui/HUD.gd`에 구현된 HUD 구조를 기준으로,
+무엇이 이미 들어가 있고 무엇이 아직 남아 있는지를 정리한다.
 
-The HUD is already much more than a mockup. It is part of the core run readability layer.
-
----
-
-## 1. Current HUD Layout
-
-The current HUD is divided into four main zones:
-
-- top left: stage progress
-- center left: sensor panel
-- bottom left: player status and debug
-- top right: economy and weight load
-
-This structure is already implemented in code.
+현재 HUD는 더 이상 단순 목업이 아니라,
+실제 런 가독성의 핵심 레이어다.
 
 ---
 
-## 2. Current Implemented Panels
+## 1. 현재 HUD 레이아웃
 
-### 2-1. Top Left - Stage Progress
+현재 HUD는 크게 네 구역으로 나뉜다.
 
-Currently shown:
+- 좌상단: 진행 정보
+- 좌중단: 센서 패널
+- 좌하단: 플레이어 상태와 디버그
+- 우상단: 경제와 중량
 
-- current day and total day count
-- difficulty name
-- next boss day warning
-- remaining day time text
-- remaining day time progress bar
+이 구조는 현재 코드에 이미 반영되어 있다.
 
-Current goals this panel already satisfies:
+---
 
-- makes run pacing easy to read
-- gives medium-term boss awareness
-- shows exact remaining time and visual time pressure
+## 2. 현재 구현된 패널
 
-### 2-2. Center Left - Sensor Panel
+### 2-1. 좌상단 - 진행 HUD
 
-This panel currently acts as a vertical awareness tool, not a literal minimap.
+현재 표시 정보:
 
-Currently shown:
+- 현재 Day / 총 Day 수
+- 난이도 이름
+- 다음 보스 Day 경고
+- 남은 시간 텍스트
+- 남은 시간 프로그레스 바
 
-- visible vertical window relative to the camera
-- active falling blocks in the center lane
-- player position marker
+이 패널이 현재 해결하는 것:
 
-This panel helps answer:
+- 런 진행 속도 파악
+- 중기 목표인 보스 타이밍 확인
+- 정확한 시간과 직관적인 시간 압박 동시 표시
 
-- what is falling above me
-- where am I in the current visible vertical space
-- how crowded is the center lane around the player
+### 2-2. 좌중단 - 센서 패널
 
-### 2-3. Bottom Left - Player Status
+이 패널은 미니맵이 아니라 "세로 위험 인지 장치"에 가깝다.
 
-Currently shown:
+현재 표시 정보:
 
-- level box
-- HP bar and exact HP text
-- XP bar and exact XP text
-- optional debug text panel
+- 카메라 기준 세로 가시 범위
+- 중앙 라인의 활성 낙하 블록
+- 플레이어 위치 점
 
-The debug panel is toggled with `Tab`.
+현재 이 패널이 답해 주는 질문:
 
-### 2-4. Top Right - Economy And Weight
+- 내 위에서 뭐가 떨어지고 있는가
+- 현재 화면 기준 세로 공간에서 내가 어디에 있는가
+- 중앙 라인이 얼마나 막혀 가는가
 
-Currently shown:
+### 2-3. 좌하단 - 플레이어 상태 HUD
 
-- total gold
-- gold earned during the current day
-- current weight load
-- weight load bar
-- weight status label
+현재 표시 정보:
 
-Current weight states:
+- 레벨 박스
+- HP 바와 정확한 HP 수치
+- XP 바와 정확한 XP 수치
+- 토글 가능한 디버그 텍스트
+
+디버그 패널은 `Tab`으로 열고 닫는다.
+
+### 2-4. 우상단 - 경제 / 중량 HUD
+
+현재 표시 정보:
+
+- 총 골드
+- 이번 Day 동안 번 골드
+- 현재 중량 수치
+- 중량 바
+- 중량 상태 라벨
+
+현재 중량 상태 구간:
 
 - `SAFE`
 - `SLOW`
 - `CRUSH`
-- flashing critical state near overload
+- 한계 직전 깜빡임 처리
 
-The weight meter is one of the most important survival signals in the current prototype.
-
----
-
-## 3. What The Current HUD Does Well
-
-- separates pacing, survival, economy, and player-state information
-- keeps important numeric values paired with bars where needed
-- gives the player a readable overload warning
-- exposes day progression clearly
-- supports the XP and level-up loop
-- includes a debug layer for rapid iteration
+중량 게이지는 현재 프로토타입에서 가장 중요한 생존 경고 장치 중 하나다.
 
 ---
 
-## 4. Current Gaps
+## 3. 현재 HUD가 잘하고 있는 점
 
-### 4-1. Status Text Is Not Surfaced
+- 진행, 생존, 경제, 플레이어 상태를 구역별로 분리함
+- 필요한 곳에서는 숫자와 바를 함께 보여 줌
+- 과적 위험을 즉시 읽을 수 있음
+- Day 진행 상황을 명확하게 보여 줌
+- XP와 레벨업 루프를 시각적으로 뒷받침함
+- 빠른 반복 작업용 디버그 레이어가 있음
 
-Gameplay constantly updates `GameState.status_text`, but the HUD currently ignores it.
+---
 
-That means the player does not get a dedicated on-screen feed for:
+## 4. 현재 부족한 점
 
-- attack hit or miss
-- mining results
-- crush warnings
-- block destroy notifications beyond popups
+### 4-1. 상태 문구가 HUD에 안 보인다
 
-### 4-2. Localization Coverage Is Incomplete
+게임플레이는 계속 `GameState.status_text`를 갱신하지만,
+HUD는 아직 이 값을 화면에 직접 표시하지 않는다.
 
-Some visible HUD strings are still hardcoded directly in `HUD.gd`, including:
+그래서 아래 정보는 내부적으로는 바뀌지만 HUD 피드로는 안 보인다.
+
+- 공격 성공/실패
+- 채굴 결과
+- 압사 경고
+- 블록 파괴 알림
+
+### 4-2. 로컬라이즈 적용이 덜 됐다
+
+아래 HUD 라벨 중 일부는 아직 `HUD.gd`에 하드코딩되어 있다.
 
 - `CURRENT DAY`
 - `TIME REMAINING`
@@ -124,76 +126,81 @@ Some visible HUD strings are still hardcoded directly in `HUD.gd`, including:
 - `THIS DAY`
 - `SAFE`, `SLOW`, `CRUSH`
 
-The project already has a locale layer, so these should move into `Locale.gd`.
+이미 `Locale.gd`가 있으므로 이 값들은 점차 옮겨 가는 것이 맞다.
 
-### 4-3. Sensor Panel Can Be More Informative
+### 4-3. 센서 패널은 더 좋아질 수 있다
 
-The current sensor panel already works, but it does not yet show:
+현재 센서 패널은 이미 실용적이지만,
+아직 아래 정보는 더 보강할 수 있다.
 
-- sand density directly
-- weight threshold markers
-- stronger boss emphasis
-- better visual distinction between normal and dangerous block groups
+- 모래 밀도 직접 표현
+- 중량 한계선 표시
+- 보스 위협 강조
+- 일반 블록과 위험 블록 구분 강화
 
-### 4-4. HUD Messaging Consistency Needs Cleanup
+### 4-4. HUD 메시지 일관성 정리가 필요하다
 
-Some systems use polished bars and labels.
-Others still rely on implicit understanding.
+어떤 정보는 바와 숫자로 정리되어 있는데,
+어떤 정보는 암묵적으로만 읽어야 한다.
 
-The next UI pass should align:
+다음 UI 패스에서는 아래를 맞추는 것이 좋다.
 
-- panel naming
-- font hierarchy
-- localization
-- status feedback placement
-
----
-
-## 5. Recommended Improvement Order
-
-### Step 1
-
-Add a dedicated status feed area to the HUD and connect it to `GameState.status_text_changed`.
-
-### Step 2
-
-Move hardcoded HUD strings into `Locale.gd`.
-
-### Step 3
-
-Improve sensor readability for:
-
-- boss threats
-- near-camera falling danger
-- overload pressure context
-
-### Step 4
-
-Polish visual consistency across all panels after the information structure is complete.
+- 패널 명칭
+- 폰트 위계
+- 로컬라이즈
+- 상태 피드백 위치
 
 ---
 
-## 6. Non-Goals For The Next HUD Pass
+## 5. 개선 우선순위
 
-The next pass should not:
+### 1단계
 
-- replace the current HUD with a full-screen menu overlay
-- turn the sensor into a detailed minimap
-- hide numeric data behind pure visuals
-- add excessive decorative animation before core readability is done
+HUD에 전용 상태 피드 영역을 만들고 `GameState.status_text_changed`에 연결한다.
 
-The HUD should stay practical and run-focused.
+### 2단계
+
+하드코딩된 HUD 문자열을 `Locale.gd`로 옮긴다.
+
+### 3단계
+
+센서 패널의 가독성을 개선한다.
+
+집중 대상:
+
+- 보스 위협
+- 카메라 근처 낙하 위험
+- 과적 압박 맥락
+
+### 4단계
+
+정보 구조가 다 붙은 뒤 전체 시각 스타일을 정리한다.
 
 ---
 
-## 7. Summary
+## 6. 다음 HUD 패스의 비목표
 
-The run HUD is already a real gameplay interface, not a future-only concept.
-The biggest remaining improvement is not layout invention.
-It is completing the information loop:
+다음 패스에서 하지 말아야 할 것:
 
-- surface status text
-- localize panel labels
-- sharpen sensor communication
+- HUD를 전면 메뉴형 오버레이로 바꾸기
+- 센서를 정밀 미니맵으로 바꾸기
+- 숫자를 빼고 시각 효과만 남기기
+- 정보 구조보다 장식 애니메이션을 먼저 붙이기
 
-That will make the existing run systems much easier to read without requiring a major redesign.
+현재 HUD는 계속 "실용적이고 런 중심적"이어야 한다.
+
+---
+
+## 7. 정리
+
+현재 런 HUD는 이미 실제 게임플레이 인터페이스다.
+가장 큰 남은 작업은 레이아웃을 새로 발명하는 것이 아니다.
+
+핵심은 아래 세 가지다.
+
+- 상태 문구를 HUD에 노출하기
+- 하드코딩 라벨을 로컬라이즈로 옮기기
+- 센서 패널의 전달력을 높이기
+
+이 세 가지를 처리하면,
+이미 구현된 런 시스템을 훨씬 더 읽기 쉬운 형태로 끌어올릴 수 있다.

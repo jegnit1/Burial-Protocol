@@ -1,36 +1,36 @@
 # Burial Protocol - Base State Specification
 
-## 0. Purpose
+## 0. 목적
 
-This document describes the current shared state model used by the project.
-It covers what is persisted, what exists only during a run, and which UI/runtime
-systems depend on that shared state.
+이 문서는 프로젝트가 현재 사용 중인 공유 상태 구조를 정리한다.
+무엇이 세이브에 남고, 무엇이 런 중에만 존재하며,
+어떤 UI/런타임 시스템이 그 상태를 참조하는지를 기록한다.
 
-The primary owner of this state is `scripts/autoload/GameState.gd`.
-
----
-
-## 1. State Categories
-
-The project currently uses three practical state layers:
-
-1. persistent profile state
-2. current run state
-3. temporary UI-facing signals
+현재 이 상태의 중심 소유자는 `scripts/autoload/GameState.gd`다.
 
 ---
 
-## 2. Persistent Profile State
+## 1. 상태 범주
 
-Persistent data is stored in:
+현재 프로젝트는 실질적으로 아래 세 층의 상태를 사용한다.
 
-- path: `user://profile.save`
-- format: JSON string
-- save version field: `save_version`
+1. 영구 프로필 상태
+2. 현재 런 상태
+3. UI 갱신용 시그널 상태
 
-### 2-1. Current Persistent Fields
+---
 
-The current save payload includes:
+## 2. 영구 프로필 상태
+
+영구 데이터는 아래 위치에 저장된다.
+
+- 경로: `user://profile.save`
+- 포맷: JSON 문자열
+- 버전 필드: `save_version`
+
+### 2-1. 현재 영구 저장 필드
+
+현재 세이브 데이터에는 아래가 들어간다.
 
 - `selected_character_id`
 - `last_selected_difficulty_id`
@@ -42,56 +42,58 @@ The current save payload includes:
 - `best_records_by_character`
 - `cleared_difficulty_ids`
 
-### 2-2. Persistent Data Meaning
+### 2-2. 영구 데이터 의미
 
-#### Character State
+#### 캐릭터 관련
 
-- selected character id
-- unlocked character ids
-- per-character best records by difficulty
+- 선택 캐릭터 id
+- 해금된 캐릭터 id 목록
+- 캐릭터별 난이도 최고 기록
 
-#### Difficulty State
+#### 난이도 관련
 
-- last selected difficulty id
-- cleared difficulty ids for unlock chaining
+- 마지막 선택 난이도 id
+- 난이도 해금용 클리어 기록
 
-#### Meta Placeholder State
+#### 메타 placeholder 관련
 
-- currencies
-- settings
-- growth
-- achievements
+- 재화
+- 설정
+- 성장
+- 업적
 
-These structures already persist, even where gameplay usage is still placeholder-only.
+즉, 아직 게임플레이 사용처가 placeholder인 항목도
+저장 구조 자체는 이미 들어가 있는 상태다.
 
 ---
 
-## 3. Character State
+## 3. 캐릭터 상태
 
-Current character-slot rules:
+현재 캐릭터 슬롯 규칙:
 
-- one default worker slot starts unlocked
-- nine additional slots exist as locked placeholders
-- each slot stores a best record summary through `best_records_by_character`
+- 기본 작업자 슬롯 1개는 시작부터 해금
+- 추가 슬롯 9개는 잠긴 placeholder
+- 각 슬롯은 최고 기록 요약을 가진다
 
-The active selection shown in menus is:
+메뉴에서 현재 선택된 값:
 
 - `selected_character_id`
 - `selected_character_name`
 
-The active run copies that into:
+실제 런에서는 이 값이 아래로 복사된다.
 
 - `current_run_character_id`
 - `current_run_character_name`
 
-This separation matters because the result screen reflects the finished run,
-not just the current menu selection.
+이 분리는 중요하다.
+결과 화면은 "현재 허브에서 선택 중인 값"이 아니라
+"방금 끝난 런의 값"을 보여 주기 때문이다.
 
 ---
 
-## 4. Difficulty State
+## 4. 난이도 상태
 
-Current difficulty state fields:
+현재 난이도 관련 상태 필드:
 
 - `last_selected_difficulty_id`
 - `last_selected_difficulty_name`
@@ -99,18 +101,18 @@ Current difficulty state fields:
 - `current_run_difficulty_name`
 - `cleared_difficulty_ids`
 
-Unlock logic:
+해금 규칙:
 
-- `normal` is open by default
-- each next difficulty unlocks only after the previous one is cleared
+- `normal`은 기본 해금
+- 그 위 난이도는 이전 난이도 클리어가 필요
 
-The hub uses this state to build the difficulty popup and disable locked buttons.
+메인 허브는 이 상태를 읽어서 난이도 팝업과 잠금 버튼을 만든다.
 
 ---
 
-## 5. Current Run State
+## 5. 현재 런 상태
 
-The following state resets at run start:
+아래 값들은 런 시작 시 초기화된다.
 
 - `gold`
 - `player_health`
@@ -129,22 +131,22 @@ The following state resets at run start:
 - `run_bonus_mining_damage`
 - `run_mining_speed_mult`
 
-### 5-1. Starting Values
+### 5-1. 시작 기본값
 
-Current defaults at run reset:
+현재 런 시작 기본값:
 
-- gold: `0`
-- health: `GameConstants.PLAYER_MAX_HEALTH`
-- current day: `1`
-- day time remaining: `GameConstants.DAY_DURATION`
-- cleared flag: `false`
-- level: `1`
+- 골드: `0`
+- 체력: `GameConstants.PLAYER_MAX_HEALTH`
+- 현재 Day: `1`
+- 남은 시간: `GameConstants.DAY_DURATION`
+- 클리어 여부: `false`
+- 레벨: `1`
 - XP: `0`
-- next level XP: `50`
+- 다음 레벨 XP: `50`
 
-### 5-2. Run Result State
+### 5-2. 런 결과 상태
 
-When a run finishes, `finish_temporary_run()` stores:
+런 종료 시 `finish_temporary_run()`이 아래 값을 기록한다.
 
 - `latest_run_record`
 - `latest_run_reason_id`
@@ -153,13 +155,13 @@ When a run finishes, `finish_temporary_run()` stores:
 - `latest_run_difficulty_name`
 - `latest_run_character_name`
 
-This is the data source for the result screen.
+이 값들이 결과 화면의 데이터 소스다.
 
 ---
 
-## 6. UI Signal Layer
+## 6. UI 시그널 계층
 
-`GameState` currently exposes these signals:
+현재 `GameState`가 제공하는 시그널은 아래와 같다.
 
 - `gold_changed`
 - `health_changed`
@@ -169,98 +171,99 @@ This is the data source for the result screen.
 - `level_changed`
 - `level_up_ready`
 
-### 6-1. Current Consumers
+### 6-1. 현재 소비자
 
-Current primary UI consumers:
+현재 이 시그널을 직접 또는 간접으로 사용하는 주요 UI:
 
 - `HUD`
-- menu scenes using `GameState` directly
+- `GameState`를 직접 읽는 메뉴 장면들
 - `LevelUpUI`
 
-### 6-2. Important Note
+### 6-2. 중요한 현재 상태
 
-`status_text` is actively updated by gameplay systems, but the current HUD does not
-yet surface that text in a dedicated visual widget.
+`status_text`는 게임 중 계속 바뀌지만,
+현재 HUD에는 이 텍스트를 전용으로 보여 주는 위젯이 아직 없다.
 
-So this state exists and changes correctly, but its presentation layer is incomplete.
-
----
-
-## 7. XP And Temporary Bonus State
-
-Current XP flow:
-
-- block destruction adds XP
-- sand mining adds XP
-- hitting level threshold emits `level_up_ready`
-
-Current temporary run bonus fields:
-
-- attack damage bonus
-- move speed bonus
-- max HP bonus
-- attack speed multiplier
-- mining damage bonus
-- mining speed multiplier
-
-These are temporary run modifiers, not permanent profile growth.
+즉, 상태 자체는 존재하고 갱신되지만,
+표현 레이어는 아직 덜 붙은 상태다.
 
 ---
 
-## 8. Best Record State
+## 7. XP와 런 한정 보너스 상태
 
-Best records are tracked as:
+현재 XP 흐름:
 
-- per character
-- per difficulty
-- integer highest stage/day reached
+- 블록 파괴 -> XP 획득
+- 모래 제거 -> XP 획득
+- 기준치를 넘으면 `level_up_ready` emit
 
-The current menu summary converts this into a single text line such as the best
-difficulty/day combination for a selected character.
+현재 런 한정 보너스 필드:
 
-This means the record system is already structurally ready for more complete
-meta-progression later.
+- 공격력 보너스
+- 이동 속도 보너스
+- 최대 HP 보너스
+- 공격 속도 배수
+- 채굴 데미지 보너스
+- 채굴 속도 배수
 
----
-
-## 9. Save Lifecycle Rules
-
-Current save lifecycle:
-
-- load defaults first
-- if file does not exist, create it
-- normalize missing or malformed fields
-- save again after load normalization
-- save on most selection or unlock changes
-- save when a run finishes
-
-This approach favors resilience and predictable default recovery.
+이 값들은 영구 성장값이 아니라 "이번 런에서만 유효한 수치"다.
 
 ---
 
-## 10. What This State Model Already Supports
+## 8. 최고 기록 상태
 
-The current base state is already enough to support:
+최고 기록은 아래 기준으로 관리된다.
 
-- menu-to-run flow
-- character selection
-- difficulty unlock chain
-- run result reporting
-- persistent best records
-- placeholder long-term currencies and settings
-- run-time XP and level-up bonuses
+- 캐릭터별
+- 난이도별
+- 가장 높게 도달한 stage/day 정수값
+
+메뉴에서는 이 값을 읽어 선택 캐릭터의 최고 기록 요약 문자열을 만든다.
+
+즉, 현재 기록 시스템은 이후 메타 성장이나 결과 확장에도 사용할 수 있게
+기본 구조는 이미 잡혀 있다.
 
 ---
 
-## 11. Current Gaps
+## 9. 세이브 라이프사이클
 
-The following state structures still exist mainly as future-facing scaffolding:
+현재 세이브 흐름:
 
-- detailed permanent growth spending
-- achievement reward logic
-- inventory ownership logic
-- more meaningful persistent currencies
-- richer post-run reward application
+- 먼저 기본 데이터를 적용
+- 파일이 없으면 생성
+- 잘못되었거나 빠진 필드를 정규화
+- 로드 후 다시 저장해서 구조를 맞춤
+- 선택/해금 변경 시 저장
+- 런 종료 시 저장
 
-Those systems do not need a new state layer yet.
-They should extend the current `GameState` model carefully instead of bypassing it.
+현재 구조는 예외 상황에서도 기본값 복구가 잘 되도록 안정성을 우선한다.
+
+---
+
+## 10. 이 상태 구조로 이미 가능한 것
+
+현재 베이스 상태 구조만으로도 아래가 가능하다.
+
+- 메뉴 -> 런 흐름
+- 캐릭터 선택
+- 난이도 해금 연쇄
+- 런 결과 보고
+- 영구 최고 기록 저장
+- placeholder 장기 재화/설정 유지
+- 런 중 XP/레벨업/보너스 처리
+
+---
+
+## 11. 아직 비어 있는 상태 계층
+
+아래 항목은 현재 상태 구조는 존재하거나 확장 가능하지만,
+실제 게임플레이 연결은 아직 약하다.
+
+- 영구 성장 소비 로직
+- 업적 보상 로직
+- 인벤토리 보유 로직
+- 의미 있는 영구 재화 사용처
+- 더 풍부한 런 종료 후 정산
+
+이 기능들은 새 상태 계층을 따로 만드는 것보다,
+현재 `GameState`를 조심스럽게 확장하는 편이 맞다.

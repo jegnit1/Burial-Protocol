@@ -1,22 +1,21 @@
 # Burial Protocol - Project Rules
 
-## 0. Purpose
+## 0. 목적
 
-This document records the current working rules for the Burial Protocol codebase.
-It is not a wish list. It should describe what is actually implemented now,
-what is intentionally placeholder-only, and how future work should be added.
+이 문서는 Burial Protocol 코드베이스에서 현재 실제로 적용되는 작업 기준을 정리한 문서다.
+희망사항이나 장기 아이디어 문서가 아니라, 지금 구현된 것과 의도적으로 비워 둔 것,
+앞으로 무엇을 어떤 기준으로 붙여야 하는지를 명확히 적는 문서다.
 
-The goal is to keep code, docs, and ongoing tasks aligned so the team can make
-changes without re-learning the project from scratch every time.
+핵심 목표는 코드, 문서, 작업 방향이 계속 어긋나지 않도록 유지하는 것이다.
 
 ---
 
-## 1. Source Of Truth
+## 1. 진실의 기준
 
-When code and docs disagree, the current source code is the final truth.
-The priority order for references is:
+코드와 문서가 충돌하면 현재 소스 코드가 최종 기준이다.
+참조 우선순위는 아래와 같다.
 
-1. Runtime source files
+1. 런타임 소스 파일
 2. `docs/project_rules.md`
 3. `docs/game_structure_spec.md`
 4. `docs/gameplay_systems_spec.md`
@@ -24,7 +23,7 @@ The priority order for references is:
 6. `docs/phase1_tasks.md`
 7. `docs/burial_protocol_run_hud_ui_improvement.md`
 
-The main runtime files to verify before updating docs are:
+문서를 갱신할 때 우선 확인해야 하는 핵심 파일은 아래와 같다.
 
 - `scripts/autoload/GameConstants.gd`
 - `scripts/autoload/GameState.gd`
@@ -43,231 +42,232 @@ The main runtime files to verify before updating docs are:
 
 ---
 
-## 2. Current Product Baseline
+## 2. 현재 프로젝트 기준선
 
-- Engine: Godot 4.6
-- Language: GDScript
-- Platform target: PC
-- Viewport: `1920 x 1080`
-- World unit: `1U = 64px`
-- Player display/collision size baseline: `128 x 128`
-- World width: `30 columns`
-- Side walls: `10 columns` each side
-- Center combat lane: `10 columns`
-- World height: `200 rows`
-- Floor row: last world row
+- 엔진: Godot 4.6
+- 언어: GDScript
+- 대상 플랫폼: PC
+- 뷰포트: `1920 x 1080`
+- 월드 단위: `1U = 64px`
+- 플레이어 기본 표시/충돌 크기: `128 x 128`
+- 월드 가로: `30칸`
+- 좌우 벽: 각 `10칸`
+- 중앙 전투 라인: `10칸`
+- 월드 세로: `200칸`
+- 바닥: 마지막 월드 행
 
-The project is currently a playable vertical-survival prototype built around:
+현재 프로젝트는 아래 요소를 중심으로 돌아가는
+"플레이 가능한 세로형 생존 프로토타입" 상태다.
 
-- falling blocks
-- sand accumulation and sand simulation
-- wall mining and sand mining
-- mouse-direction attack and mining
-- movement, jump, wall jump, extra jump, fast fall
-- double-tap dash
-- day-based run progression
-- difficulty selection and unlock chain
-- XP, level-up card selection, and temporary run bonuses
-- HUD-based run readability
+- 낙하 블록
+- 모래 누적과 모래 시뮬레이션
+- 벽 채굴과 모래 채굴
+- 마우스 방향 공격과 채굴
+- 이동, 점프, 벽점프, 추가 점프, 급강하
+- 더블탭 대시
+- Day 기반 런 진행
+- 난이도 선택과 해금 구조
+- XP, 레벨업 카드 선택, 런 한정 보너스
+- HUD 기반 전투/진행 가독성
 
 ---
 
-## 3. Current Implemented Scope
+## 3. 현재 구현 범위
 
-### 3-1. Menu And Run Flow
+### 3-1. 메뉴와 런 흐름
 
-The current scene flow is:
+현재 장면 흐름은 아래와 같다.
 
 1. `Title`
 2. `MainHub`
-3. optional `CharacterList`
-4. difficulty popup from hub
+3. 필요 시 `CharacterList`
+4. 허브의 난이도 팝업
 5. `Main`
 6. `Result`
-7. back to `MainHub`
+7. 다시 `MainHub`
 
-The following menu scenes exist but are still placeholder screens:
+아래 메뉴 장면은 현재 진입만 가능한 placeholder 상태다.
 
 - `Achievement`
 - `Growth`
 - `ItemList`
 
-Title buttons for settings, profile, and ranking are also placeholder-only.
+타이틀의 설정, 프로필, 랭킹 버튼도 현재는 placeholder다.
 
-### 3-2. Current Run Systems
+### 3-2. 런타임 시스템
 
-The following systems are already active in gameplay:
+현재 실제로 작동 중인 시스템은 아래와 같다.
 
-- run reset and run result recording
-- day timer and day progression
-- rush day and boss day spawn rules
-- falling block spawn fairness checks
-- block destruction reward flow
-- block decomposition into sand
-- sand simulation around the player
-- wall subcell mining
-- temporary weight fail condition
-- XP gain and level-up card popup
-- gold and damage popup feedback
-- HUD updates for day, gold, weight, HP, XP, level, and debug
+- 런 초기화와 결과 기록
+- Day 타이머와 Day 진행
+- Rush Day / Boss Day 스폰 규칙
+- 공정 스폰 체크
+- 블록 파괴 보상 흐름
+- 블록의 모래 분해
+- 플레이어 주변 중심의 모래 시뮬레이션
+- 벽 서브셀 채굴
+- 임시 중량 한계 실패 조건
+- XP 획득과 레벨업 카드 팝업
+- 골드 팝업과 데미지 팝업
+- Day, 골드, 중량, HP, XP, 레벨, 디버그를 반영하는 HUD
 
-### 3-3. Current Persistence
+### 3-3. 영구 저장 범위
 
-The profile save is stored at `user://profile.save`.
-It currently persists:
+프로필 저장 파일은 `user://profile.save`다.
+현재 저장되는 항목은 아래와 같다.
 
-- selected character
-- last selected difficulty
-- unlocked difficulties through clear records
-- per-character best records by difficulty
-- placeholder persistent currencies
-- placeholder growth data
-- placeholder settings data
-- unlocked characters
-- unlocked achievements
-
----
-
-## 4. Intentionally Not Implemented Yet
-
-The following are still outside the current implemented scope:
-
-- real merchant or shop phase between days
-- actual inter-day purchase flow
-- permanent growth gameplay logic
-- achievement gameplay logic
-- inventory/item ownership logic
-- richer result statistics and reward summary
-- multi-character gameplay differences
-- full presentation art pass
-- advanced boss scripting beyond current boss spawn rule
-- polished localization pass for every runtime string
-
-When docs mention these systems, they must be marked as future work or placeholder.
-They must not be written as if already shipping.
+- 선택 캐릭터
+- 마지막 선택 난이도
+- 클리어한 난이도 목록
+- 캐릭터/난이도별 최고 기록
+- 잠금 해제된 캐릭터
+- 잠금 해제된 업적
+- placeholder 영구 재화
+- placeholder 성장 데이터
+- placeholder 설정 데이터
 
 ---
 
-## 5. Implementation Rules
+## 4. 아직 구현되지 않은 영역
 
-### 5-1. Prefer Current Playability Over Premature Expansion
+현재 범위 밖에 있는 것은 아래와 같다.
 
-Changes should keep the playable loop stable first:
+- Day 종료 후 실제 상점/상인 단계
+- Day 사이 구매 흐름
+- 영구 성장 게임플레이 로직
+- 업적 게임플레이 로직
+- 인벤토리/아이템 보유 로직
+- 확장된 결과 통계와 보상 정산
+- 캐릭터별 실제 플레이 차이
+- 본격적인 연출 아트 패스
+- 현재 보스 스폰 규칙을 넘는 고급 보스 스크립팅
+- 모든 문구에 대한 정리된 로컬라이즈 패스
 
-- player control
-- falling block handling
-- sand behavior
-- run progression
-- HUD readability
+이 항목들은 문서에 적더라도 "향후 작업" 또는 "placeholder"로 명확히 적어야 하며,
+이미 구현된 것처럼 서술하면 안 된다.
 
-Do not add broad speculative systems before the current loop is stable.
+---
 
-### 5-2. Centralize Tunables
+## 5. 구현 원칙
 
-Numeric gameplay values should live in `GameConstants.gd` unless there is a strong
-reason not to.
+### 5-1. 먼저 지금 플레이 가능한 루프를 지킨다
 
-This includes:
+우선 안정적으로 유지해야 하는 것은 아래와 같다.
 
-- player movement values
-- dash values
-- attack and mining values
-- world size values
-- HUD layout values
-- sand simulation limits
-- day and difficulty values
-- block base and block type definitions
+- 플레이어 조작감
+- 낙하 블록 처리
+- 모래 동작
+- 런 진행
+- HUD 가독성
 
-### 5-3. Keep Runtime State In GameState
+큰 시스템을 붙이더라도 현재 루프를 깨는 식의 과한 확장은 피한다.
 
-Persistent or run-wide state belongs in `GameState.gd`, not scattered across menu scenes.
+### 5-2. 수치는 `GameConstants.gd`에 모은다
 
-Examples:
+별도 이유가 없는 한 수치형 게임플레이 값은 `GameConstants.gd`에 둔다.
 
-- selected character
-- difficulty selection
-- latest run result
-- gold
+예:
+
+- 플레이어 이동값
+- 대시값
+- 공격/채굴값
+- 월드 크기값
+- HUD 배치값
+- 모래 시뮬레이션 한계값
+- Day/난이도값
+- 블록 베이스/블록 타입 정의
+
+### 5-3. 런 전체 상태는 `GameState.gd`에 둔다
+
+런 전체 또는 세이브 전체에서 공유되는 상태는 메뉴 장면 여기저기에 흩뿌리지 않고
+`GameState.gd`에 두는 것을 원칙으로 한다.
+
+예:
+
+- 선택 캐릭터
+- 난이도 선택
+- 최신 런 결과
+- 골드
 - HP
 - XP
-- level
-- temporary run bonuses
-- save-backed unlock and record data
+- 레벨
+- 런 한정 보너스
+- 세이브 기반 해금/기록 데이터
 
-### 5-4. Use Placeholder Screens Honestly
+### 5-4. Placeholder는 솔직하게 유지한다
 
-Placeholder scenes are allowed when they keep the flow connected,
-but they must remain obviously placeholder.
+흐름을 이어 주기 위한 placeholder 장면은 허용되지만,
+문서에서는 반드시 placeholder로 남겨야 한다.
 
-Do not describe a placeholder menu as a completed feature in docs.
+placeholder 메뉴를 완성된 기능처럼 문서화하지 않는다.
 
 ---
 
-## 6. Documentation Rules
+## 6. 문서 작성 원칙
 
-### 6-1. Docs Must Follow Code Changes Quickly
+### 6-1. 코드 변경 후 빠르게 따라간다
 
-Update docs whenever any of these change:
+아래 항목이 바뀌면 문서도 같은 작업 사이클 안에서 갱신한다.
 
-- input bindings
-- player movement rules
-- attack or mining shapes
-- dash behavior
-- day progression rules
-- clear or fail conditions
-- HUD structure
-- save structure
-- block definitions or spawn rules
+- 입력 바인딩
+- 플레이어 이동 규칙
+- 공격/채굴 판정 형태
+- 대시 동작
+- Day 진행 규칙
+- 클리어/실패 조건
+- HUD 구조
+- 저장 구조
+- 블록 정의와 스폰 규칙
 
-### 6-2. Separate Current Reality From Future Work
+### 6-2. 현재 사실과 향후 작업을 분리한다
 
-Each doc should distinguish between:
+각 문서는 아래 세 가지를 구분해서 적는다.
 
-- currently implemented behavior
-- placeholder behavior
-- planned but not yet implemented behavior
+- 현재 구현된 동작
+- placeholder 상태
+- 아직 구현되지 않았지만 계획된 동작
 
-Avoid mixing them in the same sentence.
+같은 문장 안에서 뒤섞지 않는다.
 
-### 6-3. Prefer Concrete Numbers And File Anchors
+### 6-3. 가능한 한 구체적인 수치를 적는다
 
-If a value is fixed in code, docs should record the concrete value instead of vague phrasing.
+코드에 고정값이 있다면 모호한 표현보다 수치를 적는다.
 
-Good examples:
+좋은 예:
 
 - `DAY_DURATION = 40.0`
 - `RUN_TOTAL_DAYS = 30`
-- weight fail threshold `240`
-- dash distance `4 cells`
+- 중량 실패 한계 `240`
+- 대시 거리 `4칸`
 
 ---
 
-## 7. Validation Checklist After Changes
+## 7. 변경 후 검증 체크리스트
 
-After changing core gameplay or UI, confirm at least the following:
+핵심 게임플레이나 UI를 바꾼 뒤에는 최소한 아래를 확인한다.
 
-- title to hub transition still works
-- hub to run transition still works
-- character selection still updates `GameState`
-- difficulty unlock logic still behaves correctly
-- attack and mining still use mouse direction
-- dash still triggers on double tap
-- sand count still updates weight fail logic
-- day progression still advances correctly
-- result screen still shows latest run data
-- docs affected by the change are updated in the same work cycle
+- 타이틀에서 허브로 정상 진입되는가
+- 허브에서 런으로 정상 진입되는가
+- 캐릭터 선택이 `GameState`에 반영되는가
+- 난이도 해금 로직이 유지되는가
+- 공격과 채굴이 여전히 마우스 방향 기준인가
+- 대시가 여전히 더블탭으로 발동하는가
+- 모래 수가 중량 실패 로직에 반영되는가
+- Day 진행이 정상적으로 이어지는가
+- 결과 화면이 최신 런 데이터를 보여주는가
+- 이번 변경과 관련된 문서가 함께 갱신되었는가
 
 ---
 
-## 8. Current Direction
+## 8. 현재 개발 방향
 
-The current project direction is:
+현재 프로젝트의 방향은 아래와 같다.
 
-- keep the vertical survival loop playable
-- make state and rules explicit
-- tighten HUD readability
-- keep the docs synchronized with the code
-- expand only after the core run loop is dependable
+- 세로형 생존 루프를 계속 플레이 가능하게 유지한다
+- 상태와 규칙을 명시적으로 정리한다
+- HUD 가독성을 높인다
+- 문서를 코드와 동기화한다
+- 코어 런 루프가 안정된 뒤에 확장한다
 
-This means the project should continue to favor clarity and reliable iteration over
-large speculative content additions.
+즉, 지금 단계에서는 대규모 추측성 콘텐츠 확장보다
+"명확성, 반복 가능한 수정, 안정적인 진행"을 우선한다.
