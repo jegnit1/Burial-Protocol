@@ -5,6 +5,18 @@ const WALL_SUBCELL_COUNT := GameConstants.WALL_SUBCELLS_PER_UNIT * GameConstants
 
 var wall_cells: Dictionary = {}
 
+# 손상된 적 있는 셀 집합. _draw()에서 이 셀만 서브셀 단위로 개별 렌더링한다.
+# 한 번 추가되면 제거하지 않는다(완전 채굴 후에도 MINED_WALL_COLOR 배경이 필요).
+var _touched_cells: Dictionary = {}
+
+# get_active_wall_count()용 캐시. 서브셀 HP가 0이 될 때마다 차감한다.
+var _active_subcell_count := 0
+
+# _draw()에서 반복 계산을 피하기 위해 미리 계산해둔 사각형.
+var _left_wall_rect := Rect2()
+var _right_wall_rect := Rect2()
+var _floor_rect := Rect2()
+
 
 func _ready() -> void:
 	_build_wall_cells()
@@ -13,10 +25,30 @@ func _ready() -> void:
 
 func _build_wall_cells() -> void:
 	wall_cells.clear()
+	_touched_cells.clear()
 	for y in range(GameConstants.FLOOR_ROW):
 		for x in range(GameConstants.WORLD_COLUMNS):
 			if _is_wall_column(x):
 				wall_cells[Vector2i(x, y)] = _create_full_wall_subcells()
+	_active_subcell_count = wall_cells.size() * WALL_SUBCELL_COUNT
+	_precalculate_rects()
+
+
+func _precalculate_rects() -> void:
+	var ox := float(GameConstants.WORLD_ORIGIN.x)
+	var oy := float(GameConstants.WORLD_ORIGIN.y)
+	var cell := float(GameConstants.CELL_SIZE)
+	var wall_w := float(GameConstants.WALL_COLUMNS) * cell
+	var wall_h := float(GameConstants.FLOOR_ROW) * cell
+	_left_wall_rect = Rect2(Vector2(ox, oy), Vector2(wall_w, wall_h))
+	_right_wall_rect = Rect2(
+		Vector2(ox + float(GameConstants.WORLD_COLUMNS - GameConstants.WALL_COLUMNS) * cell, oy),
+		Vector2(wall_w, wall_h)
+	)
+	_floor_rect = Rect2(
+		Vector2(ox, oy + float(GameConstants.FLOOR_ROW) * cell),
+		Vector2(float(GameConstants.WORLD_PIXEL_WIDTH), cell)
+	)
 
 
 func _create_full_wall_subcells() -> PackedByteArray:
@@ -121,11 +153,13 @@ func try_mine_in_shape(shape_data: Dictionary, mining_damage: int) -> Dictionary
 					result["hit_count"] += 1
 					changed = true
 					var remaining_hp := maxi(int(subcell_hps[subcell_index]) - mining_damage, 0)
-					if remaining_hp == 0 and subcell_hps[subcell_index] > 0:
+					if remaining_hp == 0:
 						result["removed_count"] += 1
+						_active_subcell_count -= 1
 					subcell_hps[subcell_index] = remaining_hp
 			if not changed:
 				continue
+			_touched_cells[cell] = true
 			if _packed_byte_array_is_empty(subcell_hps):
 				wall_cells.erase(cell)
 			else:
@@ -136,13 +170,7 @@ func try_mine_in_shape(shape_data: Dictionary, mining_damage: int) -> Dictionary
 
 
 func get_active_wall_count() -> int:
-	var occupied_subcells := 0
-	for cell in wall_cells.keys():
-		var subcell_hps: PackedByteArray = wall_cells[cell]
-		for hp in subcell_hps:
-			if hp > 0:
-				occupied_subcells += 1
-	return occupied_subcells
+	return _active_subcell_count
 
 
 func get_spawn_position(size_cells: Vector2i, rng: RandomNumberGenerator, camera_top_y: float) -> Vector2:
@@ -191,16 +219,28 @@ func _packed_byte_array_is_empty(data: PackedByteArray) -> bool:
 func _draw() -> void:
 	draw_rect(GameConstants.get_world_rect(), GameConstants.WORLD_BACKGROUND_COLOR)
 	draw_rect(GameConstants.get_center_rect(), GameConstants.WORLD_CENTER_COLOR)
-	for cell in wall_cells.keys():
-		var subcell_hps: PackedByteArray = wall_cells[cell]
-		for sub_y in range(GameConstants.WALL_SUBCELLS_PER_UNIT):
-			for sub_x in range(GameConstants.WALL_SUBCELLS_PER_UNIT):
-				var subcell_hp := int(subcell_hps[_get_subcell_index(sub_x, sub_y)])
-				if subcell_hp <= 0:
-					continue
-				var subcell_rect := get_wall_subcell_rect(cell, sub_x, sub_y)
-				var damage_ratio := 1.0 - float(subcell_hp) / float(GameConstants.WALL_SUBCELL_MAX_HP)
-				var draw_color := GameConstants.WALL_CELL_COLOR.lerp(GameConstants.MINED_WALL_COLOR, damage_ratio)
-				draw_rect(subcell_rect, draw_color)
-	for x in range(GameConstants.WORLD_COLUMNS):
-		draw_rect(get_cell_rect(Vector2i(x, GameConstants.FLOOR_ROW)), GameConstants.FLOOR_COLOR)
+	# 좌우 벽 전체를 단색 사각형 2개로 표현
+	draw_rect(_left_wall_rect, GameConstants.WALL_CELL_COLOR)
+	draw_rect(_right_wall_rect, GameConstants.WALL_CELL_COLOR)
+	# 손상된 셀만 서브셀 단위로 덮어씀
+	for key in _touched_cells.keys():
+		var cell: Vector2i = key
+		_draw_damaged_cell(cell)
+	# 바닥은 1개 rect
+	draw_rect(_floor_rect, GameConstants.FLOOR_COLOR)
+
+
+func _draw_damaged_cell(cell: Vector2i) -> void:
+	# 손상 배경 먼저 (완전 채굴 셀은 여기서 끝)
+	draw_rect(get_cell_rect(cell), GameConstants.MINED_WALL_COLOR)
+	if not wall_cells.has(cell):
+		return
+	var subcell_hps: PackedByteArray = wall_cells[cell]
+	for sub_y in range(GameConstants.WALL_SUBCELLS_PER_UNIT):
+		for sub_x in range(GameConstants.WALL_SUBCELLS_PER_UNIT):
+			var hp := int(subcell_hps[_get_subcell_index(sub_x, sub_y)])
+			if hp <= 0:
+				continue
+			var damage_ratio := 1.0 - float(hp) / float(GameConstants.WALL_SUBCELL_MAX_HP)
+			var draw_color := GameConstants.WALL_CELL_COLOR.lerp(GameConstants.MINED_WALL_COLOR, damage_ratio)
+			draw_rect(get_wall_subcell_rect(cell, sub_x, sub_y), draw_color)

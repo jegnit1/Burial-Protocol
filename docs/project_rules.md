@@ -1,344 +1,273 @@
 # Burial Protocol - Project Rules
 
-## 0. 목적
+## 0. Purpose
 
-이 문서는 Burial Protocol 개발의 최상위 작업 기준을 정리한다.
-현재 구현된 프로토타입의 구조, 문서 우선순위, 작업 범위, 코드 작성 규칙, 테스트 원칙을 고정해
-이후 작업이 같은 기준 위에서 누적되도록 만드는 것이 목적이다.
+This document records the current working rules for the Burial Protocol codebase.
+It is not a wish list. It should describe what is actually implemented now,
+what is intentionally placeholder-only, and how future work should be added.
 
-이 문서는 아래 역할을 가진다.
-
-- 프로젝트의 공통 전제를 고정한다
-- 문서 간 해석 충돌 시 우선순위를 제공한다
-- 현재 프로토타입 범위와 비범위를 구분한다
-- 코드/씬/데이터 분리 원칙을 정한다
-- 문서와 구현의 싱크 기준을 명확히 한다
+The goal is to keep code, docs, and ongoing tasks aligned so the team can make
+changes without re-learning the project from scratch every time.
 
 ---
 
-## 1. 프로젝트 기본 정보
+## 1. Source Of Truth
 
-- 프로젝트명: Burial Protocol
-- 엔진: Godot 4.6
-- 언어: GDScript
-- 플랫폼: PC
-- 화면 방향: 가로형 1920x1080 플레이 기준
-- 장르 구조: 2D 액션 생존 + 낙하 블록 압박 + 누적 모래 환경 + 최소 메타 허브 루프
+When code and docs disagree, the current source code is the final truth.
+The priority order for references is:
 
-현재 구현 스냅샷의 핵심 수치는 아래와 같다.
+1. Runtime source files
+2. `docs/project_rules.md`
+3. `docs/game_structure_spec.md`
+4. `docs/gameplay_systems_spec.md`
+5. `docs/base_state_spec.md`
+6. `docs/phase1_tasks.md`
+7. `docs/burial_protocol_run_hud_ui_improvement.md`
 
-| 항목 | 현재 값 |
-|---|---|
-| 시작 씬 | `Title.tscn` |
-| 뷰포트 | `1920 x 1080` |
-| 1U / CELL_SIZE | `64px` |
-| 플레이어 크기 | `128 x 128` |
-| 중앙 샤프트 폭 | `10칸` |
-| 좌우 벽 두께 | `각 10칸` |
-| 월드 총 너비 | `30칸` |
-| 월드 총 높이 | `200칸` |
+The main runtime files to verify before updating docs are:
 
-현재 구현의 핵심 감각은 아래와 같다.
-
-- 게임은 타이틀 화면에서 시작한다
-- 타이틀에서 메인 허브로 진입한다
-- 메인 허브에서 캐릭터, 성장, 업적, 아이템 목록, 게임 시작으로 분기한다
-- 게임 시작은 난이도 선택 팝업을 거쳐 런을 시작한다
-- 공격과 채굴 입력은 분리되어 있다
-- 좌클릭 공격은 낙하 블록을 타격한다
-- 우클릭 채굴은 모래와 벽을 대상으로 한다
-- 공격 판정은 마우스 방향 360도 회전 사각형이다
-- 제거하지 못한 블록은 모래가 되어 누적된다
-- 누적된 모래는 이동 저항이면서 발판 역할도 한다
-- 런 종료 후 결과 화면으로 이동하고, 결과 화면에서 메인 허브로 복귀한다
+- `scripts/autoload/GameConstants.gd`
+- `scripts/autoload/GameState.gd`
+- `scripts/autoload/Locale.gd`
+- `scenes/main/Main.gd`
+- `scenes/player/Player.gd`
+- `scenes/world/WorldGrid.gd`
+- `scenes/world/SandField.gd`
+- `scenes/blocks/FallingBlock.gd`
+- `scenes/ui/HUD.gd`
+- `scenes/ui/Title.gd`
+- `scenes/ui/MainHub.gd`
+- `scenes/ui/CharacterList.gd`
+- `scenes/ui/Result.gd`
+- `scenes/ui/LevelUpUI.gd`
 
 ---
 
-## 2. 문서 우선순위
+## 2. Current Product Baseline
 
-문서 해석 충돌이 발생하면 아래 순서를 따른다.
+- Engine: Godot 4.6
+- Language: GDScript
+- Platform target: PC
+- Viewport: `1920 x 1080`
+- World unit: `1U = 64px`
+- Player display/collision size baseline: `128 x 128`
+- World width: `30 columns`
+- Side walls: `10 columns` each side
+- Center combat lane: `10 columns`
+- World height: `200 rows`
+- Floor row: last world row
 
-1. `project_rules.md`
-2. `game_structure_spec.md`
-3. `gameplay_systems_spec.md`
-4. `phase1_tasks.md`
+The project is currently a playable vertical-survival prototype built around:
 
-원칙은 아래와 같다.
-
-- 상위 문서가 하위 문서보다 우선한다
-- 작업 계획 문서가 구현을 설명하는 기준 문서보다 우선하지 않는다
-- 현재 구현과 문서가 어긋난 것이 확인되면 문서를 즉시 동기화한다
-- `GameConstants.gd`, `GameState.gd`, `Main.gd`, `Player.gd`, `WorldGrid.gd`, `SandField.gd`, `Title.gd`, `MainHub.gd`는 현재 구현 검증의 핵심 파일이다
-
----
-
-## 3. 현재 작업 범위
-
-현재 프로젝트는 플레이 가능한 핵심 루프를 다듬는 단계다.
-현재 범위에 포함되는 항목은 아래와 같다.
-
-- 타이틀 화면
-- 메인 허브 화면
-- 캐릭터 선택 화면
-- 업적 / 성장 / 아이템 목록 placeholder 화면
-- 난이도 선택 팝업
-- 결과 화면
-- 단일 프로필 기반 저장 구조
-- 플레이어 이동, 점프, 벽 점프, 빠른 낙하
-- 좌 / 우 / 하 대시
-- 낙하 블록 생성, 공격, 파괴, 분해
-- 공격/채굴 입력 분리
-- 마우스 방향 360도 공격 판정과 시각화
-- 모래 채굴과 벽 채굴
-- 모래 생성, 적층, 흐름, 밀기, 점프 공간 확보
-- HUD, 상태 텍스트, 디버그 패널
-- 낙하 블록 위 탑승 및 이동 플랫폼 보정
-- 블록 베이스 데이터와 스폰 가중치 구조
-
-현재 범위 밖 항목은 아래와 같다.
-
-- 프로필 화면 본 구현
-- 랭킹 화면 본 구현
-- 성장 트리 본 구현
-- 업적 시스템 본 구현
-- 아이템 도감/제작 UI 본 구현
-- 멀티 슬롯 저장
-- 정교한 스테이지 구조 / 보스 / 클리어 처리
-- 풍부한 결과 통계와 보상 정산 UI
-- 블록 베이스별 특수 결과의 완전한 연출/판정 확장
-- 온라인 기능, 외부 서비스 연동
-
-주의할 점은 아래와 같다.
-
-- 현재 결과 화면은 최소 정보만 출력한다
-- 수동 종료는 `R`로 처리되며 결과 화면으로 이동한다
-- 영구 재화 / 설정 / 성장 / 해금 / 최고기록은 최소 저장 구조까지만 반영되어 있다
-- 세로 월드는 현재 큰 고정 높이 월드 기준이며, 완전한 무한 확장은 아직 아니다
+- falling blocks
+- sand accumulation and sand simulation
+- wall mining and sand mining
+- mouse-direction attack and mining
+- movement, jump, wall jump, extra jump, fast fall
+- double-tap dash
+- day-based run progression
+- difficulty selection and unlock chain
+- XP, level-up card selection, and temporary run bonuses
+- HUD-based run readability
 
 ---
 
-## 4. 구현 우선순위
+## 3. Current Implemented Scope
 
-작업 우선순위는 아래 순서를 따른다.
+### 3-1. Menu And Run Flow
 
-1. 실제 플레이 가능 여부
-2. 규칙의 일관성
-3. 입력/판정의 안정성
-4. 문서와 구현의 일치
-5. 데이터 분리
-6. 시각적 완성도
+The current scene flow is:
 
-즉, 현재 단계에서는
-"예쁘게 보이는 것"보다
-"반복 플레이가 안정적으로 성립하는 것"이 먼저다.
+1. `Title`
+2. `MainHub`
+3. optional `CharacterList`
+4. difficulty popup from hub
+5. `Main`
+6. `Result`
+7. back to `MainHub`
 
----
+The following menu scenes exist but are still placeholder screens:
 
-## 5. 시스템 설계 원칙
+- `Achievement`
+- `Growth`
+- `ItemList`
 
-### 5-1. 역할 분리
+Title buttons for settings, profile, and ranking are also placeholder-only.
 
-핵심 역할은 아래처럼 분리한다.
+### 3-2. Current Run Systems
 
-- `Title`: 시작 연출 화면과 허브 진입점
-- `MainHub`: 메타 허브 화면과 하위 메뉴 진입점
-- `CharacterList`: 기본 캐릭터 선택과 잠금 placeholder 표시
-- `Result`: 런 종료 요약과 복귀 동선
-- `Main`: 실제 런 씬 연결, 스폰, 공격/채굴 분기, 카메라 설정
-- `Player`: 이동, 점프, 대시, 공격 방향 해석, 채굴 방향 해석, 미리보기, 낙하 블록 탑승 보정
-- `FallingBlock`: 낙하, 피격 처리, 파괴/분해 신호, 데미지 팝업 생성
-- `SandField`: 모래 셀 생성, 흐름, 밀기, 점프 공간 확보, 모래 채굴 처리
-- `WorldGrid`: 고정 벽/바닥, 월드 좌표 변환, 벽 채굴 처리
-- `HUD`: 골드, 체력, 상태 문구, 디버그 수치 표시
-- `GameConstants`: 공용 수치와 데이터 정의
-- `GameState`: 런타임 상태와 단일 프로필 저장
+The following systems are already active in gameplay:
 
-### 5-2. 규칙 기반 처리 우선
+- run reset and run result recording
+- day timer and day progression
+- rush day and boss day spawn rules
+- falling block spawn fairness checks
+- block destruction reward flow
+- block decomposition into sand
+- sand simulation around the player
+- wall subcell mining
+- temporary weight fail condition
+- XP gain and level-up card popup
+- gold and damage popup feedback
+- HUD updates for day, gold, weight, HP, XP, level, and debug
 
-- 낙하 블록과 모래는 엔진 물리에 전부 위임하지 않는다
-- 플레이어 이동, 모래 흐름, 블록 낙하는 규칙 기반으로 유지한다
-- 결과가 흔들리는 자동 물리보다 예측 가능한 판정을 우선한다
+### 3-3. Current Persistence
 
-### 5-3. 현재 구현 감각 우선
+The profile save is stored at `user://profile.save`.
+It currently persists:
 
-새 기능을 넣을 때는 아래 감각을 깨지 않는지 먼저 본다.
-
-- 블록은 즉시 위협이어야 한다
-- 공격은 가장 효율적인 공간 확보 수단이어야 한다
-- 실패한 블록은 모래 누적으로 되돌아와야 한다
-- 모래는 위험이면서 이동 자산이어야 한다
-- 채굴은 막힌 공간을 다시 여는 행동이어야 한다
-- 메인 허브는 실제 메타 허브 역할을 맡고, 타이틀은 진입 화면에 머물러야 한다
-
----
-
-## 6. 수치 관리 원칙
-
-현재 프로젝트의 핵심 수치는 `GameConstants.gd`에 모은다.
-
-특히 아래 값은 코드 내부 매직 넘버로 흩어놓지 않는다.
-
-- 월드/뷰포트 크기
-- 플레이어 표시/충돌 크기
-- 플레이어 이동/점프/피격 수치
-- 공격 범위 / 채굴 범위 / 쿨다운
-- 대시 거리 / 대시 시간 / 더블탭 윈도우 / 쿨다운
-- 블록 낙하 속도와 스폰 간격
-- 모래 시뮬레이션 분해능과 예산
-- HUD 크기, 폰트 크기
-- 데미지 팝업 연출 값
-- 블록 타입 / 블록 베이스 데이터
-
-블록 타입처럼 구조화된 값은 데이터 테이블 형태를 유지한다.
+- selected character
+- last selected difficulty
+- unlocked difficulties through clear records
+- per-character best records by difficulty
+- placeholder persistent currencies
+- placeholder growth data
+- placeholder settings data
+- unlocked characters
+- unlocked achievements
 
 ---
 
-## 7. 코드 작성 규칙
+## 4. Intentionally Not Implemented Yet
 
-### 7-1. 일반 규칙
+The following are still outside the current implemented scope:
 
-- 현재 작업과 직접 관련된 파일만 수정한다
-- 무관한 대규모 리팩토링은 하지 않는다
-- 책임이 다른 시스템을 섞지 않는다
-- 사용하지 않을 범용 구조를 미리 만들지 않는다
+- real merchant or shop phase between days
+- actual inter-day purchase flow
+- permanent growth gameplay logic
+- achievement gameplay logic
+- inventory/item ownership logic
+- richer result statistics and reward summary
+- multi-character gameplay differences
+- full presentation art pass
+- advanced boss scripting beyond current boss spawn rule
+- polished localization pass for every runtime string
 
-### 7-2. 주석 규칙
-
-- 주석은 한국어로 작성한다
-- 값의 역할, 판정 의도, 계산 목적이 바로 드러나야 한다
-- 너무 긴 설계 토론은 코드가 아니라 문서에 남긴다
-
-### 7-3. 네이밍 규칙
-
-- 씬/스크립트 파일: PascalCase
-- 함수/변수/신호/데이터 키: snake_case
-- 상수: UPPER_SNAKE_CASE
-
-### 7-4. 하드코딩 제한
-
-- 값이 반복되거나 밸런스 대상이면 상수화한다
-- 일회성 로컬 계산은 허용하지만, 시스템 수치는 상수화한다
+When docs mention these systems, they must be marked as future work or placeholder.
+They must not be written as if already shipping.
 
 ---
 
-## 8. 씬 및 데이터 분리 원칙
+## 5. Implementation Rules
 
-### 8-1. 한 씬은 한 책임
+### 5-1. Prefer Current Playability Over Premature Expansion
 
-각 씬은 자기 책임을 벗어난 로직을 최대한 가져가지 않는다.
+Changes should keep the playable loop stable first:
 
-### 8-2. 데이터 우선 구조
+- player control
+- falling block handling
+- sand behavior
+- run progression
+- HUD readability
 
-아래 항목은 데이터/상수 우선으로 관리한다.
+Do not add broad speculative systems before the current loop is stable.
 
-- 블록 타입별 크기, 체력, 보상, 모래량, 색상
-- 블록 베이스별 색상, HP 배율, 특수 결과 타입
-- 모래 색상별 무게
-- 공격 / 채굴 / 대시 관련 수치
-- HUD/뷰포트/월드 배치 값
+### 5-2. Centralize Tunables
 
-### 8-3. 현재 허용되는 직접 참조
+Numeric gameplay values should live in `GameConstants.gd` unless there is a strong
+reason not to.
 
-현재 구조에서는 아래 정도의 직접 참조를 허용한다.
+This includes:
 
-- `Main`이 `Player`, `SandField`, `WorldGrid`, `HUD`를 연결
-- `MainHub`, `CharacterList`, `Result`가 `GameState`를 읽어 최소 표시 UI를 구성
-- `Player`가 `blocks_root`를 받아 발밑 블록 확인
-- `FallingBlock`이 플레이어 압착 여부를 질의
+- player movement values
+- dash values
+- attack and mining values
+- world size values
+- HUD layout values
+- sand simulation limits
+- day and difficulty values
+- block base and block type definitions
 
-단, 다른 씬의 내부 노드 구조에 깊게 의존하는 방식은 계속 피한다.
+### 5-3. Keep Runtime State In GameState
 
----
+Persistent or run-wide state belongs in `GameState.gd`, not scattered across menu scenes.
 
-## 9. 테스트 원칙
+Examples:
 
-### 9-1. 작업 후 확인 필수 항목
+- selected character
+- difficulty selection
+- latest run result
+- gold
+- HP
+- XP
+- level
+- temporary run bonuses
+- save-backed unlock and record data
 
-작업 후 최소 아래를 확인한다.
+### 5-4. Use Placeholder Screens Honestly
 
-- 헤드리스 로드가 되는가
-- 타이틀 시작이 유지되는가
-- 메인 / 캐릭터 / 결과 동선이 깨지지 않는가
-- 핵심 입력이 여전히 동작하는가
-- 기존 코어 루프가 끊기지 않는가
+Placeholder scenes are allowed when they keep the flow connected,
+but they must remain obviously placeholder.
 
-### 9-2. 현재 우선 테스트 항목
-
-- 타이틀 → 메인 허브 → 난이도 선택 → 런 → 결과 → 메인 흐름
-- 캐릭터 선택 반영과 잠금 툴팁
-- 저장 후 재실행 시 선택 캐릭터 / 마지막 난이도 복원
-- 블록 공격과 다중 타격
-- 모래 채굴과 벽 채굴
-- 블록 파괴/분해 결과 차이
-- 모래 생성과 흐름
-- 모래 위 이동과 점프
-- 낙하 블록 위 탑승과 점프 안정성
-- 골드/체력/HUD 갱신
-
----
-
-## 10. 금지 사항
-
-아래 작업은 금지한다.
-
-- 문서 근거 없는 기능 임의 도입
-- 코어 루프와 무관한 대규모 리팩토링
-- 블록/모래 전체를 엔진 물리에 위임하는 구조
-- 개별 모래 입자를 대량 RigidBody로 만드는 구조
-- 설명 없는 매직 넘버 추가
-- 외부 플러그인 의존성 추가
-- 미구현 시스템을 문서만 믿고 구현된 것처럼 서술
+Do not describe a placeholder menu as a completed feature in docs.
 
 ---
 
-## 11. 허용되는 임시 구현
+## 6. Documentation Rules
 
-현재 단계에서 아래는 허용된다.
+### 6-1. Docs Must Follow Code Changes Quickly
 
-- 도형 기반 플레이스홀더 비주얼
-- 텍스트 기반 상태 피드백
-- 디버그 패널
-- 단순 데미지 팝업
-- 임시 밸런스 수치
+Update docs whenever any of these change:
 
-단, 임시 구현도 아래를 만족해야 한다.
+- input bindings
+- player movement rules
+- attack or mining shapes
+- dash behavior
+- day progression rules
+- clear or fail conditions
+- HUD structure
+- save structure
+- block definitions or spawn rules
 
-- 현재 루프를 더 잘 검증하게 도와야 한다
-- 이후 교체하기 쉬워야 한다
-- 구조를 어지럽히지 않아야 한다
+### 6-2. Separate Current Reality From Future Work
+
+Each doc should distinguish between:
+
+- currently implemented behavior
+- placeholder behavior
+- planned but not yet implemented behavior
+
+Avoid mixing them in the same sentence.
+
+### 6-3. Prefer Concrete Numbers And File Anchors
+
+If a value is fixed in code, docs should record the concrete value instead of vague phrasing.
+
+Good examples:
+
+- `DAY_DURATION = 40.0`
+- `RUN_TOTAL_DAYS = 30`
+- weight fail threshold `240`
+- dash distance `4 cells`
 
 ---
 
-## 12. 문서 동기화 원칙
+## 7. Validation Checklist After Changes
 
-문서는 구현이 바뀔 때 같이 바뀌어야 한다.
-특히 아래 변화가 생기면 문서를 반드시 갱신한다.
+After changing core gameplay or UI, confirm at least the following:
 
-- 입력 체계 변경
-- 공격 방향/판정 구조 변경
-- 타이틀/허브/결과 등 화면 루프 변경
-- 저장 필드 / 저장 시점 변경
-- 블록 파괴/분해 규칙 변경
-- 모래 이동 규칙 변경
-- 월드 크기/스케일 변경
-- 런 상태와 HUD 표시 변경
-- 블록 베이스 데이터나 특수 결과 구조 변경
-
-현재 문서 세트는 "미래 희망 스펙"이 아니라
-"현재 구현과 다음 작업의 기준 문서"를 목표로 유지한다.
+- title to hub transition still works
+- hub to run transition still works
+- character selection still updates `GameState`
+- difficulty unlock logic still behaves correctly
+- attack and mining still use mouse direction
+- dash still triggers on double tap
+- sand count still updates weight fail logic
+- day progression still advances correctly
+- result screen still shows latest run data
+- docs affected by the change are updated in the same work cycle
 
 ---
 
-## 13. 결론
+## 8. Current Direction
 
-Burial Protocol의 현재 개발 목표는
-완벽한 콘텐츠 확장이 아니라,
-낙하 블록, 모래 누적, 공격, 채굴, 점프, 대시, 생존 공간 관리가
-실제로 반복 가능한 상태를 만드는 것이다.
+The current project direction is:
 
-따라서 항상 아래를 우선한다.
+- keep the vertical survival loop playable
+- make state and rules explicit
+- tighten HUD readability
+- keep the docs synchronized with the code
+- expand only after the core run loop is dependable
 
-- 문서와 구현의 일치
-- 반복 플레이의 안정성
-- 입력과 판정의 명확성
-- 코어 루프를 해치지 않는 확장
+This means the project should continue to favor clarity and reliable iteration over
+large speculative content additions.

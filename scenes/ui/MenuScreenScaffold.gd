@@ -63,10 +63,10 @@ func make_margin(parent: Control, padding: int = 24) -> MarginContainer:
 	return margin
 
 
-func add_label(parent: Control, text: String, size: int) -> Label:
+func add_label(parent: Control, text: String, font_size: int) -> Label:
 	var label := Label.new()
 	label.text = text
-	label.add_theme_font_size_override("font_size", size)
+	label.add_theme_font_size_override("font_size", font_size)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.custom_minimum_size = Vector2(720, 0)

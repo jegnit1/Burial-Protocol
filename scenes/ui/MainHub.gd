@@ -56,7 +56,7 @@ func _build_currency_area(parent: Control) -> void:
 	layout.add_theme_constant_override("separation", 12)
 	margin.add_child(layout)
 
-	var heading := add_label(layout, "Main Hub", 40)
+	var heading := add_label(layout, Locale.ltr("hub_title"), 40)
 	heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	heading.custom_minimum_size = Vector2.ZERO
 
@@ -64,11 +64,12 @@ func _build_currency_area(parent: Control) -> void:
 	currencies.add_theme_constant_override("separation", 12)
 	layout.add_child(currencies)
 
-	for currency_name in ["Gear", "Plywood", "Lubricant", "Iron Ore", "Power"]:
+	var currency_keys := ["hub_currency_gear", "hub_currency_plywood", "hub_currency_lubricant", "hub_currency_iron_ore", "hub_currency_power"]
+	for key in currency_keys:
 		var slot := make_panel(currencies, Vector2(0, 52), PANEL_ALT_COLOR)
 		slot.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var slot_margin := make_margin(slot, 12)
-		var value := add_label(slot_margin, "%s  -" % currency_name, 20)
+		var value := add_label(slot_margin, "%s  -" % Locale.ltr(key), 20)
 		value.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		value.custom_minimum_size = Vector2.ZERO
 
@@ -90,15 +91,15 @@ func _build_menu_area(parent: Control) -> void:
 	layout.add_theme_constant_override("separation", 14)
 	margin.add_child(layout)
 
-	var heading := add_label(layout, "Hub Actions", 32)
+	var heading := add_label(layout, Locale.ltr("hub_actions_title"), 32)
 	heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	heading.custom_minimum_size = Vector2.ZERO
 
-	add_button(layout, "Start Game", _on_game_start)
-	add_button(layout, "Achievements", _on_achievement)
-	add_button(layout, "Character Select", _on_character_list)
-	add_button(layout, "Growth", _on_growth)
-	add_button(layout, "Item List", _on_item_list)
+	add_button(layout, Locale.ltr("btn_start_game"), _on_game_start)
+	add_button(layout, Locale.ltr("btn_achievements"), _on_achievement)
+	add_button(layout, Locale.ltr("btn_character_select"), _on_character_list)
+	add_button(layout, Locale.ltr("btn_growth"), _on_growth)
+	add_button(layout, Locale.ltr("btn_item_list"), _on_item_list)
 
 	var filler := Control.new()
 	filler.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -106,7 +107,7 @@ func _build_menu_area(parent: Control) -> void:
 
 	last_difficulty_label = add_label(
 		layout,
-		"Last difficulty: %s" % GameState.last_selected_difficulty_name,
+		Locale.ltr("hub_last_difficulty") % GameState.last_selected_difficulty_name,
 		18
 	)
 	last_difficulty_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -126,13 +127,13 @@ func _build_character_area(parent: Control) -> void:
 	display_layout.add_theme_constant_override("separation", 12)
 	display_margin.add_child(display_layout)
 
-	add_label(display_layout, "Selected Character", 34)
+	add_label(display_layout, Locale.ltr("hub_selected_character_title"), 34)
 
 	var filler_top := Control.new()
 	filler_top.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	display_layout.add_child(filler_top)
 
-	add_label(display_layout, "Character Display Placeholder", 32)
+	add_label(display_layout, Locale.ltr("hub_character_display_placeholder"), 32)
 	selected_character_value_label = add_label(display_layout, GameState.selected_character_name, 24)
 
 	var filler_bottom := Control.new()
@@ -150,7 +151,7 @@ func _build_character_area(parent: Control) -> void:
 	record_layout.add_theme_constant_override("separation", 8)
 	record_margin.add_child(record_layout)
 
-	add_label(record_layout, "Best Record", 24)
+	add_label(record_layout, Locale.ltr("hub_best_record_title"), 24)
 	best_record_value_label = add_label(record_layout, GameState.best_record_summary, 22)
 
 
@@ -181,20 +182,23 @@ func _build_difficulty_overlay(parent: Control) -> void:
 	layout.add_theme_constant_override("separation", 12)
 	margin.add_child(layout)
 
-	add_label(layout, "난이도 선택", 34)
-	add_label(layout, "선택 캐릭터: %s" % GameState.selected_character_name, 20)
-	add_label(layout, "런 시작 전에 난이도를 선택하세요.", 18)
+	add_label(layout, Locale.ltr("hub_difficulty_popup_title"), 34)
+	add_label(layout, Locale.ltr("hub_difficulty_popup_char") % GameState.selected_character_name, 20)
+	add_label(layout, Locale.ltr("hub_difficulty_popup_hint"), 18)
 	add_spacer(layout, 8)
 
 	for option_data in GameState.get_difficulty_options():
 		var option_id := String(option_data["id"])
+		var is_unlocked := bool(option_data.get("unlocked", true))
 		var button_text := String(option_data["display_name"])
-		if bool(option_data["selected"]):
-			button_text += " (마지막 선택)"
-		add_button(layout, button_text, func() -> void: _on_pick_difficulty(option_id))
+		if not is_unlocked:
+			button_text += Locale.ltr("hub_difficulty_locked_suffix")
+		elif bool(option_data["selected"]):
+			button_text += Locale.ltr("hub_difficulty_selected_suffix")
+		add_button(layout, button_text, func() -> void: _on_pick_difficulty(option_id), not is_unlocked)
 
 	add_spacer(layout, 8)
-	add_button(layout, "취소", _on_cancel_difficulty_popup)
+	add_button(layout, Locale.ltr("btn_cancel"), _on_cancel_difficulty_popup)
 
 
 func _on_pick_difficulty(difficulty_id: String) -> void:

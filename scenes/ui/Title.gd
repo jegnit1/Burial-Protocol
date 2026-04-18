@@ -39,8 +39,8 @@ func _build_background_placeholder(parent: Control) -> void:
 	top_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	background_box.add_child(top_spacer)
 
-	add_label(background_box, "Background Image Placeholder", 28)
-	add_label(background_box, "Title scene presentation area", 20)
+	add_label(background_box, Locale.ltr("title_bg_placeholder"), 28)
+	add_label(background_box, Locale.ltr("title_scene_desc"), 20)
 
 	var bottom_spacer := Control.new()
 	bottom_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -58,8 +58,8 @@ func _build_title_header(parent: Control) -> void:
 	title_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	parent.add_child(title_box)
 
-	add_label(title_box, "BURIAL PROTOCOL", 68)
-	add_label(title_box, "Presentation screen and entry point to the hub", 24)
+	add_label(title_box, Locale.ltr("title_game_title"), 68)
+	add_label(title_box, Locale.ltr("title_subtitle"), 24)
 
 
 func _build_button_stack(parent: Control) -> void:
@@ -78,8 +78,8 @@ func _build_button_stack(parent: Control) -> void:
 	buttons.add_theme_constant_override("separation", 12)
 	button_margin.add_child(buttons)
 
-	add_button(buttons, "Start Game", _on_start)
-	add_button(buttons, "Settings", Callable(), true)
-	add_button(buttons, "Profile", Callable(), true)
-	add_button(buttons, "Quit Game", _on_quit)
-	add_button(buttons, "Ranking", Callable(), true)
+	add_button(buttons, Locale.ltr("btn_start_game"), _on_start)
+	add_button(buttons, Locale.ltr("btn_settings"), Callable(), true)
+	add_button(buttons, Locale.ltr("btn_profile"), Callable(), true)
+	add_button(buttons, Locale.ltr("btn_quit"), _on_quit)
+	add_button(buttons, Locale.ltr("btn_ranking"), Callable(), true)

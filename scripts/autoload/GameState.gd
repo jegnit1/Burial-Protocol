@@ -4,6 +4,9 @@ signal gold_changed(value: int)
 signal health_changed(current: int, maximum: int)
 signal status_text_changed(text: String)
 signal selected_character_changed(character_id: String, character_name: String, best_record: String)
+signal xp_changed(current: int, next_level_req: int)
+signal level_changed(level: int)
+signal level_up_ready()
 
 const SAVE_FILE_PATH := "user://profile.save"
 const SAVE_VERSION := 1
@@ -31,104 +34,103 @@ const DEFAULT_GROWTH := {
 const CHARACTER_SLOTS := [
 	{
 		"id": "default_worker",
-		"display_name": "Default Worker",
+		"display_name": "기본 일꾼",
 		"default_unlocked": true,
-		"unlock_text": "Available from the start.",
+		"unlock_text": "처음부터 사용 가능.",
 	},
 	{
 		"id": "locked_slot_01",
-		"display_name": "Locked Slot 01",
+		"display_name": "잠긴 슬롯 01",
 		"default_unlocked": false,
-		"unlock_text": "Unlock condition placeholder 01",
+		"unlock_text": "해금 조건 미정 01",
 	},
 	{
 		"id": "locked_slot_02",
-		"display_name": "Locked Slot 02",
+		"display_name": "잠긴 슬롯 02",
 		"default_unlocked": false,
-		"unlock_text": "Unlock condition placeholder 02",
+		"unlock_text": "해금 조건 미정 02",
 	},
 	{
 		"id": "locked_slot_03",
-		"display_name": "Locked Slot 03",
+		"display_name": "잠긴 슬롯 03",
 		"default_unlocked": false,
-		"unlock_text": "Unlock condition placeholder 03",
+		"unlock_text": "해금 조건 미정 03",
 	},
 	{
 		"id": "locked_slot_04",
-		"display_name": "Locked Slot 04",
+		"display_name": "잠긴 슬롯 04",
 		"default_unlocked": false,
-		"unlock_text": "Unlock condition placeholder 04",
+		"unlock_text": "해금 조건 미정 04",
 	},
 	{
 		"id": "locked_slot_05",
-		"display_name": "Locked Slot 05",
+		"display_name": "잠긴 슬롯 05",
 		"default_unlocked": false,
-		"unlock_text": "Unlock condition placeholder 05",
+		"unlock_text": "해금 조건 미정 05",
 	},
 	{
 		"id": "locked_slot_06",
-		"display_name": "Locked Slot 06",
+		"display_name": "잠긴 슬롯 06",
 		"default_unlocked": false,
-		"unlock_text": "Unlock condition placeholder 06",
+		"unlock_text": "해금 조건 미정 06",
 	},
 	{
 		"id": "locked_slot_07",
-		"display_name": "Locked Slot 07",
+		"display_name": "잠긴 슬롯 07",
 		"default_unlocked": false,
-		"unlock_text": "Unlock condition placeholder 07",
+		"unlock_text": "해금 조건 미정 07",
 	},
 	{
 		"id": "locked_slot_08",
-		"display_name": "Locked Slot 08",
+		"display_name": "잠긴 슬롯 08",
 		"default_unlocked": false,
-		"unlock_text": "Unlock condition placeholder 08",
+		"unlock_text": "해금 조건 미정 08",
 	},
 	{
 		"id": "locked_slot_09",
-		"display_name": "Locked Slot 09",
+		"display_name": "잠긴 슬롯 09",
 		"default_unlocked": false,
-		"unlock_text": "Unlock condition placeholder 09",
-	},
-]
-
-const DIFFICULTY_OPTIONS := [
-	{
-		"id": "normal",
-		"display_name": "Normal",
-	},
-	{
-		"id": "hard",
-		"display_name": "Hard",
-	},
-	{
-		"id": "hell",
-		"display_name": "Hell",
-	},
-	{
-		"id": "extreme",
-		"display_name": "Extreme",
+		"unlock_text": "해금 조건 미정 09",
 	},
 ]
 
 var gold := 0
 var player_health := GameConstants.PLAYER_MAX_HEALTH
-var status_text := "Phase 0 bootstrap complete."
-var latest_run_record := "No run played yet."
+var status_text := "Phase 0 초기화 완료."
+var latest_run_record := "아직 런을 진행하지 않았습니다."
 var latest_run_reason_id := "none"
-var latest_run_reason_label := "No result"
+var latest_run_reason_label := "결과 없음"
 var latest_run_stage_reached := 0
-var latest_run_difficulty_name := "Normal"
-var latest_run_character_name := "Default Worker"
+var latest_run_difficulty_name := "일반"
+var latest_run_character_name := "기본 일꾼"
 var selected_character_id := "default_worker"
-var selected_character_name := "Default Worker"
-var best_record_summary := "No record yet."
+var selected_character_name := "기본 일꾼"
+var best_record_summary := "기록 없음"
 var last_selected_difficulty_id := "normal"
-var last_selected_difficulty_name := "Normal"
+var last_selected_difficulty_name := "일반"
 var current_run_character_id := "default_worker"
-var current_run_character_name := "Default Worker"
+var current_run_character_name := "기본 일꾼"
 var current_run_difficulty_id := "normal"
-var current_run_difficulty_name := "Normal"
+var current_run_difficulty_name := "일반"
 var current_run_stage_reached := 1
+var current_day := 1
+var day_time_remaining := GameConstants.DAY_DURATION
+var run_cleared := false
+
+# 경험치 및 레벨업 상태
+var player_level := 1
+var player_current_xp := 0
+var player_next_level_xp := 50
+
+# 런타임 성장 보너스
+var run_bonus_attack_damage := 0
+var run_bonus_move_speed := 0.0
+var run_bonus_max_hp := 0
+var run_attack_speed_mult := 1.0
+var run_bonus_mining_damage := 0
+var run_mining_speed_mult := 1.0
+
+var cleared_difficulty_ids: PackedStringArray = PackedStringArray()
 var persistent_currencies: Dictionary = {}
 var settings_data: Dictionary = {}
 var growth_data: Dictionary = {}
@@ -146,11 +148,27 @@ func reset_run() -> void:
 	gold = 0
 	player_health = GameConstants.PLAYER_MAX_HEALTH
 	current_run_stage_reached = 1
-	status_text = "Run started. Character: %s | Difficulty: %s | Press R to end the run." % [
+	current_day = 1
+	day_time_remaining = GameConstants.DAY_DURATION
+	run_cleared = false
+	
+	player_level = 1
+	player_current_xp = 0
+	player_next_level_xp = 50
+	run_bonus_attack_damage = 0
+	run_bonus_move_speed = 0.0
+	run_bonus_max_hp = 0
+	run_attack_speed_mult = 1.0
+	run_bonus_mining_damage = 0
+	run_mining_speed_mult = 1.0
+	
+	status_text = Locale.ltr("status_run_start") % [
 		current_run_character_name,
 		current_run_difficulty_name,
 	]
 	gold_changed.emit(gold)
+	xp_changed.emit(player_current_xp, player_next_level_xp)
+	level_changed.emit(player_level)
 	health_changed.emit(player_health, GameConstants.PLAYER_MAX_HEALTH)
 	status_text_changed.emit(status_text)
 
@@ -161,8 +179,10 @@ func finish_temporary_run(reason_id: String = "run_end", reason_label: String = 
 	latest_run_stage_reached = current_run_stage_reached
 	latest_run_difficulty_name = current_run_difficulty_name
 	latest_run_character_name = current_run_character_name
+	if run_cleared:
+		mark_difficulty_cleared(current_run_difficulty_id)
 	_update_best_record(current_run_character_id, current_run_difficulty_id, current_run_stage_reached)
-	latest_run_record = "%s | %s | Stage %d | Gold %d | Health %d/%d" % [
+	latest_run_record = Locale.ltr("status_run_record") % [
 		current_run_character_name,
 		current_run_difficulty_name,
 		current_run_stage_reached,
@@ -203,9 +223,10 @@ func get_character_slots() -> Array[Dictionary]:
 
 func get_difficulty_options() -> Array[Dictionary]:
 	var options: Array[Dictionary] = []
-	for option_data in DIFFICULTY_OPTIONS:
+	for option_data in GameConstants.DIFFICULTY_OPTIONS:
 		var option: Dictionary = option_data.duplicate()
 		option["selected"] = option["id"] == last_selected_difficulty_id
+		option["unlocked"] = is_difficulty_unlocked(String(option["id"]))
 		options.append(option)
 	return options
 
@@ -225,9 +246,11 @@ func select_character(character_id: String) -> bool:
 
 
 func begin_run(difficulty_id: String) -> bool:
-	for option_data in DIFFICULTY_OPTIONS:
+	for option_data in GameConstants.DIFFICULTY_OPTIONS:
 		if option_data["id"] != difficulty_id:
 			continue
+		if not is_difficulty_unlocked(difficulty_id):
+			return false
 		last_selected_difficulty_id = String(option_data["id"])
 		last_selected_difficulty_name = String(option_data["display_name"])
 		current_run_difficulty_id = last_selected_difficulty_id
@@ -262,6 +285,21 @@ func unlock_character(character_id: String) -> void:
 	if unlocked_character_ids.has(character_id):
 		return
 	unlocked_character_ids.append(character_id)
+	save_profile()
+
+
+func is_difficulty_unlocked(difficulty_id: String) -> bool:
+	var def := GameConstants.get_difficulty_definition(difficulty_id)
+	var required := String(def.get("unlock_required", ""))
+	if required.is_empty():
+		return true
+	return cleared_difficulty_ids.has(required)
+
+
+func mark_difficulty_cleared(difficulty_id: String) -> void:
+	if cleared_difficulty_ids.has(difficulty_id):
+		return
+	cleared_difficulty_ids.append(difficulty_id)
 	save_profile()
 
 
@@ -304,6 +342,7 @@ func _build_save_data() -> Dictionary:
 		"unlocked_character_ids": Array(unlocked_character_ids),
 		"unlocked_achievement_ids": Array(unlocked_achievement_ids),
 		"best_records_by_character": best_records_by_character.duplicate(true),
+		"cleared_difficulty_ids": Array(cleared_difficulty_ids),
 	}
 
 
@@ -325,6 +364,7 @@ func _default_save_data() -> Dictionary:
 		"unlocked_character_ids": unlocked_ids,
 		"unlocked_achievement_ids": [],
 		"best_records_by_character": records,
+		"cleared_difficulty_ids": [],
 	}
 
 
@@ -349,6 +389,9 @@ func _apply_save_data(data: Dictionary) -> void:
 		unlocked_character_ids.append("default_worker")
 	unlocked_achievement_ids = PackedStringArray(_normalize_string_array(
 		data.get("unlocked_achievement_ids", [])
+	))
+	cleared_difficulty_ids = PackedStringArray(_normalize_string_array(
+		data.get("cleared_difficulty_ids", [])
 	))
 	best_records_by_character = _normalize_best_records(
 		data.get("best_records_by_character", default_data["best_records_by_character"])
@@ -405,7 +448,7 @@ func _normalize_best_records(value: Variant) -> Dictionary:
 		var source_records: Dictionary = value[character_id_variant]
 		if typeof(source_records) != TYPE_DICTIONARY:
 			continue
-		for difficulty in DIFFICULTY_OPTIONS:
+		for difficulty in GameConstants.DIFFICULTY_OPTIONS:
 			var difficulty_id := String(difficulty["id"])
 			normalized[character_id][difficulty_id] = int(source_records.get(difficulty_id, 0))
 	return normalized
@@ -413,7 +456,7 @@ func _normalize_best_records(value: Variant) -> Dictionary:
 
 func _default_difficulty_record_map() -> Dictionary:
 	var records: Dictionary = {}
-	for difficulty in DIFFICULTY_OPTIONS:
+	for difficulty in GameConstants.DIFFICULTY_OPTIONS:
 		records[String(difficulty["id"])] = 0
 	return records
 
@@ -430,27 +473,27 @@ func _get_character_display_name(character_id: String) -> String:
 
 
 func _get_difficulty_display_name(difficulty_id: String) -> String:
-	for option_data in DIFFICULTY_OPTIONS:
+	for option_data in GameConstants.DIFFICULTY_OPTIONS:
 		if String(option_data["id"]) == difficulty_id:
 			return String(option_data["display_name"])
-	return "Normal"
+	return "일반"
 
 
 func _get_character_best_record_summary(character_id: String) -> String:
 	if not best_records_by_character.has(character_id):
-		return "No record yet."
+		return Locale.ltr("no_record_yet")
 	var record_map := best_records_by_character[character_id] as Dictionary
 	var best_stage := 0
 	var best_difficulty_name := ""
-	for option_data in DIFFICULTY_OPTIONS:
+	for option_data in GameConstants.DIFFICULTY_OPTIONS:
 		var difficulty_id := String(option_data["id"])
 		var stage_value := int(record_map.get(difficulty_id, 0))
 		if stage_value > best_stage:
 			best_stage = stage_value
 			best_difficulty_name = String(option_data["display_name"])
 	if best_stage <= 0:
-		return "No record yet."
-	return "%s - Stage %d" % [best_difficulty_name, best_stage]
+		return Locale.ltr("no_record_yet")
+	return Locale.ltr("record_format") % [best_difficulty_name, best_stage]
 
 
 func _refresh_selected_character_summary() -> void:
@@ -463,3 +506,41 @@ func _update_best_record(character_id: String, difficulty_id: String, stage_reac
 	var record_map := best_records_by_character[character_id] as Dictionary
 	record_map[difficulty_id] = maxi(int(record_map.get(difficulty_id, 0)), stage_reached)
 	best_records_by_character[character_id] = record_map
+
+
+# ---- 경험치 및 레벨업 ----
+
+func add_xp(amount: int) -> void:
+	if amount <= 0:
+		return
+	player_current_xp += amount
+	xp_changed.emit(player_current_xp, player_next_level_xp)
+	if player_current_xp >= player_next_level_xp:
+		level_up_ready.emit()
+
+func apply_level_up_card(card_id: String) -> void:
+	match card_id:
+		"atk_up":
+			run_bonus_attack_damage += 2
+		"atk_spd_up":
+			run_attack_speed_mult *= 0.90 # 10% 쿨다운 감소
+		"hp_up":
+			run_bonus_max_hp += 1
+			player_health += 1 # 현재 체력도 증가 (단 1회 적용)
+			health_changed.emit(player_health, GameConstants.PLAYER_MAX_HEALTH + run_bonus_max_hp)
+		"spd_up":
+			run_bonus_move_speed += 40.0
+		"mine_dmg_up":
+			run_bonus_mining_damage += 1
+		"mine_spd_up":
+			run_mining_speed_mult *= 0.90 # 10% 채굴 쿨다운 감소
+			
+	# 경험치 차감 및 레벨 증가
+	player_current_xp -= player_next_level_xp
+	if player_current_xp < 0:
+		player_current_xp = 0
+	player_level += 1
+	player_next_level_xp = int(player_level * 50) # 스케일링 비율
+	
+	level_changed.emit(player_level)
+	xp_changed.emit(player_current_xp, player_next_level_xp)

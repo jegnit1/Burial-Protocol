@@ -545,37 +545,27 @@ func _get_push_signature(push_rect: Rect2, direction: int) -> String:
 		sample_min_x -= GameConstants.SAND_PUSH_CHAIN_LIMIT
 	var sample_min_y := min_cell.y - GameConstants.SAND_PUSH_UPWARD_BIAS
 	var sample_max_y := max_cell.y
-	var signature: String = "%d|%d|%d|%d|%d|" % [
-		direction,
-		sample_min_x,
-		sample_min_y,
-		sample_max_x,
-		sample_max_y,
-	]
+	var parts := PackedStringArray(["%d|%d|%d|%d|%d|" % [
+		direction, sample_min_x, sample_min_y, sample_max_x, sample_max_y,
+	]])
 	for y in range(sample_min_y, sample_max_y + 1):
 		for x in range(sample_min_x, sample_max_x + 1):
-			var cell := Vector2i(x, y)
-			if sand_cells.has(cell):
-				signature += "%d:%d;" % [x, y]
-	return signature
+			if sand_cells.has(Vector2i(x, y)):
+				parts.append("%d:%d;" % [x, y])
+	return "".join(parts)
 
 
 func _get_jump_signature(clear_rect: Rect2, direction: int) -> String:
 	var min_cell := world_to_sand_cell(clear_rect.position)
 	var max_cell := world_to_sand_cell(clear_rect.position + clear_rect.size - Vector2.ONE)
-	var signature: String = "%d|%d|%d|%d|%d|" % [
-		direction,
-		min_cell.x,
-		min_cell.y,
-		max_cell.x,
-		max_cell.y,
-	]
+	var parts := PackedStringArray(["%d|%d|%d|%d|%d|" % [
+		direction, min_cell.x, min_cell.y, max_cell.x, max_cell.y,
+	]])
 	for y in range(min_cell.y, max_cell.y + 1):
 		for x in range(min_cell.x, max_cell.x + 1):
-			var cell := Vector2i(x, y)
-			if sand_cells.has(cell):
-				signature += "%d:%d;" % [x, y]
-	return signature
+			if sand_cells.has(Vector2i(x, y)):
+				parts.append("%d:%d;" % [x, y])
+	return "".join(parts)
 
 
 func _store_push_origin_occupied(push_rect: Rect2, direction: int) -> void:

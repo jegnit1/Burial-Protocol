@@ -14,6 +14,9 @@ var current_health := 1
 var fall_remainder := 0.0
 var active := false
 var frame_motion := Vector2.ZERO
+# HP 오버레이 상태. 피격 시 타이머를 설정해 잠깐 표시한다.
+var _hp_overlay_timer := 0.0
+var _max_health_cache := 0  # setup() 시점에 캐시. 추후 체력바 비율 계산에도 사용 가능.
 
 @onready var collision_shape: CollisionShape2D = $CollisionShape2D
 
@@ -29,6 +32,8 @@ func setup(data: BlockData, spawn_position: Vector2, target_world: WorldGrid, ta
 	sand_field = target_sand
 	player = target_player
 	current_health = block_data.get_effective_health()
+	_max_health_cache = current_health
+	_hp_overlay_timer = 0.0
 	active = true
 	frame_motion = Vector2.ZERO
 	collision_layer = 1
@@ -40,6 +45,11 @@ func setup(data: BlockData, spawn_position: Vector2, target_world: WorldGrid, ta
 func _physics_process(delta: float) -> void:
 	if not active or block_data == null:
 		return
+	if _hp_overlay_timer > 0.0:
+		_hp_overlay_timer -= delta
+		if _hp_overlay_timer <= 0.0:
+			_hp_overlay_timer = 0.0
+			queue_redraw()  # 오버레이 숨김을 위한 1회 갱신
 	frame_motion = Vector2.ZERO
 	fall_remainder += GameConstants.BLOCK_FALL_SPEED * delta
 	var step_pixels := int(floor(fall_remainder))
@@ -102,6 +112,7 @@ func apply_damage(amount: int) -> void:
 		destroyed.emit(self)
 		queue_free()
 	else:
+		_hp_overlay_timer = GameConstants.BLOCK_HP_OVERLAY_DURATION
 		queue_redraw()
 
 
@@ -119,6 +130,29 @@ func _draw() -> void:
 	var rect := Rect2(-block_data.get_size_pixels() * 0.5, block_data.get_size_pixels())
 	draw_rect(rect, block_data.block_base_color)
 	draw_rect(rect, Color(0.05, 0.05, 0.05, 1.0), false, 2.0)
+	if _hp_overlay_timer > 0.0:
+		_draw_hp_overlay()
+
+
+func _draw_hp_overlay() -> void:
+	if _max_health_cache <= 0:
+		return
+	var ratio := clampf(float(current_health) / float(_max_health_cache), 0.0, 1.0)
+	var bar_w := block_data.get_size_pixels().x
+	var bar_h := GameConstants.BLOCK_HP_BAR_HEIGHT
+	var top_y := -block_data.get_size_pixels().y * 0.5
+	var bar_x := -bar_w * 0.5
+	var bar_y := top_y - GameConstants.BLOCK_HP_OVERLAY_TOP_MARGIN - bar_h
+	var bg_rect := Rect2(bar_x, bar_y, bar_w, bar_h)
+	# 배경
+	draw_rect(bg_rect, GameConstants.BLOCK_HP_BAR_BG_COLOR)
+	# 채움: 비율에 따라 저체력(빨강) → 고체력(초록) 보간
+	if ratio > 0.0:
+		var fill_color := GameConstants.BLOCK_HP_BAR_LOW_COLOR.lerp(
+			GameConstants.BLOCK_HP_BAR_HIGH_COLOR, ratio)
+		draw_rect(Rect2(bar_x, bar_y, bar_w * ratio, bar_h), fill_color)
+	# 테두리
+	draw_rect(bg_rect, GameConstants.BLOCK_HP_BAR_BORDER_COLOR, false, 1.0)
 
 
 func _ensure_collision_shape() -> void:

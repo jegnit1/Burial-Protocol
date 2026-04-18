@@ -3,12 +3,12 @@ extends "res://scenes/ui/MenuScreenScaffold.gd"
 
 func _ready() -> void:
 	var content := build_screen(
-		"Item List",
-		"Placeholder screen. This phase only defines a reachable empty item list scene."
+		Locale.ltr("itemlist_title"),
+		Locale.ltr("itemlist_subtitle")
 	)
-	add_label(content, "Collection and ownership details are deferred to a later phase.", 24)
+	add_label(content, Locale.ltr("itemlist_note"), 24)
 	add_spacer(content, 24)
-	add_button(content, "Back", _on_back)
+	add_button(content, Locale.ltr("btn_back"), _on_back)
 
 
 func _on_back() -> void:

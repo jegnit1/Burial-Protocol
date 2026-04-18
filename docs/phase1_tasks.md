@@ -1,370 +1,218 @@
 # Burial Protocol - Phase 1 Tasks
 
-## 현재 기준선 메모 (2026-04-18)
+## 0. Snapshot
 
-Phase 1은 아래 기준선 위에서 진행한다.
+Updated for current source state on `2026-04-19`.
 
-- 게임은 타이틀 화면에서 시작한다
-- 메인 허브, 캐릭터 선택, 결과 화면, placeholder 하위 메뉴가 이미 연결되어 있다
-- 단일 프로필 저장 구조가 있다
-- 좌클릭 공격 / 우클릭 채굴 입력 분리가 끝난 상태다
-- 플레이어 대시는 이미 기본 구현이 들어가 있다
-- 블록 베이스 데이터와 8종 블록 스폰 구조가 들어가 있다
-- 남은 대표 이슈는 벽 채굴 방향 우선순위와 블록 베이스별 특수 결과 연결이다
+Phase 1 is no longer just a bootstrap task list.
+The project already has a playable run loop, so this document now tracks:
 
----
-
-## 0. 목적
-
-이 문서는 Burial Protocol의 다음 개발 단위를 실제 체크리스트 형태로 정리한다.
-
-Phase 0의 목표가
-한 판의 생존 루프를 실제로 성립시키는 것이었다면,
-현재 Phase 1의 목표는
-이미 성립한 루프 위에
-플레이어 기동을 안정화하고,
-블록 베이스 차이를 실제 판단 차이로 연결하며,
-이후 속성 시스템을 붙일 수 있는 기반을 정리하는 것이다.
-
-이번 문서의 핵심은 아래와 같다.
-
-- 기존 대시 시스템 안정화 및 튜닝
-- 블록 베이스별 체감 차이 확장
-- 파괴 / 분해 / 폭발 / 보상 결과 연결
-- 이후 블록 속성 시스템을 붙일 수 있는 데이터 구조 정리
+- what has been completed
+- what still needs cleanup or polish
+- what should come next without breaking the current loop
 
 ---
 
-## 1. 현재 Phase 1 범위
+## 1. Completed In The Current Phase
 
-- `P1-1` 현재 기준선 재검증 및 데이터 정리
-- `P1-2` 대시 시스템 안정화 및 밸런스 조정
-- `P1-3` 블록 베이스 시스템 연결 보강
-- `P1-4` 블록 베이스별 결과 연출 및 판정 확장
-- `P1-5` 블록 데이터 구조 정비 및 이후 확장 준비
-- `P1-6` 통합 테스트 및 밸런스 조정
+### 1-1. Menu And Flow
 
-권장 진행 원칙:
+- title screen to main hub flow
+- main hub to gameplay flow
+- character list scene and selection state
+- result screen flow back to hub
+- placeholder achievement, growth, and item-list scenes
 
-- 이미 성립한 코어 루프를 깨지 않는다
-- 작업은 현재 코드 기준으로 이어 붙인다
-- 문서 기준과 구현 기준을 같이 갱신한다
-- 블록 속성 시스템 본 구현은 이번 묶음 밖으로 둔다
+### 1-2. State And Persistence
 
----
+- save profile bootstrap at `user://profile.save`
+- selected character persistence
+- last selected difficulty persistence
+- difficulty clear tracking
+- per-character best record tracking
+- placeholder currencies, settings, growth, unlock arrays
 
-## 2. 현재 확인된 상태
+### 1-3. World And Run Loop
 
-### 이미 들어간 것
+- fixed-size world layout
+- center lane plus mineable side walls
+- bottom floor
+- camera follow in vertical play space
+- spawn timer driven falling blocks
+- rush days and boss days
+- day timer and automatic day advance
+- Day 30 clear and failure flow
 
-- 공격/채굴 입력 분리
-- 1920x1080 화면 구조
-- 128x128 플레이어 크기
-- 좌 / 우 / 하 대시
-- 블록 베이스 데이터 테이블
-- 8종 블록 스폰 구조
-- 모래 채굴과 벽 채굴
+### 1-4. Player Core Systems
 
-### 아직 체감 연결이 부족한 것
+- movement
+- jump, coyote time, buffer jump
+- extra jump
+- wall jump and wall slide
+- fast fall
+- attack
+- mining
+- double-tap dash
+- falling block support riding
 
-- 블록 베이스별 특수 결과 연출
-- 유리/황금/폭탄의 본격적 플레이 차이
-- 벽 채굴 우선순위 정렬 문제
-- 대시의 체감 밸런스 조정
+### 1-5. Environment Systems
 
----
+- falling block HP and destruction
+- block decomposition into sand
+- sand simulation with active-cell stepping
+- wall subcell mining
+- player sand push and jump-space clearance helpers
+- temporary weight overload fail condition
 
-## 3. 이번 Phase에서 먼저 다룰 블록 베이스
+### 1-6. Progression And Feedback
 
-현재 데이터 테이블 기준 우선 대상은 아래 8종이다.
+- gold gain from block destruction
+- XP gain from block destruction and sand mining
+- level-up popup with three random cards
+- temporary run bonuses
+- damage popup
+- gold popup
+- HUD for day, gold, weight, HP, XP, and level
+- optional debug panel
 
-- 유리블록
-- 나무블록
-- 바위블록
-- 대리석블록
-- 황금블록
-- 시멘트블록
-- 강철블록
-- 폭탄블록
+### 1-7. Data And Localization
 
-후순위:
-
-- 물통블록
-- 흡수블록
-
-이유:
-
-- 물통블록은 모래 흐름 규칙 자체를 크게 흔든다
-- 흡수블록은 주변 블록 탐색과 성장 구조가 필요하다
-
----
-
-## 4. 이번 Phase에서 제외하는 항목
-
-아래 항목은 이번 문서 범위에서 제외한다.
-
-- 화염 / 전기 / 화학 / EMP / 오염 등 모래 상태이상 속성 본 구현
-- 다중 속성 보스 블록
-- 물통블록 본 구현
-- 흡수블록 본 구현
-- 상점 / 유물 / 장기 성장 시스템
-- 스테이지 구조 본 구현
-- 정교한 클리어 / 보스 연출 본 구현
-
-즉, 이번 묶음은
-"기존 루프를 깨지 않고, 현재 데이터 구조를 실제 판단 차이로 연결하는 단계"
-다.
+- centralized tunables in `GameConstants.gd`
+- block bases and block types data tables
+- locale autoload with Korean and English tables
 
 ---
 
-## 5. P1-1 현재 기준선 재검증 및 데이터 정리
+## 2. Current Open Work
 
-### 목표
+These are the most important unfinished areas that already touch the live loop.
 
-현재 코드 기준의 루프를 다시 점검하고,
-다음 확장이 안전하도록 데이터 구조를 정리한다.
+### 2-1. Inter-Day Structure
 
-### 세부 작업
+- merchant/shop phase between days is still not implemented
+- day transition currently auto-advances from timer expiry to next day
+- related UI and economy decision flow are still missing
 
-- [ ] 현재 공격 / 채굴 / 모래 채굴 / 벽 채굴 루프 재검증
-- [ ] 타이틀 / 메인 허브 / 결과 화면 루프 유지 확인
-- [ ] 현재 이동 / 점프 / 더블 점프 / 벽 기동 루프 재검증
-- [ ] 블록 타입과 블록 베이스 데이터 정의 위치 점검
-- [ ] 블록 공통 데이터 구조 재점검
-- [ ] 파괴 / 분해 / 특수 결과 분리를 위한 필드 점검
-- [ ] 디버그 출력으로 블록 베이스 확인 흐름 정리
-- [ ] 현재 성능 / 디버그 기준선 확보
+### 2-2. Menu Depth
 
-### 완료 조건
+- achievement screen is still placeholder-only
+- growth screen is still placeholder-only
+- item list screen is still placeholder-only
+- title-side settings/profile/ranking buttons are still placeholder-only
 
-- 기존 생존 루프가 그대로 유지된다
-- 최소 메타 허브 루프가 깨지지 않는다
-- 블록별 체력 / 보상 / 결과 차이를 안전하게 확장할 수 있다
-- 다음 작업부터 하드코딩 없이 기능을 붙일 수 있다
+### 2-3. HUD Polish
 
----
+- `GameState.status_text` is updated but not surfaced as a dedicated HUD widget
+- some HUD labels are hardcoded rather than routed through `Locale`
+- sensor panel can be improved further for clarity and consistency
 
-## 6. P1-2 대시 시스템 안정화 및 밸런스 조정
+### 2-4. Run Presentation
 
-### 목표
+- result screen is functional but minimal
+- boss presentation is currently rule-based, not event-driven or cinematic
+- current block special-result ids exist in data but are only lightly expressed
 
-이미 구현된 대시 시스템을 실제 회피 수단으로 안정화하고,
-현재 루프 안에서 점프 / 더블 점프와 역할이 겹치지 않게 조정한다.
+### 2-5. Localization And Text Cleanup
 
-### 현재 구현 기준
-
-- 더블탭 기반 대시 입력 존재
-- 좌 / 우 / 하 방향 지원
-- 위 대시 비활성
-- 거리 약 4U
-- 지속시간 / 쿨다운 / 시각 피드백 존재
-
-### 세부 작업
-
-- [ ] 좌 / 우 / 하 대시 체감 재점검
-- [ ] 대시 거리 / 시간 / 쿨다운 밸런스 조정
-- [ ] 대시 중 충돌 처리 재검증
-- [ ] 대시 중 모래와의 상호작용 재검증
-- [ ] 대시 중 낙하 블록과의 충돌 규칙 점검
-- [ ] 대시 피드백과 디버그 정보 정리
-
-### 완료 조건
-
-- 대시가 실제 회피 수단으로 체감된다
-- 점프 / 더블 점프와 역할이 겹치지 않는다
-- 벽과 바닥을 뚫지 않는다
-- 모래와 낙하 블록 환경 안에서도 규칙이 일관되다
+- runtime locale support exists, but not every visible label is localized
+- some recent UI strings are still direct English strings in code
 
 ---
 
-## 7. P1-3 블록 베이스 시스템 연결 보강
+## 3. Recommended Next Priorities
 
-### 목표
+### Priority A - Make Day Transitions A Real Gameplay Layer
 
-이미 존재하는 블록 베이스 데이터가
-실제 플레이에서 서로 다른 처리 우선순위로 느껴지도록 연결을 보강한다.
+Target:
 
-### 현재 상태
+- implement the missing inter-day merchant/shop phase
+- connect day end to a real decision moment instead of instant advance
 
-- 블록 베이스 데이터는 정의돼 있다
-- 스폰 가중치와 HP 배율은 들어가 있다
-- 특수 결과 타입 필드도 존재한다
-- 하지만 특수 결과의 체감 연결은 아직 부족하다
+Suggested scope:
 
-### 세부 작업
+- day-end pause or overlay
+- next-day button or shop confirmation
+- gold spending path
+- explicit day transition messaging
 
-- [ ] 블록 베이스별 체력 차이 체감 재검증
-- [ ] 베이스별 보상 차이 구조 점검
-- [ ] 베이스별 특수 결과 타입 사용 경로 점검
-- [ ] 블록 베이스 디버그 식별 흐름 정리
-- [ ] 스폰 테이블과 난이도 확장 여지 재검토
+### Priority B - Promote Status Feedback Into HUD
 
-### 완료 조건
+Target:
 
-- 블록 베이스 차이가 비주얼 차이에만 그치지 않는다
-- 제거 우선순위 판단이 생긴다
-- 이후 특수 결과 연결 작업이 자연스럽게 이어진다
+- expose gameplay status text directly in the HUD
 
----
+Suggested scope:
 
-## 8. P1-4 블록 베이스별 결과 연출 및 판정 확장
+- recent attack result
+- mining result
+- crush warning
+- block destruction reward text
 
-### 목표
+### Priority C - Turn Placeholder Meta Screens Into Real Systems
 
-블록 베이스 차이를 플레이어가 즉시 이해 가능한 결과 차이로 만든다.
+Target:
 
-### 우선 대상
+- choose one of achievements, permanent growth, or inventory and make it real
 
-#### 유리블록
-- 파괴 시 주변 피해
-- 전용 시각 연출
+Recommendation:
 
-#### 황금블록
-- 추가 재화 지급
-- 보상량 피드백
+- start with permanent growth or achievements before inventory breadth
 
-#### 폭탄블록
-- 모래 대신 폭발 처리
-- 폭발 범위 판정
-- 전용 연출
+### Priority D - Tighten Localization Pass
 
-### 세부 작업
+Target:
 
-- [ ] 유리블록 파괴 시 주변 피해 판정 구현
-- [ ] 유리블록 전용 연출 추가
-- [ ] 황금블록 추가 재화 지급 연결
-- [ ] 황금블록 보상 피드백 추가
-- [ ] 폭탄블록 폭발 판정 구현
-- [ ] 폭탄블록 폭발 범위 구현
-- [ ] 폭탄블록 전용 폭발 연출 추가
-- [ ] 일반 블록과 특수 결과 블록의 차이가 명확히 보이게 보강
-
-### 완료 조건
-
-- 유리블록이 근접 처리 리스크를 만든다
-- 황금블록이 고위험 고보상 판단을 만든다
-- 폭탄블록이 일반 분해와 다른 처리 판단을 만든다
+- move recent hardcoded UI text into `Locale.gd`
+- keep Korean and English outputs consistent
 
 ---
 
-## 9. P1-5 블록 데이터 구조 정비 및 이후 확장 준비
+## 4. Guardrails For The Next Phase
 
-### 목표
+The next phase should not destabilize the current playable loop.
 
-향후 블록 속성 시스템을 붙일 수 있도록,
-현재 블록 데이터를 베이스 중심으로 정리하고 확장 지점을 남긴다.
+Before adding new content, preserve:
 
-### 세부 작업
+- movement feel
+- dash usability
+- attack and mining responsiveness
+- block spawn readability
+- sand overload tension
+- day timer progression
+- result screen return flow
 
-- [ ] block_base와 추후 modifier 개념 분리 설계
-- [ ] 현재는 block_base만 실제 사용하도록 정리
-- [ ] 이후 속성 1개 이상 붙일 수 있는 빈 구조 마련
-- [ ] 난이도에 따른 블록 베이스 등장 비율 조절 여지 마련
-- [ ] 특수 결과를 덮어쓰는 타입 지원 구조 정리
-
-### 완료 조건
-
-- 블록 데이터 구조가 베이스 중심으로 정리된다
-- 이후 속성 시스템을 붙일 수 있는 여지가 남아 있다
-- 스폰 확률과 등장 난이도 조절이 가능하다
+Do not replace the current loop with a large speculative refactor unless the
+project is explicitly moving to a new architecture.
 
 ---
 
-## 10. P1-6 통합 테스트 및 밸런스 조정
+## 5. Verification Checklist
 
-### 목표
+Use this checklist after major gameplay or UI changes:
 
-대시 시스템과 블록 베이스 시스템이
-실제 생존 루프 안에서 의미 있게 작동하는지 검증한다.
-
-### 통합 체크리스트
-
-- [ ] 대시가 실제 회피 수단으로 작동한다
-- [ ] 대시가 기존 점프 / 더블점프와 역할이 겹치지 않는다
-- [ ] 유리블록이 일반 블록과 다르게 위험하게 느껴진다
-- [ ] 황금블록이 고위험 고보상으로 느껴진다
-- [ ] 강철 / 시멘트 / 대리석이 체력 차이로 분명히 구분된다
-- [ ] 폭탄블록을 어떻게 처리할지 플레이어 판단이 생긴다
-- [ ] 블록 종류 증가가 루프를 어지럽히지 않는다
-- [ ] 기본 공격 / 대시 / 채굴 / 회피 루프가 유지된다
-- [ ] 성능 저하 없이 일반 플레이가 가능하다
-
-### 핵심 검증 시나리오
-
-#### 시나리오 A - 대시 회피
-- [ ] 상단 낙하 위협을 좌 / 우 대시로 피할 수 있다
-- [ ] 하 대시로 빠르게 회피 또는 위치 조정이 가능하다
-- [ ] 위 방향 더블탭은 대시로 발동하지 않는다
-
-#### 시나리오 B - 체력 차이 판단
-- [ ] 서로 다른 HP 배율 블록이 함께 등장한다
-- [ ] 플레이어가 제거 우선순위를 체감하게 된다
-
-#### 시나리오 C - 고보상 판단
-- [ ] 황금블록 등장 시 더 위험을 감수하고 처리할 이유가 생긴다
-
-#### 시나리오 D - 특수 결과 판단
-- [ ] 유리블록은 근접 처리 시 리스크가 있다
-- [ ] 폭탄블록은 처리 방식에 따라 위험 / 기회가 달라진다
-
-#### 시나리오 E - 루프 유지
-- [ ] 기동 수단과 블록 종류가 늘어도 공격 / 분해 / 모래 압박 / 생존 루프가 끊기지 않는다
-
-### 완료 조건
-
-- 대시가 실제 플레이 판단에 의미를 가진다
-- 블록 베이스 차이가 실제 플레이 판단에 영향을 준다
-- 블록 종류 증가가 단순 비주얼 차이에 그치지 않는다
-- 이후 속성 시스템을 붙일 준비가 된다
-- 생존 루프가 여전히 안정적으로 유지된다
+- title opens the hub correctly
+- hub starts a run only after difficulty selection
+- locked difficulties stay locked until previous clear
+- character selection persists
+- attack hits falling blocks
+- mining affects sand and walls
+- dash still triggers on double tap
+- day timer counts down correctly
+- day 1 to 29 still advance
+- Day 30 still clears or fails correctly
+- result screen shows the latest run data
+- docs are updated in the same cycle
 
 ---
 
-## 11. 추천 구현 순서
+## 6. Phase Summary
 
-1. `P1-1` 현재 기준선 재검증 및 데이터 정리
-2. `P1-2` 대시 시스템 안정화 및 밸런스 조정
-3. `P1-3` 블록 베이스 시스템 연결 보강
-4. `P1-4` 블록 베이스별 결과 연출 및 판정 확장
-5. `P1-5` 블록 데이터 구조 정비 및 이후 확장 준비
-6. `P1-6` 통합 테스트 및 밸런스 조정
+Phase 1 has already moved beyond bootstrap.
+The current milestone is best described as:
 
----
+"a playable vertical run prototype with strong core movement and environment systems,
+but incomplete inter-day meta structure."
 
-## 12. 다음 작업 후보
-
-이번 문서 완료 후 다음 작업 후보는 아래 순서를 권장한다.
-
-### 후보 A - 블록 속성 시스템 1차
-- 과적
-- 가시
-
-### 후보 B - 모래 상태이상 속성 시스템
-- 화염
-- 전기
-- 화학
-- EMP
-- 오염
-
-### 후보 C - 고난도 특수 블록
-- 물통블록
-- 흡수블록
-
-즉, 이번 Phase는
-속성 시스템 본 구현 전,
-현재 데이터 구조와 플레이 체감을 먼저 정리하는 단계다.
-
----
-
-## 13. 다음 Phase로 넘어가기 전 확인
-
-다음 질문에 모두 예라고 답할 수 있어야 한다.
-
-- [ ] 대시가 기존 이동 / 점프 구조와 충돌 없이 작동하는가
-- [ ] 블록 종류 차이가 실제 판단 차이로 이어지는가
-- [ ] 고위험 고보상 블록이 존재하는가
-- [ ] 특수 결과 블록이 플레이어 우선순위 판단을 만드는가
-- [ ] 블록 종류가 늘어도 기존 생존 루프가 유지되는가
-- [ ] 이후 속성 시스템을 붙일 데이터 구조가 준비되었는가
-
-하나라도 아니오면 다음 작업으로 넘어가지 않는다.
+That means the best next work is not rebuilding the core loop.
+It is turning the missing day-end and meta layers into real gameplay while keeping
+the current run systems stable.

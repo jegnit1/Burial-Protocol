@@ -89,7 +89,7 @@ const PLAYER_ATTACK_RANGE := PLAYER_ATTACK_RANGE_WIDTH
 const PLAYER_ATTACK_RANGE_HEIGHT := float(CELL_SIZE)
 const PLAYER_ATTACK_THICKNESS := PLAYER_ATTACK_RANGE_HEIGHT
 # 연속 공격 사이의 최소 간격.
-const PLAYER_ATTACK_COOLDOWN := 0.1
+const PLAYER_ATTACK_COOLDOWN := 0.25
 # 공격 입력을 미리 저장해두는 버퍼 시간.
 const PLAYER_ATTACK_BUFFER_TIME := 0.12
 # 공격 미리보기/피격 비주얼이 유지되는 시간.
@@ -131,9 +131,9 @@ const BLOCK_SPAWN_Y_OFFSET := 16.0
 # 게임플레이 1U 안에 들어가는 모래 시뮬레이션 셀 개수.
 const SAND_CELLS_PER_UNIT := 6
 # 모래 시뮬레이션 셀 1칸의 픽셀 크기.
-const SAND_CELL_SIZE := CELL_SIZE / SAND_CELLS_PER_UNIT
+const SAND_CELL_SIZE := float(CELL_SIZE) / float(SAND_CELLS_PER_UNIT)
 const WALL_SUBCELLS_PER_UNIT := 4
-const WALL_SUBCELL_SIZE := CELL_SIZE / WALL_SUBCELLS_PER_UNIT
+const WALL_SUBCELL_SIZE := float(CELL_SIZE) / float(WALL_SUBCELLS_PER_UNIT)
 # 한 번의 계산에서 연쇄적으로 이어질 수 있는 모래 밀기 최대 횟수.
 const SAND_PUSH_CHAIN_LIMIT := 9
 # 시뮬레이션 한 틱마다 처리하는 모래 흐름 업데이트 수.
@@ -200,6 +200,57 @@ const DAMAGE_POPUP_TEXT_COLOR := Color("fff2cf")
 # 데미지 팝업 그림자 색상.
 const DAMAGE_POPUP_SHADOW_COLOR := Color(0.07, 0.05, 0.04, 0.88)
 
+# 피격 시 블록 위에 표시되는 HP 바 오버레이 지속 시간(초). 추가 피격 시 갱신된다.
+const BLOCK_HP_OVERLAY_DURATION := 1.2
+# HP 바와 블록 상단 사이의 간격(px).
+const BLOCK_HP_OVERLAY_TOP_MARGIN := 5.0
+# HP 바의 두께(px).
+const BLOCK_HP_BAR_HEIGHT := 7.0
+# HP 바 배경 색상.
+const BLOCK_HP_BAR_BG_COLOR := Color(0.08, 0.08, 0.08, 0.85)
+# HP 비율이 높을 때(100%) 바 채움 색상.
+const BLOCK_HP_BAR_HIGH_COLOR := Color(0.3, 0.88, 0.35, 1.0)
+# HP 비율이 낮을 때(0%) 바 채움 색상.
+const BLOCK_HP_BAR_LOW_COLOR := Color(0.9, 0.22, 0.18, 1.0)
+# HP 바 테두리 색상.
+const BLOCK_HP_BAR_BORDER_COLOR := Color(0.0, 0.0, 0.0, 0.9)
+
+# 골드 획득 팝업 글자 크기.
+const GOLD_POPUP_FONT_SIZE := 36
+# 골드 획득 팝업이 화면에 머무는 시간(초).
+const GOLD_POPUP_LIFETIME := 1.0
+# 골드 획득 팝업이 위로 떠오르는 속도(px/s).
+const GOLD_POPUP_RISE_SPEED := 80.0
+# 골드 획득 팝업 본문 색상.
+const GOLD_POPUP_TEXT_COLOR := Color(1.0, 0.88, 0.2, 1.0)
+# 골드 획득 팝업 그림자 색상.
+const GOLD_POPUP_SHADOW_COLOR := Color(0.0, 0.0, 0.0, 0.85)
+# 골드 팝업 아이콘 임시 텍스트. 추후 TextureRect 스프라이트로 교체할 자리.
+const GOLD_POPUP_ICON_TEXT := "GOLD"
+
+# 난이도 정의. normal은 항상 해금; 이후 난이도는 이전 단계 클리어 시 순차 해금.
+# mining_hp_multiplier는 데이터 훅으로만 보관. 현재 미적용(TODO).
+const DIFFICULTY_OPTIONS := [
+	{"id": "normal",    "display_name": "일반",  "block_hp_multiplier": 1.0,  "mining_hp_multiplier": 1.0,  "unlock_required": ""},
+	{"id": "hard",      "display_name": "어려움", "block_hp_multiplier": 1.5,  "mining_hp_multiplier": 1.5,  "unlock_required": "normal"},
+	{"id": "extreme",   "display_name": "극한",  "block_hp_multiplier": 3.0,  "mining_hp_multiplier": 3.0,  "unlock_required": "hard"},
+	{"id": "hell",      "display_name": "지옥",  "block_hp_multiplier": 5.0,  "mining_hp_multiplier": 5.0,  "unlock_required": "extreme"},
+	{"id": "nightmare", "display_name": "악몽",  "block_hp_multiplier": 10.0, "mining_hp_multiplier": 10.0, "unlock_required": "hell"},
+]
+
+# 런 구조: 30 Day × 40초. Day 종료 후 상점 단계 진입(TODO: 상인/키오스크 UI).
+const RUN_TOTAL_DAYS := 30
+const DAY_DURATION := 40.0
+# 러시 Day: 스폰 간격이 절반으로 단축된다.
+const RUSH_DAYS := [5, 15, 25]
+# 보스 Day: 보스 블록이 추가 스폰된다. Day 30 보스 처치/모래화+생존 = 런 클리어.
+const BOSS_DAYS := [10, 20, 30]
+const RUSH_SPAWN_INTERVAL_MULTIPLIER := 0.5
+const BOSS_SPAWN_INTERVAL_MULTIPLIER := 0.8
+const BOSS_BLOCK_TYPE_ID: StringName = &"ember_wide"
+# 보스 블록에만 적용되는 추가 HP 배율 (난이도 배율과 별개).
+const BOSS_BLOCK_HP_EXTRA_MULTIPLIER := 3.0
+
 # 재질별 블록/모래 색상과 무게 설정.
 const SAND_COLOR_CONFIG := {
 	"amber": {
@@ -228,7 +279,7 @@ const BLOCK_SPECIAL_RESULT_EXPLOSION: StringName = &"explosion"
 const BLOCK_BASES := {
 	"glass": {
 		"id": "glass",
-		"display_name": "Glass",
+		"display_name": "유리",
 		"color": Color("b8d8f4"),
 		"spawn_weight": 1.0,
 		"hp_multiplier": 1.0,
@@ -237,7 +288,7 @@ const BLOCK_BASES := {
 	},
 	"wood": {
 		"id": "wood",
-		"display_name": "Wood",
+		"display_name": "나무",
 		"color": Color("9a6d43"),
 		"spawn_weight": 1.1,
 		"hp_multiplier": 1.0,
@@ -246,7 +297,7 @@ const BLOCK_BASES := {
 	},
 	"rock": {
 		"id": "rock",
-		"display_name": "Rock",
+		"display_name": "바위",
 		"color": Color("7d8591"),
 		"spawn_weight": 1.2,
 		"hp_multiplier": 1.0,
@@ -255,7 +306,7 @@ const BLOCK_BASES := {
 	},
 	"marble": {
 		"id": "marble",
-		"display_name": "Marble",
+		"display_name": "대리석",
 		"color": Color("d9dde4"),
 		"spawn_weight": 0.85,
 		"hp_multiplier": 1.5,
@@ -264,7 +315,7 @@ const BLOCK_BASES := {
 	},
 	"gold": {
 		"id": "gold",
-		"display_name": "Gold",
+		"display_name": "금",
 		"color": Color("d7b94d"),
 		"spawn_weight": 0.55,
 		"hp_multiplier": 2.0,
@@ -273,7 +324,7 @@ const BLOCK_BASES := {
 	},
 	"cement": {
 		"id": "cement",
-		"display_name": "Cement",
+		"display_name": "시멘트",
 		"color": Color("707983"),
 		"spawn_weight": 0.9,
 		"hp_multiplier": 2.0,
@@ -282,7 +333,7 @@ const BLOCK_BASES := {
 	},
 	"steel": {
 		"id": "steel",
-		"display_name": "Steel",
+		"display_name": "강철",
 		"color": Color("5d6979"),
 		"spawn_weight": 0.75,
 		"hp_multiplier": 3.0,
@@ -291,7 +342,7 @@ const BLOCK_BASES := {
 	},
 	"bomb": {
 		"id": "bomb",
-		"display_name": "Bomb",
+		"display_name": "폭탄",
 		"color": Color("d45858"),
 		"spawn_weight": 0.5,
 		"hp_multiplier": 1.5,
@@ -554,3 +605,62 @@ func get_sand_color(color_key: StringName) -> Color:
 func get_sand_weight(color_key: StringName) -> float:
 	var config: Dictionary = SAND_COLOR_CONFIG.get(String(color_key), SAND_COLOR_CONFIG["amber"])
 	return config["weight"]
+
+
+func get_day_type(day_number: int) -> StringName:
+	if BOSS_DAYS.has(day_number):
+		return &"boss"
+	if RUSH_DAYS.has(day_number):
+		return &"rush"
+	return &"normal"
+
+
+func get_difficulty_definition(difficulty_id: String) -> Dictionary:
+	for raw_option in DIFFICULTY_OPTIONS:
+		var option: Dictionary = raw_option
+		if String(option["id"]) == difficulty_id:
+			return option
+	return DIFFICULTY_OPTIONS[0]
+
+
+# ---- 레벨업 및 경험치 시스템 ----
+
+# 카드 풀 기본 정의 (추후 밸런스 변경 가능)
+const LEVEL_UP_CARDS := {
+	"atk_up": {
+		"id": "atk_up",
+		"title": "공격력 증가",
+		"desc": "기본 공격력이 소폭 상승합니다.",
+	},
+	"atk_spd_up": {
+		"id": "atk_spd_up",
+		"title": "공격속도 증가",
+		"desc": "공격 쿨다운이 빨라집니다.",
+	},
+	"hp_up": {
+		"id": "hp_up",
+		"title": "최대 체력 증가",
+		"desc": "최대 체력이 1 증가하고 즉시 회복됩니다.",
+	},
+	"spd_up": {
+		"id": "spd_up",
+		"title": "이동속도 증가",
+		"desc": "플레이어의 기본 이동속도가 상승합니다.",
+	},
+	"mine_dmg_up": {
+		"id": "mine_dmg_up",
+		"title": "채굴 데미지 증가",
+		"desc": "안전하게 채굴하는 충격량이 상승합니다.",
+	},
+	"mine_spd_up": {
+		"id": "mine_spd_up",
+		"title": "채굴 속도 증가",
+		"desc": "채굴 쿨다운이 빨라집니다.",
+	}
+}
+
+func get_block_xp(width_cells: int, height_cells: int) -> int:
+	return width_cells * height_cells * 2
+
+func get_sand_xp(sand_count: int) -> int:
+	return sand_count * 1

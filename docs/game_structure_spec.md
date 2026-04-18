@@ -1,316 +1,355 @@
 # Burial Protocol - Game Structure Specification
 
-## 0. 목적
+## 0. Purpose
 
-이 문서는 Burial Protocol의 현재 코드 기준 전체 구조를 정리한다.
-메타 루프, 화면 구성, 해상도, 카메라, 월드 크기, 블록 스폰, 런 종료 흐름을 한 문서에 고정해
-프로젝트의 바깥 루프와 화면 presentation 기준을 한 번에 참조할 수 있게 하는 것이 목적이다.
-
-이 문서는 다음을 다룬다.
-
-- 타이틀 → 메인 허브 → 런 → 결과의 전체 흐름
-- 화면별 역할과 최소 UI 구성
-- 1920x1080 기준 화면/카메라 구조
-- 월드 폭/높이와 플레이어 표시 크기
-- 낙하 블록 스폰 규칙
-- 현재 런 종료 조건과 결과 화면 진입 조건
+This document describes the game structure that is actually implemented in the
+current codebase. It focuses on the scene flow, run loop, day progression,
+world layout, and run end rules used by the present prototype.
 
 ---
 
-## 1. 현재 구조 한 줄 정의
+## 1. High-Level Loop
 
-Burial Protocol의 현재 전체 구조는
+The current game loop is:
 
-**타이틀 화면에서 메인 허브로 진입한 뒤, 선택 캐릭터와 난이도로 런을 시작하고, 가로 30U 전체가 항상 보이는 1920x1080 화면에서 Y축만 따라가는 카메라 아래 생존 루프를 반복한 뒤 결과 화면으로 복귀하는 구조**
+1. open the title screen
+2. enter the main hub
+3. optionally choose a character
+4. open the difficulty popup
+5. begin a run
+6. survive the falling-block and sand-management loop
+7. end the run by failure, manual exit, or clear
+8. move to the result screen
+9. return to the main hub
 
-로 요약할 수 있다.
-
----
-
-## 2. 현재 고정 전제
-
-현재 구현 기준의 주요 전제는 아래와 같다.
-
-| 항목 | 값 |
-|---|---|
-| 시작 씬 | `Title.tscn` |
-| 뷰포트 | `1920 x 1080` |
-| 1U / CELL_SIZE | `64px` |
-| 플레이어 크기 | `128 x 128` |
-| 좌우 벽 두께 | 각 `10칸` |
-| 중앙 샤프트 폭 | `10칸` |
-| 전체 월드 폭 | `30칸` |
-| 전체 월드 높이 | `200칸` |
-| 카메라 X | 월드 중앙 고정 |
-| 카메라 Y | 플레이어 추적 |
-
-핵심 해석은 아래와 같다.
-
-- 가로 30U 전체는 한 화면에 항상 보인다
-- 좌우 카메라 추적은 없다
-- 세로 방향만 플레이어를 따라간다
-- 세로 월드는 현재 큰 고정 높이 월드다
-- 플레이어는 2U 크기로 보인다
+This loop is already playable end to end.
 
 ---
 
-## 3. 전체 루프 구조
+## 2. Scene Structure
 
-현재 전체 루프는 아래 순서를 따른다.
+### 2-1. Title
 
-1. 게임 실행
-2. 타이틀 화면 진입
-3. 메인 허브 진입
-4. 캐릭터 / 성장 / 업적 / 아이템 목록 확인 또는 게임 시작 선택
-5. 난이도 선택 팝업
-6. 런 시작
-7. 런 종료
-8. 결과 화면 진입
-9. 메인 허브 복귀
+`Title.tscn` is the entry scene.
 
-현재는 최소 메타 허브 루프가 연결된 상태이며,
-각 화면의 상세 콘텐츠보다 동선과 상태 유지가 우선이다.
+Current behavior:
 
----
+- shows the title presentation screen
+- routes into the main hub
+- exposes placeholder buttons for settings, profile, and ranking
+- can quit the game
 
-## 4. 화면 구조
+### 2-2. Main Hub
 
-### 4-1. 타이틀 화면
+`MainHub.tscn` is the central menu hub.
 
-타이틀 화면은 시작 연출과 허브 진입점 역할을 한다.
+Current behavior:
 
-현재 기준 역할:
+- shows placeholder persistent currencies
+- shows selected character summary
+- shows best record summary
+- opens the difficulty popup before gameplay starts
+- routes to character list, achievements, growth, and item list
 
-- 최초 진입 화면
-- 메인 허브로 들어가는 입구
-- 설정 / 프로필 / 랭킹 같은 메뉴 버튼의 진입점
+### 2-3. Character List
 
-타이틀은 메타 상태를 실제로 관리하는 허브가 아니라,
-허브로 보내는 앞단 화면이다.
+`CharacterList.tscn` lets the player pick the active character slot.
 
-### 4-2. 메인 허브 화면
+Current behavior:
 
-메인 허브는 실제 메타 허브다.
+- one default character is unlocked
+- nine additional character slots exist as locked placeholders
+- each slot shows status and best record summary
+- locked slots show unlock text as tooltip
 
-현재 기준 역할:
+### 2-4. Placeholder Menu Screens
 
-- 게임 시작 버튼 제공
-- 캐릭터 선택 진입점 제공
-- 성장 / 업적 / 아이템 목록 placeholder 진입점 제공
-- 현재 선택 캐릭터와 최소 프로필 상태 표시
+These scenes currently exist as navigable placeholders only:
 
-### 4-3. 캐릭터 선택 화면
+- `Achievement.tscn`
+- `Growth.tscn`
+- `ItemList.tscn`
 
-현재는 기본 캐릭터 1개와 잠금 placeholder 슬롯 구조다.
+They are part of the menu loop, but not full gameplay systems yet.
 
-역할:
+### 2-5. Main Gameplay
 
-- 선택 캐릭터 변경
-- 잠금 상태 확인
-- 최소 최고기록 확인
+`Main.tscn` owns the active run.
 
-### 4-4. 결과 화면
+Its core children are:
 
-현재 결과 화면은 최소 정보만 출력한다.
+- `WorldGrid`
+- `SandField`
+- `Player`
+- `Blocks`
+- `HUD`
+- `WorldCamera`
+- `SpawnTimer`
 
-최소 표시 정보:
+### 2-6. Result
 
-- 런 종료 기록
-- 종료 이유
-- 메인 허브 복귀 동선
+`Result.tscn` displays the last finished run and sends the player back to the hub.
 
-정교한 통계나 보상 정산 UI는 아직 현재 범위가 아니다.
+Current output:
 
----
-
-## 5. 런 시작 전 결정 구조
-
-현재 런 시작 전 흐름은 아래와 같다.
-
-1. 메인 허브에서 캐릭터가 미리 선택되어 있다
-2. 게임 시작 버튼을 누른다
-3. 난이도 선택 팝업을 연다
-4. 선택한 난이도로 런 씬에 들어간다
-
-현재 난이도는 아래 4종이 기준이다.
-
-- 노말
-- 하드
-- 헬
-- 익스트림
-
-다만 현재 구현 핵심은 난이도 시스템의 깊이보다,
-난이도 선택 팝업을 포함한 허브 동선이 유지되는지에 있다.
+- clear or fail header
+- run end reason
+- character name
+- difficulty name
+- highest day reached
+- latest run record text
 
 ---
 
-## 6. 화면 presentation 규칙
+## 3. Save And Session Structure
 
-### 6-1. 해상도
+The project uses `GameState.gd` as the shared state layer.
 
-현재 게임플레이 해상도 기준은 `1920x1080`이다.
+There are two important categories of state:
 
-이 기준은 아래 의미를 가진다.
+### 3-1. Persistent Profile State
 
-- 가로형 플레이
-- 한 화면에 전체 가로폭 표시
-- 세로는 카메라 추적으로 해결
+Saved in `user://profile.save`:
 
-### 6-2. 가로 구도
+- selected character
+- last selected difficulty
+- cleared difficulty ids
+- best records by character and difficulty
+- unlocked characters
+- unlocked achievements
+- placeholder currencies
+- placeholder settings
+- placeholder growth data
 
-현재 가로 구도는 고정이다.
+### 3-2. Per-Run State
 
-- 좌측 벽 `10U`
-- 중앙 샤프트 `10U`
-- 우측 벽 `10U`
+Reset when a run begins:
 
-즉, 전체 `30U = 1920px` 구도를 항상 유지한다.
-
-### 6-3. 플레이어 표시 크기
-
-플레이어 표시/충돌 크기는 `128 x 128`이다.
-
-의미:
-
-- 1U보다 크게 보이는 2U급 플레이어
-- 1920x1080 화면에서 충분히 눈에 띄는 캐릭터 크기
-- 공격 / 채굴 / 충돌 / 발판 감지 로직이 이 몸체 기준으로 맞춰져야 함
-
----
-
-## 7. 카메라 규칙
-
-현재 카메라는 한 대의 게임플레이 카메라를 사용한다.
-
-핵심 규칙:
-
-- `zoom = Vector2.ONE`
-- X는 월드 중앙에 고정
-- Y는 플레이어를 따라감
-- 현재 카메라 Y는 플레이어보다 약간 위를 더 보게끔 오프셋을 둔다
-- 가로 전체 폭은 항상 한 화면에 유지된다
-
-즉, 현재 카메라는
-"전체 폭 고정 + 세로 추적"
-구조다.
-
-현재 구현은 완전한 무한 세로 확장이 아니라
-`WORLD_ROWS = 200`의 큰 고정 높이 월드를 사용하는 방향이다.
+- gold
+- player health
+- current day
+- remaining day time
+- current run difficulty
+- current run character
+- current run stage reached
+- clear flag
+- XP
+- level
+- temporary run bonuses from level-up cards
 
 ---
 
-## 8. 월드 구조
+## 4. Run Start Flow
 
-현재 월드는 아래처럼 해석한다.
+The current start flow is:
 
-- 중앙 샤프트: 낙하 블록이 떨어지고 플레이어가 기본적으로 버티는 공간
-- 좌우 벽: 채굴로 생존 공간을 넓히는 영역
-- 바닥: 월드 마지막 행의 고정 지지면
+1. player enters `MainHub`
+2. player may change character in `CharacterList`
+3. player presses `Start Game`
+4. hub opens a difficulty popup
+5. chosen difficulty is validated against unlock rules
+6. `GameState.begin_run()` stores current run selection
+7. scene changes to `Main.tscn`
+8. `Main._ready()` calls `GameState.reset_run()`
 
-현재 월드 높이는 200칸이다.
-이는 예전 한 화면 고정형 설계보다 훨씬 큰 세로 공간을 제공하지만,
-아직 동적 chunk 확장 구조는 아니다.
+The run always starts at:
 
----
-
-## 9. 블록 스폰 규칙
-
-현재 낙하 블록 스폰은 카메라 상단 기준으로 이뤄진다.
-
-핵심 규칙:
-
-- `SpawnTimer` 기반으로 약 1.2초마다 1개 생성
-- 생성 타입은 데이터 테이블에서 가중치 기반 선택
-- 생성 X는 중앙 샤프트 안에서만 선택
-- 생성 Y는 현재 카메라 상단보다 약 3U 위에서 시작
-- 플레이어와 바로 겹치는 생성은 피한다
-- 이미 활성 상태인 다른 낙하 블록과의 즉시 중첩도 피한다
-- 같은 컬럼 반복 스팸은 약하게 완화한다
-
-즉, 현재 블록은
-예전처럼 고정된 월드 최상단 기준이 아니라
-**현재 보이는 상단 시야 밖에서 진입**한다.
+- day `1`
+- timer `40.0` seconds
+- stage reached `1`
+- gold `0`
+- level `1`
+- XP `0 / 50`
 
 ---
 
-## 10. 런 종료 규칙
+## 5. Day Structure
 
-현재 런 종료는 아래 경우에 발생한다.
+### 5-1. Global Day Rules
 
-### 10-1. 체력 소진
+The current run is defined as:
 
-- 플레이어 체력이 0 이하가 되면 종료
-- 결과 화면으로 이동
+- total days: `30`
+- day duration: `40` seconds each
 
-### 10-2. 임시 무게 한계 초과
+The game updates a day timer every physics frame.
 
-- 현재는 `sand_field.get_sand_count()` 기준 임시 한계 초과 시 종료
-- 결과 화면으로 이동
+### 5-2. Day Types
 
-### 10-3. 수동 종료
+Current day types are:
 
-- `R` 입력으로 현재 런 종료 가능
-- 결과 화면으로 이동
+- normal day
+- rush day: `5`, `15`, `25`
+- boss day: `10`, `20`, `30`
 
-즉, 현재는 결과 화면 전환과 런 복귀 동선이 우선 구현 범위이고,
-정교한 스테이지 클리어/보스 처리/연출형 게임오버는 아직 확장 전 단계다.
+Rush days reduce spawn interval.
+Boss days also reduce spawn interval and force a boss block spawn.
 
----
+### 5-3. Day Transition
 
-## 11. 저장 구조
+Current implemented behavior:
 
-현재 저장 구조는 단일 프로필 기준이다.
+- days `1` to `29` automatically advance when time expires
+- there is no merchant scene or shop scene yet
+- advancing to the next day resets the day timer
+- the next boss day warning in the HUD updates automatically
 
-현재 반영 범위:
+This is important: older planning docs referenced a merchant/shop step,
+but the current code does not implement that phase yet.
 
-- 선택 캐릭터
-- 마지막 난이도
-- 최소 최고기록
-- 영구 재화
-- 설정
-- 해금 상태
+### 5-4. Day 30 Outcome
 
-멀티 슬롯 저장은 현재 범위가 아니다.
+Day 30 is special.
 
----
+Clear can happen in two ways:
 
-## 12. 현재 범위에서 제외하는 것
+1. the Day 30 boss block is destroyed
+2. the Day 30 boss decomposes into sand, while the player is still alive and
+   total sand count stays below the overload threshold
 
-아래 항목은 현재 구조 문서의 범위 밖이다.
-
-- 온라인 랭킹 본 구현
-- 프로필 화면 본 구현
-- 상세 통계 화면
-- 성장 트리 본 구현
-- 제작 UI 본 구현
-- 보스/스테이지/클리어 연출의 본 구현
-- 완전한 동적 세로 무한 확장 구조
+If Day 30 time expires before clear, the run fails.
 
 ---
 
-## 13. 테스트 기준
+## 6. Difficulty Structure
 
-현재 구조가 유지된다고 보기 위한 최소 기준은 아래와 같다.
+The current difficulty list is:
 
-- 타이틀에서 메인 허브로 진입 가능해야 한다
-- 메인 허브에서 캐릭터 / 성장 / 업적 / 아이템 / 게임 시작 진입이 가능해야 한다
-- 난이도 선택 팝업 뒤 런이 시작되어야 한다
-- 결과 화면이 최소 정보와 복귀 동선을 가져야 한다
-- 가로 30U 전체가 한 화면에 보여야 한다
-- 카메라는 가로로 흔들리지 않고 세로만 따라가야 한다
-- 플레이어가 충분히 크게 보여야 한다
-- 낙하 블록이 현재 화면 상단 밖에서 생성되어야 한다
-- 블록이 중앙 샤프트 안에서만 생성되어야 한다
+- `normal`
+- `hard`
+- `extreme`
+- `hell`
+- `nightmare`
+
+Unlock rule:
+
+- `normal` starts unlocked
+- each higher difficulty requires clearing the previous one
+
+Current difficulty effects in code:
+
+- multiplier to block HP
+- multiplier to mining HP value in definitions exists, but is not yet applied by gameplay code
+
+Difficulty choice is made in the hub before entering the run.
 
 ---
 
-## 14. 결론
+## 7. World Layout
 
-Burial Protocol의 현재 구조는
-타이틀과 메인 허브를 거쳐 런에 들어가,
-1920x1080 고정 폭 화면 안에서 큰 플레이어와 세로 추적 카메라로 생존 루프를 수행한 뒤,
-결과 화면으로 돌아와 다시 허브에서 다음 런을 준비하는 최소 메타-인게임 반복 구조다.
+### 7-1. Fixed World Dimensions
 
-이 문서의 핵심은
-게임의 전체 흐름, 화면 구조, 카메라 철학, 스폰 구조를
-하나의 기준 문서로 묶어 유지하는 데 있다.
+The current world is fixed-size, not infinite:
+
+- width: `30` columns
+- height: `200` rows
+- cell size: `64px`
+
+Horizontal structure:
+
+- left wall: `10` columns
+- center lane: `10` columns
+- right wall: `10` columns
+
+### 7-2. Walls And Floor
+
+The side walls are static mineable regions.
+The floor is the last row and acts as solid ground.
+
+The center lane is the active falling-block lane and player movement space.
+
+### 7-3. Camera
+
+The current camera rules are:
+
+- horizontal center is fixed to world center
+- vertical position follows the player
+- zoom is `Vector2.ONE`
+- camera limits are clamped to the world bounds
+
+This means the prototype presents the run as a fixed-width vertical survival space.
+
+---
+
+## 8. Spawn Structure
+
+Falling blocks are spawned by `SpawnTimer`.
+
+Current spawn behavior:
+
+- uses weighted block type selection
+- spawns inside the center lane only
+- spawns above the current camera view
+- avoids immediate overlap with player and active blocks when possible
+- avoids repeating the same spawn column on the first attempt
+
+Boss days also inject a guaranteed boss block spawn using the `ember_wide` block type.
+
+---
+
+## 9. Run End Rules
+
+The run currently ends for any of these reasons:
+
+- manual end with `R`
+- player health reaches `0`
+- sand count reaches or exceeds the temporary overload threshold `240`
+- Day 30 time expires before clear
+- Day 30 boss clear condition is met
+
+Days `1` to `29` ending by timer are not run-fail states.
+They are automatic progression states.
+
+---
+
+## 10. HUD Role In Structure
+
+The HUD is part of the run structure, not just decoration.
+
+It currently provides:
+
+- day number and total day count
+- difficulty display
+- next boss warning
+- day timer
+- player level, HP, XP
+- total gold and day gold
+- weight load meter
+- sensor panel for player/block vertical awareness
+- optional debug panel via `Tab`
+
+The HUD is therefore one of the main structural layers of the playable loop.
+
+---
+
+## 11. Current Out-Of-Scope Or Placeholder Areas
+
+The following remain outside current implemented structure:
+
+- inter-day merchant or shop scene
+- fully realized growth tree
+- achievement progression logic
+- inventory ownership loop
+- detailed result breakdown
+- multiple unique playable character kits
+- advanced boss scripting beyond current boss spawn and clear rules
+
+These should stay clearly separated from the current structure docs.
+
+---
+
+## 12. Summary
+
+Burial Protocol currently ships as a playable vertical run prototype with:
+
+- title to hub to run to result flow
+- persistent selection and record state
+- fixed 30-day run structure
+- rush and boss day variants
+- fixed-width vertical world presentation
+- automatic day progression
+- multiple fail states and one clear path
+
+The biggest structural gap between older planning documents and current code is that
+the day-to-day merchant/shop phase is still not implemented, while run-time combat,
+movement, sand handling, and HUD readability are much further along.

@@ -47,6 +47,7 @@ var dash_feedback_time := 0.0
 var dash_feedback_state: StringName = &""
 var damage_cooldown := 0.0
 var jump_started_this_frame := false
+var _had_active_visuals := false
 var is_on_floor := false
 var is_on_sand := false
 var is_on_left_wall := false
@@ -69,15 +70,9 @@ func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("attack_action"):
 		attack_buffer_remaining = GameConstants.PLAYER_ATTACK_BUFFER_TIME
 		pending_attack_direction = _resolve_attack_direction()
-		attack_visual_direction = pending_attack_direction
-		attack_visual_time = GameConstants.PLAYER_ATTACK_VISUAL_DURATION
-		queue_redraw()
 	if event.is_action_pressed("mine_action"):
 		mining_buffer_remaining = GameConstants.PLAYER_MINING_BUFFER_TIME
 		pending_mine_direction = _resolve_attack_direction()
-		mining_visual_direction = pending_mine_direction
-		mining_visual_time = GameConstants.PLAYER_ATTACK_VISUAL_DURATION
-		queue_redraw()
 	if event.is_action_pressed("move_left", false, false):
 		last_left_tap_time = _register_dash_tap(Vector2.LEFT, last_left_tap_time)
 	if event.is_action_pressed("move_right", false, false):
@@ -100,9 +95,13 @@ func _physics_process(delta: float) -> void:
 	_ride_supporting_block()
 	jump_buffer_remaining = max(jump_buffer_remaining - delta, 0.0)
 	coyote_time_remaining = max(coyote_time_remaining - delta, 0.0)
-	attack_cooldown = max(attack_cooldown - delta, 0.0)
+	attack_cooldown = max(attack_cooldown - delta * (1.0 / GameState.run_attack_speed_mult), 0.0)
 	attack_buffer_remaining = max(attack_buffer_remaining - delta, 0.0)
-	mining_cooldown = max(mining_cooldown - delta, 0.0)
+	
+	if Input.is_action_pressed("attack_action"):
+		attack_buffer_remaining = GameConstants.PLAYER_ATTACK_BUFFER_TIME
+		pending_attack_direction = _resolve_attack_direction()
+	mining_cooldown = max(mining_cooldown - delta * (1.0 / GameState.run_mining_speed_mult), 0.0)
 	mining_buffer_remaining = max(mining_buffer_remaining - delta, 0.0)
 	dash_cooldown_remaining = max(dash_cooldown_remaining - delta, 0.0)
 	dash_time_remaining = max(dash_time_remaining - delta, 0.0)
@@ -124,7 +123,10 @@ func _physics_process(delta: float) -> void:
 	_snap_to_supporting_block()
 	_refresh_contacts()
 	_update_sprite_visuals(position.x - previous_position.x)
-	queue_redraw()
+	var _has_active_visuals := is_dashing or dash_feedback_time > 0.0 or attack_visual_time > 0.0 or (mining_visual_time > 0.0 and mining_visual_direction != Vector2.ZERO)
+	if _has_active_visuals or _had_active_visuals:
+		queue_redraw()
+	_had_active_visuals = _has_active_visuals
 
 
 func get_body_rect() -> Rect2:
@@ -426,7 +428,7 @@ func _apply_horizontal_input() -> void:
 	var input_strength := Input.get_axis("move_left", "move_right")
 	if input_strength != 0.0:
 		facing = Vector2i(_sign_to_int(input_strength), 0)
-	var move_speed := GameConstants.PLAYER_MOVE_SPEED if is_on_floor else GameConstants.PLAYER_AIR_SPEED
+	var move_speed := (GameConstants.PLAYER_MOVE_SPEED + GameState.run_bonus_move_speed) if is_on_floor else (GameConstants.PLAYER_AIR_SPEED + GameState.run_bonus_move_speed)
 	if is_on_sand:
 		move_speed *= GameConstants.PLAYER_SAND_SPEED_MULTIPLIER
 	velocity.x = input_strength * move_speed
@@ -735,7 +737,9 @@ func _get_body_support_distance(direction: Vector2) -> float:
 	if normalized_direction == Vector2.ZERO:
 		normalized_direction = Vector2(facing)
 	var body_half_size := _get_body_local_rect().size * 0.5
-	return absf(normalized_direction.x) * body_half_size.x + absf(normalized_direction.y) * body_half_size.y
+	var tx := INF if absf(normalized_direction.x) < 0.0001 else body_half_size.x / absf(normalized_direction.x)
+	var ty := INF if absf(normalized_direction.y) < 0.0001 else body_half_size.y / absf(normalized_direction.y)
+	return minf(tx, ty)
 
 
 func _get_body_local_rect() -> Rect2:

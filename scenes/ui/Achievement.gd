@@ -3,12 +3,12 @@ extends "res://scenes/ui/MenuScreenScaffold.gd"
 
 func _ready() -> void:
 	var content := build_screen(
-		"Achievements",
-		"Placeholder screen. This phase only guarantees scene entry and return flow."
+		Locale.ltr("achievement_title"),
+		Locale.ltr("achievement_subtitle")
 	)
-	add_label(content, "Real achievement logic is intentionally not implemented in phase 1.", 24)
+	add_label(content, Locale.ltr("achievement_note"), 24)
 	add_spacer(content, 24)
-	add_button(content, "Back", _on_back)
+	add_button(content, Locale.ltr("btn_back"), _on_back)
 
 
 func _on_back() -> void:

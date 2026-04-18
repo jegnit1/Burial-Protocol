@@ -23,17 +23,17 @@ func _ready() -> void:
 	layout.add_theme_constant_override("separation", 18)
 	margin.add_child(layout)
 
-	var title := add_label(layout, "Character List", 42)
+	var title := add_label(layout, Locale.ltr("charlist_title"), 42)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	title.custom_minimum_size = Vector2.ZERO
 
-	var subtitle := add_label(layout, "Select the default character or inspect locked placeholders.", 20)
+	var subtitle := add_label(layout, Locale.ltr("charlist_subtitle"), 20)
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	subtitle.custom_minimum_size = Vector2.ZERO
 
 	current_selection_label = add_label(
 		layout,
-		"Current selection: %s" % GameState.selected_character_name,
+		Locale.ltr("charlist_current_selection") % GameState.selected_character_name,
 		24
 	)
 	current_selection_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -53,12 +53,12 @@ func _ready() -> void:
 	footer.add_theme_constant_override("separation", 12)
 	layout.add_child(footer)
 
-	var helper := add_label(footer, "Locked slots show unlock hints on hover.", 18)
+	var helper := add_label(footer, Locale.ltr("charlist_footer_hint"), 18)
 	helper.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	helper.custom_minimum_size = Vector2.ZERO
 	helper.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
-	add_button(footer, "Back", _on_back)
+	add_button(footer, Locale.ltr("btn_back"), _on_back)
 
 
 func _on_back() -> void:
@@ -85,12 +85,12 @@ func _add_character_slot(parent: Control, slot_data: Dictionary) -> void:
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	name_label.custom_minimum_size = Vector2.ZERO
 
-	var state_text := "Status: Available" if is_unlocked else "Status: Locked"
+	var state_text := Locale.ltr("char_status_available") if is_unlocked else Locale.ltr("char_status_locked")
 	var state_label := add_label(layout, state_text, 20)
 	state_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	state_label.custom_minimum_size = Vector2.ZERO
 
-	var record_label := add_label(layout, "Best Record: %s" % String(slot_data["best_record"]), 20)
+	var record_label := add_label(layout, Locale.ltr("char_best_record") % String(slot_data["best_record"]), 20)
 	record_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	record_label.custom_minimum_size = Vector2.ZERO
 
@@ -99,11 +99,11 @@ func _add_character_slot(parent: Control, slot_data: Dictionary) -> void:
 	layout.add_child(filler)
 
 	if is_unlocked:
-		var button_text := "Select" if not is_selected else "Selected"
+		var button_text := Locale.ltr("btn_select") if not is_selected else Locale.ltr("btn_selected")
 		add_button(layout, button_text, func() -> void: _on_select_character(String(slot_data["id"])))
 		return
 
-	var hint_label := add_label(layout, "Hover to view unlock condition", 18)
+	var hint_label := add_label(layout, Locale.ltr("char_hover_unlock_hint"), 18)
 	hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	hint_label.custom_minimum_size = Vector2.ZERO
 
@@ -111,5 +111,5 @@ func _add_character_slot(parent: Control, slot_data: Dictionary) -> void:
 func _on_select_character(character_id: String) -> void:
 	if not GameState.select_character(character_id):
 		return
-	current_selection_label.text = "Current selection: %s" % GameState.selected_character_name
+	current_selection_label.text = Locale.ltr("charlist_current_selection") % GameState.selected_character_name
 	change_scene("res://scenes/ui/MainHub.tscn")
