@@ -114,7 +114,7 @@ var current_run_difficulty_id := "normal"
 var current_run_difficulty_name := "일반"
 var current_run_stage_reached := 1
 var current_day := 1
-var day_time_remaining := GameConstants.DAY_DURATION
+var day_time_remaining := 0.0
 var run_cleared := false
 
 # 경험치 및 레벨업 상태
@@ -140,6 +140,7 @@ var best_records_by_character: Dictionary = {}
 
 
 func _ready() -> void:
+	day_time_remaining = GameData.get_day_duration(current_day)
 	load_profile()
 	_emit_initial_state()
 
@@ -149,7 +150,7 @@ func reset_run() -> void:
 	player_health = GameConstants.PLAYER_MAX_HEALTH
 	current_run_stage_reached = 1
 	current_day = 1
-	day_time_remaining = GameConstants.DAY_DURATION
+	day_time_remaining = GameData.get_day_duration(current_day)
 	run_cleared = false
 	
 	player_level = 1
@@ -169,7 +170,7 @@ func reset_run() -> void:
 	gold_changed.emit(gold)
 	xp_changed.emit(player_current_xp, player_next_level_xp)
 	level_changed.emit(player_level)
-	health_changed.emit(player_health, GameConstants.PLAYER_MAX_HEALTH)
+	health_changed.emit(player_health, get_player_max_health())
 	status_text_changed.emit(status_text)
 
 
@@ -188,7 +189,7 @@ func finish_temporary_run(reason_id: String = "run_end", reason_label: String = 
 		current_run_stage_reached,
 		gold,
 		player_health,
-		GameConstants.PLAYER_MAX_HEALTH,
+		get_player_max_health(),
 	]
 	_refresh_selected_character_summary()
 	save_profile()
@@ -201,7 +202,11 @@ func add_gold(amount: int) -> void:
 
 func damage_player(amount: int) -> void:
 	player_health = max(player_health - amount, 0)
-	health_changed.emit(player_health, GameConstants.PLAYER_MAX_HEALTH)
+	health_changed.emit(player_health, get_player_max_health())
+
+
+func get_player_max_health() -> int:
+	return GameConstants.PLAYER_MAX_HEALTH + run_bonus_max_hp
 
 
 func set_status_text(text: String) -> void:
@@ -411,7 +416,7 @@ func _apply_save_data(data: Dictionary) -> void:
 
 func _emit_initial_state() -> void:
 	gold_changed.emit(gold)
-	health_changed.emit(player_health, GameConstants.PLAYER_MAX_HEALTH)
+	health_changed.emit(player_health, get_player_max_health())
 	status_text_changed.emit(status_text)
 	selected_character_changed.emit(selected_character_id, selected_character_name, best_record_summary)
 
@@ -540,7 +545,7 @@ func apply_level_up_card(card_id: String) -> void:
 	if player_current_xp < 0:
 		player_current_xp = 0
 	player_level += 1
-	player_next_level_xp = int(player_level * 50) # 스케일링 비율
+	player_next_level_xp = int(player_level * 20) # 스케일링 비율
 	
 	level_changed.emit(player_level)
 	xp_changed.emit(player_current_xp, player_next_level_xp)

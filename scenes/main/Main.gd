@@ -3,7 +3,6 @@ extends Node2D
 const FALLING_BLOCK_SCENE := preload("res://scenes/blocks/FallingBlock.tscn")
 const GOLD_POPUP_SCRIPT := preload("res://scenes/ui/GoldPopup.gd")
 const CAMERA_PLAYER_Y_OFFSET := 110.0
-const TEMPORARY_WEIGHT_LIMIT_SAND_CELLS := 240
 
 @onready var world_grid: WorldGrid = $WorldGrid
 @onready var sand_field: SandField = $SandField
@@ -20,7 +19,7 @@ var run_finished := false
 
 # Day 상태
 var _current_day := 1
-var _day_time_remaining := GameConstants.DAY_DURATION
+var _day_time_remaining := 0.0
 # Day 30 보스 블록 추적 (보스가 처치/모래화 조건으로 클리어 판정에 사용)
 var _day30_boss_alive := false
 
@@ -33,12 +32,12 @@ func _ready() -> void:
 	sand_field.setup(world_grid)
 	player.setup(world_grid, sand_field, blocks_root)
 	_current_day = 1
-	_day_time_remaining = GameConstants.DAY_DURATION
+	_day_time_remaining = GameData.get_day_duration(_current_day)
 	GameState.current_day = _current_day
 	GameState.level_up_ready.connect(_show_level_up_ui)
 	_apply_day_spawn_interval()
 	spawn_timer.start()
-	if GameConstants.BOSS_DAYS.has(_current_day):
+	if GameData.is_boss_day(_current_day):
 		_spawn_boss_block()
 	_refresh_debug()
 
@@ -77,9 +76,18 @@ func _physics_process(delta: float) -> void:
 func _on_spawn_timer_timeout() -> void:
 	if run_finished:
 		return
-	var definition := GameConstants.pick_block_type_definition(rng)
-	var block_data := BlockData.from_definition(definition)
-	_apply_difficulty_hp_multiplier(block_data)
+	var base_definition = GameData.pick_block_base_definition(rng)
+	if base_definition == null:
+		return
+	var type_definition = GameData.pick_block_type_definition_or_none(rng)
+	var day_definition = GameData.get_day_definition(_current_day)
+	var difficulty_definition := GameConstants.get_difficulty_definition(GameState.current_run_difficulty_id)
+	var block_data := BlockData.from_spawn_selection(
+		base_definition,
+		type_definition,
+		day_definition,
+		difficulty_definition
+	)
 	var camera_top_y := world_camera.position.y - float(GameConstants.VIEWPORT_SIZE.y) * 0.5
 	var spawn_position := _pick_fair_spawn_position(block_data.size_cells, camera_top_y)
 	last_spawned_column = int((spawn_position.x - float(GameConstants.WORLD_ORIGIN.x)) / float(GameConstants.CELL_SIZE))
@@ -88,7 +96,7 @@ func _on_spawn_timer_timeout() -> void:
 	block.setup(block_data, spawn_position, world_grid, sand_field, player)
 	block.destroyed.connect(_on_block_destroyed)
 	block.decomposed.connect(_on_block_decomposed)
-	last_spawned_block_debug = "Spawn %s | %s" % [block_data.block_base_display_name, block_data.get_block_base_debug_text()]
+	last_spawned_block_debug = "Spawn %s | %s" % [block_data.display_name, block_data.get_block_base_debug_text()]
 
 
 func _handle_attack_action(direction: Vector2) -> void:
@@ -174,7 +182,7 @@ func _on_block_decomposed(block: FallingBlock, reason: StringName) -> void:
 # ---- Day 시스템 ----
 
 func _on_day_timer_expired() -> void:
-	if _current_day >= GameConstants.RUN_TOTAL_DAYS:
+	if _current_day >= GameData.get_total_days():
 		# Day 30 종료: 보스가 아직 처치/처리되지 않았다면 실패
 		if not GameState.run_cleared:
 			_finish_temporary_run("time_limit", Locale.ltr("run_time_limit"))
@@ -186,37 +194,32 @@ func _on_day_timer_expired() -> void:
 
 func _advance_to_next_day() -> void:
 	_current_day += 1
-	_day_time_remaining = GameConstants.DAY_DURATION
+	_day_time_remaining = GameData.get_day_duration(_current_day)
 	GameState.current_day = _current_day
 	GameState.current_run_stage_reached = _current_day
 	_apply_day_spawn_interval()
-	if GameConstants.BOSS_DAYS.has(_current_day):
+	if GameData.is_boss_day(_current_day):
 		_spawn_boss_block()
 	GameState.set_status_text(Locale.ltr("run_day_start") % _current_day)
 
 
 func _apply_day_spawn_interval() -> void:
-	var day_type := GameConstants.get_day_type(_current_day)
-	if day_type == &"rush":
-		spawn_timer.wait_time = GameConstants.BLOCK_SPAWN_INTERVAL * GameConstants.RUSH_SPAWN_INTERVAL_MULTIPLIER
-	elif day_type == &"boss":
-		spawn_timer.wait_time = GameConstants.BLOCK_SPAWN_INTERVAL * GameConstants.BOSS_SPAWN_INTERVAL_MULTIPLIER
-	else:
-		spawn_timer.wait_time = GameConstants.BLOCK_SPAWN_INTERVAL
+	spawn_timer.wait_time = GameConstants.BLOCK_SPAWN_INTERVAL * GameData.get_spawn_interval_multiplier(_current_day)
 
 
 func _spawn_boss_block() -> void:
-	var boss_definition: Dictionary = {}
-	for raw_def in GameConstants.BLOCK_TYPES:
-		var def: Dictionary = raw_def
-		if String(def["id"]) == String(GameConstants.BOSS_BLOCK_TYPE_ID):
-			boss_definition = def
-			break
-	if boss_definition.is_empty():
+	var boss_base_definition = GameData.get_boss_block_base_definition(_current_day)
+	if boss_base_definition == null:
 		return
-	var block_data := BlockData.from_definition(boss_definition)
-	block_data.health = int(ceil(float(block_data.health) * GameConstants.BOSS_BLOCK_HP_EXTRA_MULTIPLIER))
-	_apply_difficulty_hp_multiplier(block_data)
+	var boss_type_definition = GameData.get_boss_block_type_definition(_current_day)
+	var day_definition = GameData.get_day_definition(_current_day)
+	var difficulty_definition := GameConstants.get_difficulty_definition(GameState.current_run_difficulty_id)
+	var block_data := BlockData.from_spawn_selection(
+		boss_base_definition,
+		boss_type_definition,
+		day_definition,
+		difficulty_definition
+	)
 	var camera_top_y := world_camera.position.y - float(GameConstants.VIEWPORT_SIZE.y) * 0.5
 	var spawn_position := _pick_fair_spawn_position(block_data.size_cells, camera_top_y)
 	var block := FALLING_BLOCK_SCENE.instantiate() as FallingBlock
@@ -224,7 +227,7 @@ func _spawn_boss_block() -> void:
 	block.setup(block_data, spawn_position, world_grid, sand_field, player)
 	block.destroyed.connect(_on_block_destroyed)
 	block.decomposed.connect(_on_block_decomposed)
-	if _current_day == GameConstants.RUN_TOTAL_DAYS:
+	if _current_day == GameData.get_total_days():
 		_day30_boss_alive = true
 		block.destroyed.connect(_on_day30_boss_destroyed)
 		block.decomposed.connect(_on_day30_boss_decomposed)
@@ -245,18 +248,13 @@ func _on_day30_boss_decomposed(_block: FallingBlock, _reason: StringName) -> voi
 		return
 	_day30_boss_alive = false
 	# 보스가 모래화됐을 때: 체력이 남아 있고 무게 한계 미초과 시 클리어 (스펙 6-6)
-	var surviving := GameState.player_health > 0 and sand_field.get_sand_count() < TEMPORARY_WEIGHT_LIMIT_SAND_CELLS
+	var surviving := GameState.player_health > 0 and sand_field.get_sand_count() < GameConstants.WEIGHT_LIMIT_SAND_CELLS
 	if surviving:
 		GameState.run_cleared = true
 		GameState.current_run_stage_reached = _current_day
 		_finish_temporary_run("cleared", Locale.ltr("run_day30_clear"))
 
 
-func _apply_difficulty_hp_multiplier(block_data: BlockData) -> void:
-	var difficulty_def := GameConstants.get_difficulty_definition(GameState.current_run_difficulty_id)
-	var multiplier := float(difficulty_def.get("block_hp_multiplier", 1.0))
-	if multiplier != 1.0:
-		block_data.health = int(ceil(float(block_data.health) * multiplier))
 
 
 # ---- 기존 유틸 ----
@@ -265,14 +263,14 @@ func _refresh_debug() -> void:
 	# Day 정보는 항상 갱신 (게임플레이 UI)
 	hud.set_day_info(
 		_current_day,
-		GameConstants.RUN_TOTAL_DAYS,
+		GameData.get_total_days(),
 		_day_time_remaining,
-		GameConstants.get_day_type(_current_day),
+		GameData.get_day_type(_current_day),
 		GameState.current_run_difficulty_name
 	)
 	
 	if hud.has_method("update_sensors"):
-		hud.update_sensors(player, blocks_root, sand_field, world_camera, TEMPORARY_WEIGHT_LIMIT_SAND_CELLS)
+		hud.update_sensors(player, blocks_root, sand_field, world_camera, GameConstants.WEIGHT_LIMIT_SAND_CELLS)
 		
 	# 디버그 패널이 꺼져 있으면 데이터 수집 자체를 생략
 	if not hud.is_debug_visible():
@@ -342,7 +340,7 @@ func _check_run_end_conditions() -> void:
 	if GameState.player_health <= 0:
 		_finish_temporary_run("health_depletion", Locale.ltr("run_health_depleted"))
 		return
-	if sand_field.get_sand_count() >= TEMPORARY_WEIGHT_LIMIT_SAND_CELLS:
+	if sand_field.get_sand_count() >= GameConstants.WEIGHT_LIMIT_SAND_CELLS:
 		_finish_temporary_run("weight_overload", Locale.ltr("run_weight_overload"))
 
 

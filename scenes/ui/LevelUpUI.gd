@@ -9,10 +9,13 @@ func _ready() -> void:
 	bg.color = Color(0.0, 0.0, 0.0, 0.75)
 	add_child(bg)
 	
+	var center_container := CenterContainer.new()
+	center_container.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(center_container)
+	
 	var vbox := VBoxContainer.new()
-	vbox.set_anchors_preset(Control.PRESET_CENTER)
 	vbox.add_theme_constant_override("separation", 40)
-	add_child(vbox)
+	center_container.add_child(vbox)
 	
 	var title := Label.new()
 	title.text = "LEVEL UP!"

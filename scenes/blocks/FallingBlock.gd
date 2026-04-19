@@ -58,7 +58,7 @@ func _physics_process(delta: float) -> void:
 		var next_rect := get_block_rect()
 		next_rect.position.y += 1.0
 		if player != null and player.is_crushable_under(next_rect):
-			if player.receive_crush_hit():
+			if player.receive_crush_hit(_get_player_crush_damage()):
 				_emit_decompose("player_crush")
 				return
 		if player != null and next_rect.intersects(player.get_body_rect()):
@@ -173,3 +173,10 @@ func _spawn_damage_popup(amount: int) -> void:
 	popup_parent.add_child(popup)
 	popup.global_position = global_position + Vector2(0.0, -block_data.get_size_pixels().y * 0.5)
 	popup.call("setup", amount)
+
+
+func _get_player_crush_damage() -> int:
+	if block_data == null:
+		return GameConstants.BLOCK_DAMAGE_PER_UNIT
+	var block_area := int(block_data.size_cells.x * block_data.size_cells.y)
+	return max(block_area, 1) * GameConstants.BLOCK_DAMAGE_PER_UNIT

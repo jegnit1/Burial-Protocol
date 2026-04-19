@@ -55,7 +55,7 @@ const PLAYER_SPAWN_POSITION := Vector2(
 	WORLD_ORIGIN.y + CELL_SIZE * (WORLD_ROWS - 5)
 )
 # 런 시작 시 플레이어의 최대 체력.
-const PLAYER_MAX_HEALTH := 5
+const PLAYER_MAX_HEALTH := 100
 # 지상 이동 속도(px/s).
 const PLAYER_MOVE_SPEED := 426.0
 # 공중에서의 가로 이동 속도(px/s).
@@ -70,12 +70,16 @@ const PLAYER_JUMP_SPEED := -853.0
 const PLAYER_EXTRA_JUMPS := 1
 # 벽 점프 시 적용되는 가로 방향 초기 속도.
 const PLAYER_WALL_JUMP_SPEED_X := 480.0
+const PLAYER_BATTERY_MAX := 100.0
+const PLAYER_WALL_CLIMB_DRAIN_PER_SEC := 35.0
+const PLAYER_BATTERY_RECOVERY_PER_SEC := 55.0
+const PLAYER_WALL_CLIMB_FALL_SPEED := 110.0
+const PLAYER_WALL_CLIMB_INPUT_DEADZONE := 0.25
 # 빠른 낙하 중 추가로 더해지는 아래쪽 가속도.
 const PLAYER_FAST_FALL_ACCELERATION := 2933.0
 # 빠른 낙하 중 허용되는 최대 아래쪽 속도.
 const PLAYER_FAST_FALL_SPEED := 1306.0
 # 벽 슬라이드 중 제한되는 하강 속도.
-const PLAYER_WALL_SLIDE_SPEED := 200.0
 # 점프 입력을 미리 저장해두는 버퍼 시간.
 const PLAYER_JUMP_BUFFER_TIME := 0.14
 # 발판에서 떨어진 직후에도 점프가 허용되는 코요테 타임.
@@ -96,10 +100,14 @@ const PLAYER_ATTACK_BUFFER_TIME := 0.12
 const PLAYER_ATTACK_VISUAL_DURATION := 0.12
 # 공격 방향으로 인정되기 위한 최소 입력 크기.
 const PLAYER_ATTACK_DIRECTION_DEADZONE := 12.0
-# 낙하 블록에 깔렸을 때 받는 피해량.
-const PLAYER_CRUSH_DAMAGE := 1
+# 낙하 블록 1U당 플레이어가 받는 피해량.
+const BLOCK_DAMAGE_PER_UNIT := 10
 # 피해를 받은 직후 적용되는 무적 시간.
 const PLAYER_DAMAGE_INVULNERABILITY := 0.5
+# 맞는 순간 붉게 점멸하는 강한 피격 연출 시간.
+const PLAYER_HURT_FLASH_DURATION := 0.12
+# 무적 시간 동안 흰색 점멸이 반복되는 간격.
+const PLAYER_INVULN_FLASH_INTERVAL := 0.08
 
 # 채굴 1회의 피해량 (현재 벽 1셀 기준).
 const PLAYER_MINING_DAMAGE := 1
@@ -125,6 +133,8 @@ const WALL_SUBCELL_MAX_HP := 3
 const BLOCK_FALL_SPEED := 226.0
 # 자동 낙하 블록 생성 간격(초).
 const BLOCK_SPAWN_INTERVAL := 1.2
+# 1U당 블록 체력
+const BLOCK_HP_PER_UNIT := 8.0
 # 블록이 화면 바깥 위쪽에서 진입하도록 하는 생성 Y 오프셋.
 const BLOCK_SPAWN_Y_OFFSET := 16.0
 
@@ -165,6 +175,11 @@ const SAND_JUMP_CLEAR_MOVE_LIMIT := 4
 # 점프 경로 확보 실패 후 재시도까지 기다리는 프레임 수.
 const SAND_JUMP_CLEAR_RETRY_DELAY_FRAMES := 2
 
+# 게임 오버 조건이 되는 모래 셀의 최대 개수 (최대 무게 한도).
+const WEIGHT_LIMIT_SAND_CELLS := 2400
+# HUD에 표시할 때 모래 셀 하나를 몇 KG로 환산할지.
+const DISPLAY_WEIGHT_PER_SAND_CELL := 0.1
+const DISPLAY_WEIGHT_UNIT := "KG"
 # 월드 전체 바깥 배경색.
 const WORLD_BACKGROUND_COLOR := Color("11161d")
 # 중앙 개방 공간의 배경색.
@@ -179,6 +194,8 @@ const FLOOR_COLOR := Color("53616f")
 const PLAYER_COLOR := Color("d4ede2")
 # 플레이어 피격 시 잠깐 보여주는 색상.
 const PLAYER_HURT_COLOR := Color("f58d7e")
+const PLAYER_HURT_FLASH_COLOR := Color("ff6262")
+const PLAYER_INVULN_FLASH_COLOR := Color("fff8ef")
 # 공격 미리보기 오버레이에 쓰는 색상.
 const ATTACK_PREVIEW_COLOR := Color(0.95, 0.35, 0.25, 0.32)
 const MINING_PREVIEW_COLOR := Color(0.86, 0.78, 0.36, 0.28)
@@ -199,6 +216,8 @@ const DAMAGE_POPUP_HORIZONTAL_JITTER := 22.0
 const DAMAGE_POPUP_TEXT_COLOR := Color("fff2cf")
 # 데미지 팝업 그림자 색상.
 const DAMAGE_POPUP_SHADOW_COLOR := Color(0.07, 0.05, 0.04, 0.88)
+const PLAYER_DAMAGE_POPUP_TEXT_COLOR := Color("ff7676")
+const PLAYER_DAMAGE_POPUP_SHADOW_COLOR := Color(0.18, 0.03, 0.03, 0.92)
 
 # 피격 시 블록 위에 표시되는 HP 바 오버레이 지속 시간(초). 추가 피격 시 갱신된다.
 const BLOCK_HP_OVERLAY_DURATION := 1.2
@@ -239,17 +258,9 @@ const DIFFICULTY_OPTIONS := [
 ]
 
 # 런 구조: 30 Day × 40초. Day 종료 후 상점 단계 진입(TODO: 상인/키오스크 UI).
-const RUN_TOTAL_DAYS := 30
-const DAY_DURATION := 40.0
 # 러시 Day: 스폰 간격이 절반으로 단축된다.
-const RUSH_DAYS := [5, 15, 25]
 # 보스 Day: 보스 블록이 추가 스폰된다. Day 30 보스 처치/모래화+생존 = 런 클리어.
-const BOSS_DAYS := [10, 20, 30]
-const RUSH_SPAWN_INTERVAL_MULTIPLIER := 0.5
-const BOSS_SPAWN_INTERVAL_MULTIPLIER := 0.8
-const BOSS_BLOCK_TYPE_ID: StringName = &"ember_wide"
 # 보스 블록에만 적용되는 추가 HP 배율 (난이도 배율과 별개).
-const BOSS_BLOCK_HP_EXTRA_MULTIPLIER := 3.0
 
 # 재질별 블록/모래 색상과 무게 설정.
 const SAND_COLOR_CONFIG := {
@@ -270,172 +281,12 @@ const SAND_COLOR_CONFIG := {
 	},
 }
 
-const DEFAULT_BLOCK_BASE: StringName = &"rock"
 const BLOCK_SPECIAL_RESULT_NONE: StringName = &"none"
 const BLOCK_SPECIAL_RESULT_GLASS_SHATTER_DAMAGE: StringName = &"glass_shatter_damage"
 const BLOCK_SPECIAL_RESULT_BONUS_GOLD: StringName = &"bonus_gold"
 const BLOCK_SPECIAL_RESULT_EXPLOSION: StringName = &"explosion"
 
-const BLOCK_BASES := {
-	"glass": {
-		"id": "glass",
-		"display_name": "유리",
-		"color": Color("b8d8f4"),
-		"spawn_weight": 1.0,
-		"hp_multiplier": 1.0,
-		"reward_multiplier": 1.0,
-		"special_result_type": BLOCK_SPECIAL_RESULT_GLASS_SHATTER_DAMAGE,
-	},
-	"wood": {
-		"id": "wood",
-		"display_name": "나무",
-		"color": Color("9a6d43"),
-		"spawn_weight": 1.1,
-		"hp_multiplier": 1.0,
-		"reward_multiplier": 1.0,
-		"special_result_type": BLOCK_SPECIAL_RESULT_NONE,
-	},
-	"rock": {
-		"id": "rock",
-		"display_name": "바위",
-		"color": Color("7d8591"),
-		"spawn_weight": 1.2,
-		"hp_multiplier": 1.0,
-		"reward_multiplier": 1.0,
-		"special_result_type": BLOCK_SPECIAL_RESULT_NONE,
-	},
-	"marble": {
-		"id": "marble",
-		"display_name": "대리석",
-		"color": Color("d9dde4"),
-		"spawn_weight": 0.85,
-		"hp_multiplier": 1.5,
-		"reward_multiplier": 1.0,
-		"special_result_type": BLOCK_SPECIAL_RESULT_NONE,
-	},
-	"gold": {
-		"id": "gold",
-		"display_name": "금",
-		"color": Color("d7b94d"),
-		"spawn_weight": 0.55,
-		"hp_multiplier": 2.0,
-		"reward_multiplier": 1.5,
-		"special_result_type": BLOCK_SPECIAL_RESULT_BONUS_GOLD,
-	},
-	"cement": {
-		"id": "cement",
-		"display_name": "시멘트",
-		"color": Color("707983"),
-		"spawn_weight": 0.9,
-		"hp_multiplier": 2.0,
-		"reward_multiplier": 1.0,
-		"special_result_type": BLOCK_SPECIAL_RESULT_NONE,
-	},
-	"steel": {
-		"id": "steel",
-		"display_name": "강철",
-		"color": Color("5d6979"),
-		"spawn_weight": 0.75,
-		"hp_multiplier": 3.0,
-		"reward_multiplier": 1.0,
-		"special_result_type": BLOCK_SPECIAL_RESULT_NONE,
-	},
-	"bomb": {
-		"id": "bomb",
-		"display_name": "폭탄",
-		"color": Color("d45858"),
-		"spawn_weight": 0.5,
-		"hp_multiplier": 1.5,
-		"reward_multiplier": 1.0,
-		"special_result_type": BLOCK_SPECIAL_RESULT_EXPLOSION,
-	},
-}
-
-# 생성 시스템이 사용하는 낙하 블록 타입 정의.
-const BLOCK_TYPES := [
-	{
-		"id": "amber_small",
-		"size_cells": Vector2i(1, 1),
-		"health": 8,
-		"sand_units": 27,
-		"reward": 2,
-		"color_key": "amber",
-		"spawn_weight": 1.0,
-		"block_base": "glass",
-	},
-	{
-		"id": "amber_tall_wood",
-		"size_cells": Vector2i(1, 2),
-		"health": 14,
-		"sand_units": 54,
-		"reward": 3,
-		"color_key": "amber",
-		"spawn_weight": 1.0,
-		"block_base": "wood",
-	},
-	{
-		"id": "cobalt_tall",
-		"size_cells": Vector2i(1, 2),
-		"health": 21,
-		"sand_units": 54,
-		"reward": 4,
-		"color_key": "cobalt",
-		"spawn_weight": 1.0,
-		"block_base": "rock",
-	},
-	{
-		"id": "cobalt_marble",
-		"size_cells": Vector2i(2, 1),
-		"health": 20,
-		"sand_units": 54,
-		"reward": 4,
-		"color_key": "cobalt",
-		"spawn_weight": 0.85,
-		"block_base": "marble",
-	},
-	{
-		"id": "cobalt_gold",
-		"size_cells": Vector2i(1, 1),
-		"health": 24,
-		"sand_units": 27,
-		"reward": 5,
-		"color_key": "cobalt",
-		"spawn_weight": 0.75,
-		"block_base": "gold",
-	},
-	{
-		"id": "ember_cement",
-		"size_cells": Vector2i(1, 2),
-		"health": 20,
-		"sand_units": 54,
-		"reward": 4,
-		"color_key": "ember",
-		"spawn_weight": 0.9,
-		"block_base": "cement",
-	},
-	{
-		"id": "ember_wide",
-		"size_cells": Vector2i(2, 1),
-		"health": 24,
-		"sand_units": 54,
-		"reward": 4,
-		"color_key": "ember",
-		"spawn_weight": 0.8,
-		"block_base": "steel",
-	},
-	{
-		"id": "ember_bomb",
-		"size_cells": Vector2i(1, 1),
-		"health": 14,
-		"sand_units": 27,
-		"reward": 3,
-		"color_key": "ember",
-		"spawn_weight": 0.65,
-		"block_base": "bomb",
-	},
-]
-
-# 런타임에 반드시 보장하는 기본 입력 바인딩 정의.
+# 블록/Day 콘텐츠 데이터는 GameData의 .tres 리소스가 소유한다.
 const INPUT_BINDINGS := {
 	"move_left": [
 		{"type": "key", "code": KEY_A},
@@ -453,6 +304,9 @@ const INPUT_BINDINGS := {
 	"move_down": [
 		{"type": "key", "code": KEY_S},
 		{"type": "key", "code": KEY_DOWN},
+	],
+	"dash_action": [
+		{"type": "key", "code": KEY_Z},
 	],
 	"primary_action": [
 		{"type": "mouse_button", "button_index": MOUSE_BUTTON_LEFT},
@@ -474,39 +328,6 @@ const INPUT_BINDINGS := {
 
 func _ready() -> void:
 	ensure_input_actions()
-
-
-func get_block_base_definition(base_id: StringName) -> Dictionary:
-	var resolved_base_id := base_id
-	if resolved_base_id == StringName():
-		resolved_base_id = DEFAULT_BLOCK_BASE
-	if BLOCK_BASES.has(resolved_base_id):
-		return BLOCK_BASES[resolved_base_id]
-	return BLOCK_BASES[DEFAULT_BLOCK_BASE]
-
-
-func get_block_type_spawn_weight(definition: Dictionary) -> float:
-	var base_id := StringName(definition.get("block_base", DEFAULT_BLOCK_BASE))
-	var base_definition := get_block_base_definition(base_id)
-	var base_weight := float(base_definition.get("spawn_weight", 1.0))
-	var type_weight := float(definition.get("spawn_weight", 1.0))
-	return maxf(base_weight * type_weight, 0.0)
-
-
-func pick_block_type_definition(rng: RandomNumberGenerator) -> Dictionary:
-	var total_weight := 0.0
-	for raw_definition in BLOCK_TYPES:
-		var definition: Dictionary = raw_definition
-		total_weight += get_block_type_spawn_weight(definition)
-	if total_weight <= 0.0:
-		return BLOCK_TYPES[0]
-	var remaining_weight := rng.randf_range(0.0, total_weight)
-	for raw_definition in BLOCK_TYPES:
-		var definition: Dictionary = raw_definition
-		remaining_weight -= get_block_type_spawn_weight(definition)
-		if remaining_weight <= 0.0:
-			return definition
-	return BLOCK_TYPES[BLOCK_TYPES.size() - 1]
 
 
 func ensure_input_actions() -> void:
@@ -607,12 +428,12 @@ func get_sand_weight(color_key: StringName) -> float:
 	return config["weight"]
 
 
-func get_day_type(day_number: int) -> StringName:
-	if BOSS_DAYS.has(day_number):
-		return &"boss"
-	if RUSH_DAYS.has(day_number):
-		return &"rush"
-	return &"normal"
+func sand_cells_to_display_weight(sand_cells: int) -> float:
+	return float(sand_cells) * DISPLAY_WEIGHT_PER_SAND_CELL
+
+
+func format_display_weight(sand_cells: int) -> String:
+	return "%.1f" % sand_cells_to_display_weight(sand_cells)
 
 
 func get_difficulty_definition(difficulty_id: String) -> Dictionary:

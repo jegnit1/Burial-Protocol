@@ -14,7 +14,7 @@ class SeismicSensorDraw extends Control:
 	var blocks_root: Node2D
 	var sand_field: Node2D
 	var camera: Camera2D
-	var max_sand: float = 240.0
+	var max_sand: float = float(GameConstants.WEIGHT_LIMIT_SAND_CELLS)
 		
 	func _draw() -> void:
 		if not player or not blocks_root or not sand_field or not camera:
@@ -108,6 +108,8 @@ var sensor_draw: SeismicSensorDraw
 var status_level_label: Label
 var status_hp_label: Label
 var status_hp_bar: ProgressBar
+var status_battery_label: Label
+var status_battery_bar: ProgressBar
 var status_xp_label: Label
 var status_xp_bar: ProgressBar
 
@@ -120,10 +122,12 @@ var econ_weight_status_label: Label
 
 var debug_label: Label
 
+var _tracked_player: Player
+var _skill_slot_views: Array[Dictionary] = []
 var _last_day_number := 0
 var _day_start_gold := 0
 var _current_weight := 0
-var _max_weight := 240
+var _max_weight := GameConstants.WEIGHT_LIMIT_SAND_CELLS
 
 func _ready() -> void:
 	_build_layout()
@@ -135,9 +139,11 @@ func _ready() -> void:
 	_day_start_gold = GameState.gold
 	_on_gold_changed(GameState.gold)
 	_on_health_changed(GameState.player_health, GameConstants.PLAYER_MAX_HEALTH)
+	_update_battery_ui()
 	_on_status_text_changed(GameState.status_text)
 	_on_xp_changed(GameState.player_current_xp, GameState.player_next_level_xp)
 	_on_level_changed(GameState.player_level)
+	_update_skill_ui()
 	
 
 func toggle_debug_panel() -> void:
@@ -158,6 +164,7 @@ func set_runtime_debug(block_count: int, sand_count: int, wall_count: int, extra
 	debug_label.text = "\n".join(debug_lines)
 
 func update_sensors(p_player: Node2D, p_blocks: Node2D, p_sand: Node2D, p_camera: Camera2D, p_max_weight: int) -> void:
+	_tracked_player = p_player as Player
 	if sensor_draw:
 		sensor_draw.player = p_player
 		sensor_draw.blocks_root = p_blocks
@@ -171,6 +178,8 @@ func update_sensors(p_player: Node2D, p_blocks: Node2D, p_sand: Node2D, p_camera
 		_current_weight = p_sand.get_sand_count()
 	
 	_update_weight_ui()
+	_update_battery_ui()
+	_update_skill_ui()
 
 func set_day_info(day_number: int, total_days: int, time_remaining: float, _day_type: StringName, difficulty_name: String) -> void:
 	if _last_day_number != day_number:
@@ -185,11 +194,7 @@ func set_day_info(day_number: int, total_days: int, time_remaining: float, _day_
 		difficulty_label.text = difficulty_name
 		
 	if next_boss_label:
-		var next_boss = -1
-		for bd in GameConstants.BOSS_DAYS:
-			if bd >= day_number:
-				next_boss = bd
-				break
+		var next_boss := GameData.get_next_boss_day(day_number)
 		if next_boss != -1:
 			next_boss_label.text = "NEXT BOSS - D" + str(next_boss)
 		else:
@@ -200,14 +205,14 @@ func set_day_info(day_number: int, total_days: int, time_remaining: float, _day_
 		var mins = floor(secs / 60)
 		secs = int(secs) % 60
 		
-		var max_secs = floor(GameConstants.DAY_DURATION)
+		var max_secs = floor(GameData.get_day_duration(day_number))
 		var max_mins = floor(max_secs / 60)
 		max_secs = int(max_secs) % 60
 		
 		time_label.text = "%02d:%02d / %02d:%02d" % [mins, secs, max_mins, max_secs]
 	
 	if time_bar:
-		time_bar.max_value = GameConstants.DAY_DURATION
+		time_bar.max_value = GameData.get_day_duration(day_number)
 		time_bar.value = time_remaining
 		
 		var sb = StyleBoxFlat.new()
@@ -240,6 +245,26 @@ func _on_health_changed(current: int, maximum: int) -> void:
 			sb.bg_color = Color("e06868")
 		status_hp_bar.add_theme_stylebox_override("fill", sb)
 
+
+# Player가 직접 소유한 배터리를 일반 HUD에서 즉시 읽어 표시한다.
+func _update_battery_ui() -> void:
+	var maximum := GameConstants.PLAYER_BATTERY_MAX
+	var current := maximum
+	if _tracked_player != null:
+		maximum = _tracked_player.get_max_battery()
+		current = _tracked_player.get_current_battery()
+	if status_battery_label:
+		status_battery_label.text = "%.0f / %.0f" % [current, maximum]
+	if status_battery_bar:
+		status_battery_bar.max_value = maximum
+		status_battery_bar.value = current
+		var ratio := 0.0 if maximum <= 0.0 else current / maximum
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color("69d2c0")
+		if ratio <= 0.3:
+			sb.bg_color = Color("d99058")
+		status_battery_bar.add_theme_stylebox_override("fill", sb)
+
 func _on_status_text_changed(_text: String) -> void:
 	pass
 
@@ -256,7 +281,11 @@ func _on_level_changed(level: int) -> void:
 
 func _update_weight_ui() -> void:
 	if not econ_weight_label or not econ_weight_bar: return
-	econ_weight_label.text = str(_current_weight) + " / " + str(_max_weight) + " KG"
+	econ_weight_label.text = "%s / %s %s" % [
+		GameConstants.format_display_weight(_current_weight),
+		GameConstants.format_display_weight(_max_weight),
+		GameConstants.DISPLAY_WEIGHT_UNIT,
+	]
 	
 	econ_weight_bar.max_value = _max_weight
 	econ_weight_bar.value = _current_weight
@@ -282,6 +311,147 @@ func _update_weight_ui() -> void:
 			econ_weight_status_label.text = "      "
 		econ_weight_status_label.add_theme_color_override("font_color", Color("d45858"))
 	econ_weight_bar.add_theme_stylebox_override("fill", sb)
+
+
+func _update_skill_ui() -> void:
+	if _skill_slot_views.is_empty():
+		return
+	var dash_remaining := 0.0
+	var dash_duration := GameConstants.PLAYER_DASH_COOLDOWN
+	var dash_ready := false
+	if _tracked_player != null:
+		dash_remaining = _tracked_player.get_dash_cooldown_remaining()
+		dash_duration = _tracked_player.get_dash_cooldown_duration()
+		dash_ready = _tracked_player.can_dash()
+	_apply_skill_slot_state(0, "D", "DASH", "Z", dash_remaining, dash_duration, dash_ready, true)
+	_apply_skill_slot_state(1, "2", "EMPTY", "", 0.0, 1.0, false, false)
+	_apply_skill_slot_state(2, "3", "EMPTY", "", 0.0, 1.0, false, false)
+
+
+func _apply_skill_slot_state(
+	index: int,
+	icon_text: String,
+	name_text: String,
+	hint_text: String,
+	cooldown_remaining: float,
+	_cooldown_duration: float,
+	is_ready: bool,
+	is_active_slot: bool
+) -> void:
+	if index < 0 or index >= _skill_slot_views.size():
+		return
+	var slot := _skill_slot_views[index]
+	var panel := slot["panel"] as Panel
+	var icon_label := slot["icon"] as Label
+	var name_label := slot["name"] as Label
+	var hint_label := slot["hint"] as Label
+	var overlay := slot["overlay"] as ColorRect
+	var cooldown_label := slot["cooldown"] as Label
+	icon_label.text = icon_text
+	name_label.text = name_text
+	hint_label.text = hint_text
+	if not is_active_slot:
+		panel.add_theme_stylebox_override("panel", _make_skill_slot_style(Color(0.05, 0.07, 0.10, 0.72), Color("39424d")))
+		icon_label.add_theme_color_override("font_color", Color("6c7683"))
+		name_label.add_theme_color_override("font_color", Color("73808d"))
+		hint_label.add_theme_color_override("font_color", Color("5f6975"))
+		overlay.visible = true
+		overlay.color = Color(0.02, 0.03, 0.05, 0.50)
+		cooldown_label.visible = false
+		return
+	var on_cooldown := cooldown_remaining > 0.0
+	var border_color := Color("7ed0c8") if is_ready else Color("5e6977")
+	panel.add_theme_stylebox_override("panel", _make_skill_slot_style(Color(0.08, 0.11, 0.15, 0.90), border_color))
+	icon_label.add_theme_color_override("font_color", Color("f1f5f8") if is_ready else Color("aab4bf"))
+	name_label.add_theme_color_override("font_color", Color("dfe7ee"))
+	hint_label.add_theme_color_override("font_color", Color("8aa6c0"))
+	overlay.visible = on_cooldown
+	overlay.color = Color(0.0, 0.0, 0.0, 0.58)
+	cooldown_label.visible = on_cooldown
+	if on_cooldown:
+		cooldown_label.text = "%.1f" % cooldown_remaining
+
+
+func _make_skill_slot_style(background_color: Color, border_color: Color) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = background_color
+	style.border_width_left = 2
+	style.border_width_top = 2
+	style.border_width_right = 2
+	style.border_width_bottom = 2
+	style.border_color = border_color
+	style.corner_radius_top_left = 10
+	style.corner_radius_top_right = 10
+	style.corner_radius_bottom_right = 10
+	style.corner_radius_bottom_left = 10
+	return style
+
+
+func _create_skill_slot(icon_text: String, name_text: String, hint_text: String) -> Panel:
+	var slot_panel := Panel.new()
+	slot_panel.custom_minimum_size = Vector2(92, 96)
+	slot_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	slot_panel.add_theme_stylebox_override("panel", _make_skill_slot_style(Color(0.08, 0.11, 0.15, 0.90), Color("5e6977")))
+
+	var content_margin := MarginContainer.new()
+	content_margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	content_margin.add_theme_constant_override("margin_left", 10)
+	content_margin.add_theme_constant_override("margin_top", 8)
+	content_margin.add_theme_constant_override("margin_right", 10)
+	content_margin.add_theme_constant_override("margin_bottom", 8)
+	content_margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	slot_panel.add_child(content_margin)
+
+	var content_vbox := VBoxContainer.new()
+	content_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	content_vbox.add_theme_constant_override("separation", 2)
+	content_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content_margin.add_child(content_vbox)
+
+	var icon_label := Label.new()
+	icon_label.text = icon_text
+	icon_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	icon_label.add_theme_font_size_override("font_size", 28)
+	content_vbox.add_child(icon_label)
+
+	var name_label := Label.new()
+	name_label.text = name_text
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_label.add_theme_font_size_override("font_size", 15)
+	content_vbox.add_child(name_label)
+
+	var hint_label := Label.new()
+	hint_label.text = hint_text
+	hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint_label.add_theme_font_size_override("font_size", 14)
+	content_vbox.add_child(hint_label)
+
+	var overlay := ColorRect.new()
+	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.color = Color(0.0, 0.0, 0.0, 0.58)
+	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay.visible = false
+	slot_panel.add_child(overlay)
+
+	var cooldown_label := Label.new()
+	cooldown_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	cooldown_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	cooldown_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	cooldown_label.add_theme_font_size_override("font_size", 20)
+	cooldown_label.add_theme_color_override("font_color", Color("f4f6f8"))
+	cooldown_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cooldown_label.visible = false
+	slot_panel.add_child(cooldown_label)
+
+	_skill_slot_views.append({
+		"panel": slot_panel,
+		"icon": icon_label,
+		"name": name_label,
+		"hint": hint_label,
+		"overlay": overlay,
+		"cooldown": cooldown_label,
+	})
+	return slot_panel
 
 
 func _build_layout() -> void:
@@ -495,6 +665,29 @@ func _build_layout() -> void:
 	status_hp_label = Label.new()
 	status_hp_label.add_theme_font_size_override("font_size", 18)
 	hp_row.add_child(status_hp_label)
+
+	var battery_row := HBoxContainer.new()
+	battery_row.add_theme_constant_override("separation", 8)
+	bars_vbox.add_child(battery_row)
+
+	var battery_title := Label.new()
+	battery_title.text = "BAT"
+	battery_title.custom_minimum_size = Vector2(30, 0)
+	battery_title.add_theme_color_override("font_color", Color("69d2c0"))
+	battery_title.add_theme_font_size_override("font_size", 18)
+	battery_row.add_child(battery_title)
+
+	status_battery_bar = ProgressBar.new()
+	status_battery_bar.custom_minimum_size = Vector2(200, 16)
+	status_battery_bar.show_percentage = false
+	var battery_bg = StyleBoxFlat.new()
+	battery_bg.bg_color = Color(0.1, 0.1, 0.1, 0.8)
+	status_battery_bar.add_theme_stylebox_override("background", battery_bg)
+	battery_row.add_child(status_battery_bar)
+
+	status_battery_label = Label.new()
+	status_battery_label.add_theme_font_size_override("font_size", 16)
+	battery_row.add_child(status_battery_label)
 	
 	# XP
 	var xp_row := HBoxContainer.new()
@@ -559,3 +752,25 @@ func _build_layout() -> void:
 	sensor_bg_panel.add_child(sensor_draw)
 	sensor_margin.add_child(sensor_bg_panel)
 	root.add_child(sensor_margin)
+
+	var skill_bar_anchor := MarginContainer.new()
+	skill_bar_anchor.anchor_left = 1.0
+	skill_bar_anchor.anchor_top = 1.0
+	skill_bar_anchor.anchor_right = 1.0
+	skill_bar_anchor.anchor_bottom = 1.0
+	skill_bar_anchor.offset_left = -(GameConstants.HUD_SIDE_PADDING + 312.0)
+	skill_bar_anchor.offset_top = -(GameConstants.HUD_TOP_PADDING + 112.0)
+	skill_bar_anchor.offset_right = -GameConstants.HUD_SIDE_PADDING
+	skill_bar_anchor.offset_bottom = -GameConstants.HUD_TOP_PADDING
+	skill_bar_anchor.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(skill_bar_anchor)
+
+	var skill_bar := HBoxContainer.new()
+	skill_bar.alignment = BoxContainer.ALIGNMENT_END
+	skill_bar.add_theme_constant_override("separation", 12)
+	skill_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	skill_bar_anchor.add_child(skill_bar)
+
+	skill_bar.add_child(_create_skill_slot("D", "DASH", "Z"))
+	skill_bar.add_child(_create_skill_slot("2", "EMPTY", ""))
+	skill_bar.add_child(_create_skill_slot("3", "EMPTY", ""))

@@ -1,0 +1,175 @@
+[gd_resource type="Resource" script_class="StageTable" format=3 uid="uid://buomluwxiw6vd"]
+
+[ext_resource type="Script" uid="uid://ciwnhi17lk0ac" path="res://scripts/data/StageTable.gd" id="1_table"]
+[ext_resource type="Script" uid="uid://clqgjko7htuge" path="res://scripts/data/StageDayDefinition.gd" id="2_day"]
+
+[sub_resource type="Resource" id="StageDayDefinition_1"]
+script = ExtResource("2_day")
+special_rules = null
+
+[sub_resource type="Resource" id="StageDayDefinition_2"]
+script = ExtResource("2_day")
+day_number = 2
+special_rules = null
+
+[sub_resource type="Resource" id="StageDayDefinition_3"]
+script = ExtResource("2_day")
+day_number = 3
+special_rules = null
+
+[sub_resource type="Resource" id="StageDayDefinition_4"]
+script = ExtResource("2_day")
+day_number = 4
+special_rules = null
+
+[sub_resource type="Resource" id="StageDayDefinition_5"]
+script = ExtResource("2_day")
+day_number = 5
+day_type = "rush"
+spawn_interval_multiplier = 0.5
+special_rules = null
+
+[sub_resource type="Resource" id="StageDayDefinition_6"]
+script = ExtResource("2_day")
+day_number = 6
+special_rules = null
+
+[sub_resource type="Resource" id="StageDayDefinition_7"]
+script = ExtResource("2_day")
+day_number = 7
+special_rules = null
+
+[sub_resource type="Resource" id="StageDayDefinition_8"]
+script = ExtResource("2_day")
+day_number = 8
+special_rules = null
+
+[sub_resource type="Resource" id="StageDayDefinition_9"]
+script = ExtResource("2_day")
+day_number = 9
+special_rules = null
+
+[sub_resource type="Resource" id="StageDayDefinition_10"]
+script = ExtResource("2_day")
+day_number = 10
+day_type = "boss"
+boss_block_base_id = "ember_wide"
+boss_block_type_id = "boss"
+spawn_interval_multiplier = 0.8
+special_rules = null
+
+[sub_resource type="Resource" id="StageDayDefinition_11"]
+script = ExtResource("2_day")
+day_number = 11
+special_rules = null
+
+[sub_resource type="Resource" id="StageDayDefinition_12"]
+script = ExtResource("2_day")
+day_number = 12
+special_rules = null
+
+[sub_resource type="Resource" id="StageDayDefinition_13"]
+script = ExtResource("2_day")
+day_number = 13
+special_rules = null
+
+[sub_resource type="Resource" id="StageDayDefinition_14"]
+script = ExtResource("2_day")
+day_number = 14
+special_rules = null
+
+[sub_resource type="Resource" id="StageDayDefinition_15"]
+script = ExtResource("2_day")
+day_number = 15
+day_type = "rush"
+spawn_interval_multiplier = 0.5
+special_rules = null
+
+[sub_resource type="Resource" id="StageDayDefinition_16"]
+script = ExtResource("2_day")
+day_number = 16
+special_rules = null
+
+[sub_resource type="Resource" id="StageDayDefinition_17"]
+script = ExtResource("2_day")
+day_number = 17
+special_rules = null
+
+[sub_resource type="Resource" id="StageDayDefinition_18"]
+script = ExtResource("2_day")
+day_number = 18
+special_rules = null
+
+[sub_resource type="Resource" id="StageDayDefinition_19"]
+script = ExtResource("2_day")
+day_number = 19
+special_rules = null
+
+[sub_resource type="Resource" id="StageDayDefinition_20"]
+script = ExtResource("2_day")
+day_number = 20
+day_type = "boss"
+boss_block_base_id = "ember_wide"
+boss_block_type_id = "boss"
+spawn_interval_multiplier = 0.8
+special_rules = null
+
+[sub_resource type="Resource" id="StageDayDefinition_21"]
+script = ExtResource("2_day")
+day_number = 21
+special_rules = null
+
+[sub_resource type="Resource" id="StageDayDefinition_22"]
+script = ExtResource("2_day")
+day_number = 22
+special_rules = null
+
+[sub_resource type="Resource" id="StageDayDefinition_23"]
+script = ExtResource("2_day")
+day_number = 23
+special_rules = null
+
+[sub_resource type="Resource" id="StageDayDefinition_24"]
+script = ExtResource("2_day")
+day_number = 24
+special_rules = null
+
+[sub_resource type="Resource" id="StageDayDefinition_25"]
+script = ExtResource("2_day")
+day_number = 25
+day_type = "rush"
+spawn_interval_multiplier = 0.5
+special_rules = null
+
+[sub_resource type="Resource" id="StageDayDefinition_26"]
+script = ExtResource("2_day")
+day_number = 26
+special_rules = null
+
+[sub_resource type="Resource" id="StageDayDefinition_27"]
+script = ExtResource("2_day")
+day_number = 27
+special_rules = null
+
+[sub_resource type="Resource" id="StageDayDefinition_28"]
+script = ExtResource("2_day")
+day_number = 28
+special_rules = null
+
+[sub_resource type="Resource" id="StageDayDefinition_29"]
+script = ExtResource("2_day")
+day_number = 29
+special_rules = null
+
+[sub_resource type="Resource" id="StageDayDefinition_30"]
+script = ExtResource("2_day")
+day_number = 30
+day_type = "boss"
+boss_block_base_id = "ember_wide"
+boss_block_type_id = "boss"
+spawn_interval_multiplier = 0.8
+special_rules = null
+
+[resource]
+script = ExtResource("1_table")
+days = Array[Resource]([SubResource("StageDayDefinition_1"), SubResource("StageDayDefinition_2"), SubResource("StageDayDefinition_3"), SubResource("StageDayDefinition_4"), SubResource("StageDayDefinition_5"), SubResource("StageDayDefinition_6"), SubResource("StageDayDefinition_7"), SubResource("StageDayDefinition_8"), SubResource("StageDayDefinition_9"), SubResource("StageDayDefinition_10"), SubResource("StageDayDefinition_11"), SubResource("StageDayDefinition_12"), SubResource("StageDayDefinition_13"), SubResource("StageDayDefinition_14"), SubResource("StageDayDefinition_15"), SubResource("StageDayDefinition_16"), SubResource("StageDayDefinition_17"), SubResource("StageDayDefinition_18"), SubResource("StageDayDefinition_19"), SubResource("StageDayDefinition_20"), SubResource("StageDayDefinition_21"), SubResource("StageDayDefinition_22"), SubResource("StageDayDefinition_23"), SubResource("StageDayDefinition_24"), SubResource("StageDayDefinition_25"), SubResource("StageDayDefinition_26"), SubResource("StageDayDefinition_27"), SubResource("StageDayDefinition_28"), SubResource("StageDayDefinition_29"), SubResource("StageDayDefinition_30")])

@@ -8,6 +8,7 @@ const DASH_DOWNWARD_SAND_SIDE_MARGIN := 6.0
 const DASH_FEEDBACK_DURATION := 0.14
 const DASH_TRAIL_ALPHA := 0.32
 const DASH_OUTLINE_WIDTH := 3.0
+const DAMAGE_POPUP_SCRIPT := preload("res://scenes/ui/DamagePopup.gd")
 # 스프라이트 시각 영역에 맞게 충돌 박스를 줄이는 inset (픽셀).
 # x: 좌우 각각 줄임. y는 반드시 0 — y를 바꾸면 바닥/블록 감지가 깨짐.
 const COLLISION_INSET := Vector2(28.0, 0.0)
@@ -46,12 +47,15 @@ var dash_debug_last_event := ""
 var dash_feedback_time := 0.0
 var dash_feedback_state: StringName = &""
 var damage_cooldown := 0.0
+var hurt_flash_remaining := 0.0
 var jump_started_this_frame := false
 var _had_active_visuals := false
 var is_on_floor := false
 var is_on_sand := false
 var is_on_left_wall := false
 var is_on_right_wall := false
+var current_battery := GameConstants.PLAYER_BATTERY_MAX
+var is_wall_climbing := false
 var animated_sprite_base_scale := Vector2.ONE
 
 @onready var animated_sprite: AnimatedSprite2D = $AnimatedSprite2D
@@ -59,6 +63,8 @@ var animated_sprite_base_scale := Vector2.ONE
 
 func _ready() -> void:
 	position = GameConstants.PLAYER_SPAWN_POSITION
+	current_battery = GameConstants.PLAYER_BATTERY_MAX
+	is_wall_climbing = false
 	_cache_sprite_base_scale()
 	_update_sprite_visuals(0.0)
 	queue_redraw()
@@ -79,12 +85,18 @@ func _input(event: InputEvent) -> void:
 		last_right_tap_time = _register_dash_tap(Vector2.RIGHT, last_right_tap_time)
 	if GameConstants.PLAYER_DASH_DOWN_ENABLED and event.is_action_pressed("move_down", false, false):
 		last_down_tap_time = _register_dash_tap(Vector2.DOWN, last_down_tap_time)
+	if event.is_action_pressed("dash_action", false, false):
+		var dash_input_direction := _resolve_dash_action_direction()
+		if dash_input_direction != Vector2.ZERO:
+			_queue_dash_request(dash_input_direction)
 
 
 func setup(target_world: WorldGrid, target_sand: SandField, target_blocks: Node2D) -> void:
 	world_grid = target_world
 	sand_field = target_sand
 	blocks_root = target_blocks
+	current_battery = GameConstants.PLAYER_BATTERY_MAX
+	is_wall_climbing = false
 	_refresh_contacts()
 
 
@@ -107,12 +119,14 @@ func _physics_process(delta: float) -> void:
 	dash_time_remaining = max(dash_time_remaining - delta, 0.0)
 	dash_feedback_time = max(dash_feedback_time - delta, 0.0)
 	damage_cooldown = max(damage_cooldown - delta, 0.0)
+	hurt_flash_remaining = max(hurt_flash_remaining - delta, 0.0)
 	attack_visual_time = max(attack_visual_time - delta, 0.0)
 	mining_visual_time = max(mining_visual_time - delta, 0.0)
 	_process_pending_dash_request()
 	_update_dash_state()
 	jump_started_this_frame = false
 	_refresh_contacts()
+	_update_wall_climb_state(delta)
 	if is_dashing:
 		_apply_dash_movement(delta)
 	else:
@@ -123,7 +137,14 @@ func _physics_process(delta: float) -> void:
 	_snap_to_supporting_block()
 	_refresh_contacts()
 	_update_sprite_visuals(position.x - previous_position.x)
-	var _has_active_visuals := is_dashing or dash_feedback_time > 0.0 or attack_visual_time > 0.0 or (mining_visual_time > 0.0 and mining_visual_direction != Vector2.ZERO)
+	var _has_active_visuals := (
+		is_dashing
+		or dash_feedback_time > 0.0
+		or attack_visual_time > 0.0
+		or (mining_visual_time > 0.0 and mining_visual_direction != Vector2.ZERO)
+		or damage_cooldown > 0.0
+		or hurt_flash_remaining > 0.0
+	)
 	if _has_active_visuals or _had_active_visuals:
 		queue_redraw()
 	_had_active_visuals = _has_active_visuals
@@ -149,13 +170,31 @@ func can_dash() -> bool:
 	return dash_cooldown_remaining <= 0.0 and not is_dashing
 
 
+func get_current_battery() -> float:
+	return current_battery
+
+
+func get_max_battery() -> float:
+	return GameConstants.PLAYER_BATTERY_MAX
+
+
+func get_dash_cooldown_remaining() -> float:
+	return dash_cooldown_remaining
+
+
+func get_dash_cooldown_duration() -> float:
+	return GameConstants.PLAYER_DASH_COOLDOWN
+
+
 func get_dash_debug_text() -> String:
 	var pending_text := "yes" if pending_dash_direction != Vector2.ZERO or dash_requested else "no"
-	return "Dash %s | Dir %s | CD %.2f | Pending %s | Event %s" % [
+	return "Dash %s | Dir %s | CD %.2f | Pending %s | Battery %.0f | WallClimb %s | Event %s" % [
 		"ON" if is_dashing else "off",
 		_vector_to_debug_text(dash_direction),
 		dash_cooldown_remaining,
 		pending_text,
+		current_battery,
+		"ON" if is_wall_climbing else "off",
 		String(dash_debug_last_event),
 	]
 
@@ -249,11 +288,14 @@ func get_mining_shape_data(direction: Vector2) -> Dictionary:
 	}
 
 
-func receive_crush_hit() -> bool:
+func receive_crush_hit(amount: int) -> bool:
 	if damage_cooldown > 0.0:
 		return false
 	damage_cooldown = GameConstants.PLAYER_DAMAGE_INVULNERABILITY
-	GameState.damage_player(GameConstants.PLAYER_CRUSH_DAMAGE)
+	hurt_flash_remaining = GameConstants.PLAYER_HURT_FLASH_DURATION
+	GameState.damage_player(amount)
+	_spawn_player_damage_popup(amount)
+	_update_sprite_visuals(0.0)
 	return true
 
 
@@ -323,6 +365,17 @@ func _get_input_time_seconds() -> float:
 	return Time.get_ticks_msec() * 0.001
 
 
+func _resolve_dash_action_direction() -> Vector2:
+	var left_pressed := Input.is_action_pressed("move_left")
+	var right_pressed := Input.is_action_pressed("move_right")
+	var down_pressed := GameConstants.PLAYER_DASH_DOWN_ENABLED and Input.is_action_pressed("move_down")
+	if left_pressed != right_pressed:
+		return Vector2.LEFT if left_pressed else Vector2.RIGHT
+	if down_pressed:
+		return Vector2.DOWN
+	return Vector2.ZERO
+
+
 func _update_sprite_visuals(horizontal_motion: float) -> void:
 	if animated_sprite == null:
 		return
@@ -333,9 +386,13 @@ func _update_sprite_visuals(horizontal_motion: float) -> void:
 		animated_sprite.play(animation_name)
 	animated_sprite.flip_h = facing.x < 0
 	var sprite_modulate := Color.WHITE
-	if damage_cooldown > 0.0:
-		sprite_modulate = sprite_modulate.lerp(GameConstants.PLAYER_HURT_COLOR, 0.45)
-	if is_dashing:
+	if hurt_flash_remaining > 0.0:
+		sprite_modulate = GameConstants.PLAYER_HURT_FLASH_COLOR
+	elif damage_cooldown > 0.0 and _is_invulnerability_flash_visible():
+		sprite_modulate = GameConstants.PLAYER_INVULN_FLASH_COLOR
+	elif damage_cooldown > 0.0:
+		sprite_modulate = sprite_modulate.lerp(GameConstants.PLAYER_HURT_COLOR, 0.25)
+	elif is_dashing:
 		sprite_modulate = sprite_modulate.lerp(_get_dash_visual_color(), 0.35)
 	animated_sprite.modulate = sprite_modulate
 	if is_dashing:
@@ -345,6 +402,30 @@ func _update_sprite_visuals(horizontal_motion: float) -> void:
 			animated_sprite.scale = animated_sprite_base_scale * Vector2(1.08, 0.92)
 	else:
 		animated_sprite.scale = animated_sprite_base_scale
+
+
+func _is_invulnerability_flash_visible() -> bool:
+	if damage_cooldown <= 0.0:
+		return false
+	var elapsed := GameConstants.PLAYER_DAMAGE_INVULNERABILITY - damage_cooldown
+	return int(floor(elapsed / GameConstants.PLAYER_INVULN_FLASH_INTERVAL)) % 2 == 0
+
+
+func _spawn_player_damage_popup(amount: int) -> void:
+	if amount <= 0:
+		return
+	var popup_parent := get_parent()
+	if popup_parent == null:
+		return
+	var popup := DAMAGE_POPUP_SCRIPT.new() as Node2D
+	popup_parent.add_child(popup)
+	popup.global_position = global_position + Vector2(0.0, -GameConstants.PLAYER_SIZE.y * 0.7)
+	popup.setup(
+		amount,
+		GameConstants.PLAYER_DAMAGE_POPUP_TEXT_COLOR,
+		GameConstants.PLAYER_DAMAGE_POPUP_SHADOW_COLOR,
+		"-"
+	)
 
 
 func _cache_sprite_base_scale() -> void:
@@ -446,13 +527,13 @@ func _apply_jump_input() -> void:
 		velocity.y = GameConstants.PLAYER_JUMP_SPEED
 		jump_started_this_frame = true
 		return
-	if is_on_left_wall or is_on_right_wall:
+	if is_wall_climbing:
 		jump_buffer_remaining = 0.0
 		var wall_direction := 1 if is_on_left_wall else -1
 		velocity.x = wall_direction * GameConstants.PLAYER_WALL_JUMP_SPEED_X
 		velocity.y = GameConstants.PLAYER_JUMP_SPEED
-		extra_jumps_left = GameConstants.PLAYER_EXTRA_JUMPS
 		coyote_time_remaining = 0.0
+		is_wall_climbing = false
 		jump_started_this_frame = true
 		return
 	if extra_jumps_left > 0:
@@ -472,8 +553,39 @@ func _apply_gravity(delta: float) -> void:
 			velocity.y + GameConstants.PLAYER_FAST_FALL_ACCELERATION * delta,
 			GameConstants.PLAYER_FAST_FALL_SPEED
 		)
-	if (is_on_left_wall or is_on_right_wall) and velocity.y > GameConstants.PLAYER_WALL_SLIDE_SPEED:
-		velocity.y = GameConstants.PLAYER_WALL_SLIDE_SPEED
+	if is_wall_climbing and velocity.y > GameConstants.PLAYER_WALL_CLIMB_FALL_SPEED:
+		velocity.y = GameConstants.PLAYER_WALL_CLIMB_FALL_SPEED
+
+
+# 고정 벽 접촉 + 벽 방향 입력 + 배터리 보유 상태일 때만 벽타기를 유지한다.
+# 배터리 회복량은 캐릭터 기본 스탯 상수(GameConstants)에서 가져온다.
+func _update_wall_climb_state(delta: float) -> void:
+	var climb_direction := _get_wall_climb_input_direction()
+	var can_wall_climb := not is_dashing and current_battery > 0.0 and (
+		(climb_direction < 0.0 and is_on_left_wall)
+		or (climb_direction > 0.0 and is_on_right_wall)
+	)
+	is_wall_climbing = can_wall_climb
+	if is_wall_climbing:
+		current_battery = maxf(
+			current_battery - GameConstants.PLAYER_WALL_CLIMB_DRAIN_PER_SEC * delta,
+			0.0
+		)
+		if current_battery <= 0.0:
+			is_wall_climbing = false
+		return
+	current_battery = minf(
+		current_battery + GameConstants.PLAYER_BATTERY_RECOVERY_PER_SEC * delta,
+		GameConstants.PLAYER_BATTERY_MAX
+	)
+
+
+# 좌우 입력이 실제로 접촉 중인 벽 방향인지 판정한다.
+func _get_wall_climb_input_direction() -> float:
+	var horizontal_input := Input.get_axis("move_left", "move_right")
+	if absf(horizontal_input) < GameConstants.PLAYER_WALL_CLIMB_INPUT_DEADZONE:
+		return 0.0
+	return horizontal_input
 
 
 func _move_with_collisions(delta: float) -> void:
