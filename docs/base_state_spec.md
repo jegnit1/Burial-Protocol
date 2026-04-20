@@ -2,35 +2,32 @@
 
 ## 0. 목적
 
-이 문서는 프로젝트가 현재 사용 중인 공유 상태 구조를 정리한다.
-무엇이 세이브에 남고, 무엇이 런 중에만 존재하며,
-어떤 UI/런타임 시스템이 그 상태를 참조하는지를 기록한다.
+이 문서는 현재 프로젝트의 공용 상태 구조를 정리한다.
+무엇이 저장 데이터인지, 무엇이 런타임 상태인지, 어떤 UI가 어떤 상태를 읽는지 기록한다.
 
-현재 이 상태의 중심 소유자는 `scripts/autoload/GameState.gd`다.
+기준일: `2026-04-20`
 
 ---
 
-## 1. 상태 범주
+## 1. 상태 층 구분
 
-현재 프로젝트는 실질적으로 아래 세 층의 상태를 사용한다.
+현재 프로젝트는 크게 아래 세 층의 상태를 사용한다.
 
-1. 영구 프로필 상태
+1. 저장 상태
 2. 현재 런 상태
-3. UI 갱신용 시그널 상태
+3. 씬 내부 진행 상태
 
 ---
 
-## 2. 영구 프로필 상태
+## 2. 저장 상태
 
-영구 데이터는 아래 위치에 저장된다.
+저장 주체: `scripts/autoload/GameState.gd`
 
 - 경로: `user://profile.save`
-- 포맷: JSON 문자열
+- 형식: JSON
 - 버전 필드: `save_version`
 
-### 2-1. 현재 영구 저장 필드
-
-현재 세이브 데이터에는 아래가 들어간다.
+### 2-1. 현재 저장 필드
 
 - `selected_character_id`
 - `last_selected_difficulty_id`
@@ -42,77 +39,36 @@
 - `best_records_by_character`
 - `cleared_difficulty_ids`
 
-### 2-2. 영구 데이터 의미
+### 2-2. 저장 범위 설명
 
 #### 캐릭터 관련
 
-- 선택 캐릭터 id
-- 해금된 캐릭터 id 목록
-- 캐릭터별 난이도 최고 기록
+- 현재 선택 캐릭터
+- 해금 캐릭터 목록
+- 캐릭터별 최고 기록
 
 #### 난이도 관련
 
-- 마지막 선택 난이도 id
-- 난이도 해금용 클리어 기록
+- 마지막 선택 난이도
+- 클리어한 난이도 목록
 
-#### 메타 placeholder 관련
+#### placeholder 메타 관련
 
-- 재화
+- 영구 재화
 - 설정
-- 성장
-- 업적
+- 성장 데이터
+- 업적 데이터
 
-즉, 아직 게임플레이 사용처가 placeholder인 항목도
-저장 구조 자체는 이미 들어가 있는 상태다.
-
----
-
-## 3. 캐릭터 상태
-
-현재 캐릭터 슬롯 규칙:
-
-- 기본 작업자 슬롯 1개는 시작부터 해금
-- 추가 슬롯 9개는 잠긴 placeholder
-- 각 슬롯은 최고 기록 요약을 가진다
-
-메뉴에서 현재 선택된 값:
-
-- `selected_character_id`
-- `selected_character_name`
-
-실제 런에서는 이 값이 아래로 복사된다.
-
-- `current_run_character_id`
-- `current_run_character_name`
-
-이 분리는 중요하다.
-결과 화면은 "현재 허브에서 선택 중인 값"이 아니라
-"방금 끝난 런의 값"을 보여 주기 때문이다.
+중요:
+메타 시스템은 구조만 저장되고 있으며, 실제 기능은 아직 제한적이다.
 
 ---
 
-## 4. 난이도 상태
+## 3. 현재 런 상태
 
-현재 난이도 관련 상태 필드:
+현재 런 상태는 주로 `GameState.gd`가 소유한다.
 
-- `last_selected_difficulty_id`
-- `last_selected_difficulty_name`
-- `current_run_difficulty_id`
-- `current_run_difficulty_name`
-- `cleared_difficulty_ids`
-
-해금 규칙:
-
-- `normal`은 기본 해금
-- 그 위 난이도는 이전 난이도 클리어가 필요
-
-메인 허브는 이 상태를 읽어서 난이도 팝업과 잠금 버튼을 만든다.
-
----
-
-## 5. 현재 런 상태
-
-아래 값들은 런 시작 시 초기화된다.
+### 3-1. 기본 런 필드
 
 - `gold`
 - `player_health`
@@ -121,47 +77,106 @@
 - `current_day`
 - `day_time_remaining`
 - `run_cleared`
+
+### 3-2. 경험치/레벨 필드
+
 - `player_level`
 - `player_current_xp`
 - `player_next_level_xp`
+
+### 3-3. 런타임 스탯 보너스 필드
+
 - `run_bonus_attack_damage`
 - `run_bonus_move_speed`
 - `run_bonus_max_hp`
 - `run_attack_speed_mult`
 - `run_bonus_mining_damage`
 - `run_mining_speed_mult`
+- `run_bonus_crit_chance`
+- `run_bonus_hp_regen`
+- `run_bonus_defense`
+- `run_bonus_luck`
+- `run_bonus_interest_rate`
+- `run_attack_range_mult`
+- `run_mining_range_mult`
+- `run_bonus_jump_power`
 
-### 5-1. 시작 기본값
-
-현재 런 시작 기본값:
-
-- 골드: `0`
-- 체력: `GameConstants.PLAYER_MAX_HEALTH`
-- 현재 Day: `1`
-- 남은 시간: `GameConstants.DAY_DURATION`
-- 클리어 여부: `false`
-- 레벨: `1`
-- XP: `0`
-- 다음 레벨 XP: `50`
-
-### 5-2. 런 결과 상태
-
-런 종료 시 `finish_temporary_run()`이 아래 값을 기록한다.
-
-- `latest_run_record`
-- `latest_run_reason_id`
-- `latest_run_reason_label`
-- `latest_run_stage_reached`
-- `latest_run_difficulty_name`
-- `latest_run_character_name`
-
-이 값들이 결과 화면의 데이터 소스다.
+즉, `GameConstants`가 기본값을 가지고,
+`GameState`는 현재 런에서 쌓인 추가 보너스를 가진다.
 
 ---
 
-## 6. UI 시그널 계층
+## 4. 최종 스탯 getter
 
-현재 `GameState`가 제공하는 시그널은 아래와 같다.
+`GameState.gd`는 현재 UI와 로직이 직접 읽는 최종 스탯 getter를 제공한다.
+
+### 4-1. 전투 관련
+
+- `get_attack_damage()`
+- `get_attack_cooldown_duration()`
+- `get_attacks_per_second()`
+- `get_attack_range_multiplier()`
+- `get_critical_chance_ratio()`
+- `get_critical_chance_percent()`
+- `get_critical_damage_multiplier()`
+- `get_critical_damage_percent()`
+
+### 4-2. 생존 관련
+
+- `get_player_max_health()`
+- `get_defense()`
+- `get_hp_regen_stat()`
+- `get_hp_regen_interval()`
+
+### 4-3. 이동 관련
+
+- `get_move_speed()`
+- `get_jump_speed()`
+- `get_jump_power()`
+
+### 4-4. 채굴 관련
+
+- `get_mining_damage()`
+- `get_mining_cooldown_duration()`
+- `get_mines_per_second()`
+- `get_mining_range_multiplier()`
+
+### 4-5. 경제/기타 관련
+
+- `get_interest_rate()`
+- `get_interest_percent()`
+- `calculate_interest_payout()`
+- `get_luck()`
+
+---
+
+## 5. 캐릭터/난이도 상태
+
+### 5-1. 캐릭터
+
+- `selected_character_id`
+- `selected_character_name`
+- `current_run_character_id`
+- `current_run_character_name`
+
+설명:
+
+- `selected_*` 는 허브에서 선택된 현재 값
+- `current_run_*` 는 실제 런 시작 시 복사된 값
+
+### 5-2. 난이도
+
+- `last_selected_difficulty_id`
+- `last_selected_difficulty_name`
+- `current_run_difficulty_id`
+- `current_run_difficulty_name`
+- `cleared_difficulty_ids`
+
+---
+
+## 6. Signal 구조
+
+`GameState`가 현재 제공하는 UI 연동 signal:
 
 - `gold_changed`
 - `health_changed`
@@ -171,99 +186,121 @@
 - `level_changed`
 - `level_up_ready`
 
-### 6-1. 현재 소비자
+### 6-1. 현재 signal 소비처
 
-현재 이 시그널을 직접 또는 간접으로 사용하는 주요 UI:
+주요 소비처:
 
 - `HUD`
-- `GameState`를 직접 읽는 메뉴 장면들
+- 허브/캐릭터 선택 계열 UI
 - `LevelUpUI`
-
-### 6-2. 중요한 현재 상태
-
-`status_text`는 게임 중 계속 바뀌지만,
-현재 HUD에는 이 텍스트를 전용으로 보여 주는 위젯이 아직 없다.
-
-즉, 상태 자체는 존재하고 갱신되지만,
-표현 레이어는 아직 덜 붙은 상태다.
+- `PauseMenu`의 초기 데이터 생성
 
 ---
 
-## 7. XP와 런 한정 보너스 상태
+## 7. 씬 내부 진행 상태
 
-현재 XP 흐름:
+씬 내부 진행 플래그는 `GameState`가 아니라 `Main.gd`가 관리한다.
 
-- 블록 파괴 -> XP 획득
-- 모래 제거 -> XP 획득
-- 기준치를 넘으면 `level_up_ready` emit
+현재 핵심 플래그:
 
-현재 런 한정 보너스 필드:
+- `_is_day_active`
+- `_is_intermission`
+- `_is_intermission_locked`
+- `_is_next_day_transitioning`
+- `_shop_ui_open`
+- `_waiting_for_day_kiosk`
+- `_pending_wall_reset_for_next_day`
 
-- 공격력 보너스
-- 이동 속도 보너스
-- 최대 HP 보너스
-- 공격 속도 배수
-- 채굴 데미지 보너스
-- 채굴 속도 배수
-
-이 값들은 영구 성장값이 아니라 "이번 런에서만 유효한 수치"다.
-
----
-
-## 8. 최고 기록 상태
-
-최고 기록은 아래 기준으로 관리된다.
-
-- 캐릭터별
-- 난이도별
-- 가장 높게 도달한 stage/day 정수값
-
-메뉴에서는 이 값을 읽어 선택 캐릭터의 최고 기록 요약 문자열을 만든다.
-
-즉, 현재 기록 시스템은 이후 메타 성장이나 결과 확장에도 사용할 수 있게
-기본 구조는 이미 잡혀 있다.
+중요:
+Day 진행과 전환 플래그는 저장 상태가 아니다.
+현재 `Main` 씬 내부의 진행 제어값이다.
 
 ---
 
-## 9. 세이브 라이프사이클
+## 8. Player 고유 런타임 상태
 
-현재 세이브 흐름:
+일부 상태는 `GameState`가 아니라 `Player.gd`가 직접 소유한다.
 
-- 먼저 기본 데이터를 적용
-- 파일이 없으면 생성
-- 잘못되었거나 빠진 필드를 정규화
-- 로드 후 다시 저장해서 구조를 맞춤
-- 선택/해금 변경 시 저장
-- 런 종료 시 저장
+예:
 
-현재 구조는 예외 상황에서도 기본값 복구가 잘 되도록 안정성을 우선한다.
+- `current_battery`
+- `is_wall_climbing`
+- `dash_cooldown_remaining`
+- `damage_cooldown`
+- `hurt_flash_remaining`
+- `extra_jumps_left`
 
----
+HUD는 필요한 값만 Player getter를 통해 읽는다.
 
-## 10. 이 상태 구조로 이미 가능한 것
+예:
 
-현재 베이스 상태 구조만으로도 아래가 가능하다.
-
-- 메뉴 -> 런 흐름
-- 캐릭터 선택
-- 난이도 해금 연쇄
-- 런 결과 보고
-- 영구 최고 기록 저장
-- placeholder 장기 재화/설정 유지
-- 런 중 XP/레벨업/보너스 처리
+- `get_current_battery()`
+- `get_max_battery()`
+- `get_dash_cooldown_remaining()`
+- `get_dash_cooldown_duration()`
+- `can_dash()`
 
 ---
 
-## 11. 아직 비어 있는 상태 계층
+## 9. 스탯 패널용 상태
 
-아래 항목은 현재 상태 구조는 존재하거나 확장 가능하지만,
-실제 게임플레이 연결은 아직 약하다.
+`PauseMenu.gd`는 개별 getter를 직접 나열하지 않고,
+`GameState.get_stat_panel_entries()`가 반환하는 배열을 사용한다.
 
-- 영구 성장 소비 로직
-- 업적 보상 로직
-- 인벤토리 보유 로직
-- 의미 있는 영구 재화 사용처
-- 더 풍부한 런 종료 후 정산
+현재 포함 항목:
 
-이 기능들은 새 상태 계층을 따로 만드는 것보다,
-현재 `GameState`를 조심스럽게 확장하는 편이 맞다.
+- 공격력
+- 공격속도
+- 공격범위
+- 치명타 확률
+- 치명타 배율
+- 현재 체력
+- 방어력
+- HP 재생
+- 이동속도
+- 점프력
+- 채굴 데미지
+- 채굴 속도
+- 채굴 범위
+- 이자율
+- 행운
+
+행운은 현재 `"효과 없음"`으로 표시한다.
+
+---
+
+## 10. 전환과 경제 상태
+
+현재 Day 전환 시 경제 상태에서 중요한 값:
+
+- `gold`
+- `calculate_interest_payout()`
+- `get_interest_rate()`
+
+Next Day 전환 시점에만 이자가 적용되며,
+상점 진입 시점이나 intermission 진입 시점에는 중복 지급되지 않는다.
+
+---
+
+## 11. 콘텐츠 데이터와 상태의 분리
+
+중요:
+블록/Day 콘텐츠 데이터는 `GameState`가 소유하지 않는다.
+
+현재 구조:
+
+- `GameConstants`: 전역 상수
+- `GameData`: `.tres` 콘텐츠 데이터 로더
+- `GameState`: 저장 + 런타임 스탯/자원 상태
+- `Main`: 씬 진행 플래그
+
+즉, 값의 성격에 따라 소유권이 분리되어 있다.
+
+---
+
+## 12. 현재 주의점
+
+- `status_text`는 계속 갱신되지만 HUD에 직접 노출하지는 않는다
+- intermission 플래그는 `GameState`가 아니라 `Main`에 있으므로 메뉴/UI 문서에 혼동해서 적지 않는다
+- 배터리는 Player 고유 상태이므로 저장 데이터가 아니다
+- 상점 구매 상태는 아직 본격 구조가 없다

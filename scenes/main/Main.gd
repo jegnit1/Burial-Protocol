@@ -2,6 +2,9 @@ extends Node2D
 
 const FALLING_BLOCK_SCENE := preload("res://scenes/blocks/FallingBlock.tscn")
 const GOLD_POPUP_SCRIPT := preload("res://scenes/ui/GoldPopup.gd")
+const DAY_KIOSK_SCRIPT := preload("res://scenes/world/DayKiosk.gd")
+const DAY_SHOP_UI_SCRIPT := preload("res://scenes/ui/DayShopUI.gd")
+const PAUSE_MENU_SCRIPT := preload("res://scenes/ui/PauseMenu.gd")
 const CAMERA_PLAYER_Y_OFFSET := 110.0
 
 @onready var world_grid: WorldGrid = $WorldGrid
@@ -17,10 +20,25 @@ var last_spawned_block_debug := "Spawn Base -"
 var last_spawned_column := -1
 var run_finished := false
 
-# Day 상태
+# Day 진행과 상점 전환 상태를 최소 범위로 분리한다.
+var _is_day_active := true
+var _is_intermission := false
+var _is_intermission_locked := false
+var _is_next_day_transitioning := false
+var _shop_ui_open := false
+var _intermission_elapsed := 0.0
+var _day_kiosk: Node2D
+var _day_shop_ui
+var _fade_overlay: ColorRect
+var _last_transition_sand_report := ""
+var _waiting_for_day_kiosk := false
+var _kiosk_spawn_delay_remaining := -1.0
+var _pending_wall_reset_for_next_day := false
+var _pause_menu: CanvasLayer
+var _player_regen_accumulator := 0.0
+
 var _current_day := 1
 var _day_time_remaining := 0.0
-# Day 30 보스 블록 추적 (보스가 처치/모래화 조건으로 클리어 판정에 사용)
 var _day30_boss_alive := false
 
 
@@ -31,6 +49,7 @@ func _ready() -> void:
 	_configure_camera()
 	sand_field.setup(world_grid)
 	player.setup(world_grid, sand_field, blocks_root)
+	_ensure_fade_overlay()
 	_current_day = 1
 	_day_time_remaining = GameData.get_day_duration(_current_day)
 	GameState.current_day = _current_day
@@ -48,33 +67,57 @@ func _physics_process(delta: float) -> void:
 	if Input.is_action_just_pressed("restart"):
 		_finish_temporary_run("run_end", Locale.ltr("run_end_label"))
 		return
+	if Input.is_action_just_pressed("pause_menu"):
+		_toggle_pause_menu()
+		return
 	if Input.is_action_just_pressed("ui_toggle_status"):
 		hud.toggle_debug_panel()
-	var attack_direction := player.consume_attack_direction()
-	if attack_direction != Vector2.ZERO:
-		_handle_attack_action(attack_direction)
+
+	if _is_intermission:
+		_update_intermission(delta)
+
+	if not _shop_ui_open and not _is_next_day_transitioning:
+		var attack_direction := player.consume_attack_direction()
+		if attack_direction != Vector2.ZERO:
+			_handle_attack_action(attack_direction)
+
 	if run_finished:
 		return
-	var mine_direction := player.consume_mining_direction()
-	if mine_direction != Vector2.ZERO:
-		_handle_mining_action(mine_direction)
-	# Day 타이머
-	_day_time_remaining -= delta
+
+	if not _shop_ui_open and not _is_next_day_transitioning and not _is_intermission_locked:
+		var mine_direction := player.consume_mining_direction()
+		if mine_direction != Vector2.ZERO:
+			_handle_mining_action(mine_direction)
+	elif player.consume_mining_direction() != Vector2.ZERO and _is_intermission_locked:
+		GameState.set_status_text("상점 단계에서는 채굴이 정지됩니다.")
+
+	if _is_day_active:
+		_day_time_remaining -= delta
+	_update_player_regen(delta)
 	GameState.day_time_remaining = _day_time_remaining
-	if _day_time_remaining <= 0.0:
+	if _is_day_active and _day_time_remaining <= 0.0:
 		_on_day_timer_expired()
 		if run_finished:
 			return
-	sand_field.step_simulation(player.get_body_rect())
+
+	if not _is_next_day_transitioning:
+		sand_field.step_simulation(player.get_body_rect())
+
+	if _is_intermission and not _shop_ui_open and not _is_next_day_transitioning:
+		_update_day_kiosk_prompt()
+		if Input.is_action_just_pressed("interact_action") and _is_player_near_day_kiosk():
+			_open_day_shop()
+
 	_check_run_end_conditions()
 	if run_finished:
 		return
+
 	_update_camera_y()
 	_refresh_debug()
 
 
 func _on_spawn_timer_timeout() -> void:
-	if run_finished:
+	if run_finished or not _is_day_active or _is_intermission or _is_next_day_transitioning:
 		return
 	var base_definition = GameData.pick_block_base_definition(rng)
 	if base_definition == null:
@@ -112,15 +155,24 @@ func _handle_attack_action(direction: Vector2) -> void:
 	var space_state: PhysicsDirectSpaceState2D = get_world_2d().direct_space_state
 	var results: Array[Dictionary] = space_state.intersect_shape(query, 32)
 	var hit_count := 0
+	var crit_count := 0
 	var hit_once: Dictionary = {}
 	for result in results:
 		var block := result["collider"] as FallingBlock
 		if block != null and not hit_once.has(block):
 			hit_once[block] = true
-			block.apply_damage(GameConstants.PLAYER_ATTACK_DAMAGE + GameState.run_bonus_attack_damage)
+			var is_critical := rng.randf() < GameState.get_critical_chance_ratio()
+			var damage := GameState.get_attack_damage()
+			if is_critical:
+				damage = int(round(float(damage) * GameState.get_critical_damage_multiplier()))
+				crit_count += 1
+			block.apply_damage(damage, is_critical)
 			hit_count += 1
 	if hit_count > 0:
-		GameState.set_status_text(Locale.ltr("status_attack_hit") % hit_count)
+		var status_text := Locale.ltr("status_attack_hit") % hit_count
+		if crit_count > 0:
+			status_text += " CRIT x%d" % crit_count
+		GameState.set_status_text(status_text)
 	else:
 		GameState.set_status_text(Locale.ltr("status_attack_miss"))
 
@@ -179,17 +231,12 @@ func _on_block_decomposed(block: FallingBlock, reason: StringName) -> void:
 		GameState.set_status_text(Locale.ltr("status_block_decomposed"))
 
 
-# ---- Day 시스템 ----
-
 func _on_day_timer_expired() -> void:
 	if _current_day >= GameData.get_total_days():
-		# Day 30 종료: 보스가 아직 처치/처리되지 않았다면 실패
 		if not GameState.run_cleared:
 			_finish_temporary_run("time_limit", Locale.ltr("run_time_limit"))
 		return
-	# Days 1-29 종료: 다음 Day로 진행
-	# TODO: 상인/키오스크 등장 및 상점 UI 구현
-	_advance_to_next_day()
+	_enter_intermission()
 
 
 func _advance_to_next_day() -> void:
@@ -247,7 +294,6 @@ func _on_day30_boss_decomposed(_block: FallingBlock, _reason: StringName) -> voi
 	if run_finished:
 		return
 	_day30_boss_alive = false
-	# 보스가 모래화됐을 때: 체력이 남아 있고 무게 한계 미초과 시 클리어 (스펙 6-6)
 	var surviving := GameState.player_health > 0 and sand_field.get_sand_count() < GameConstants.WEIGHT_LIMIT_SAND_CELLS
 	if surviving:
 		GameState.run_cleared = true
@@ -255,12 +301,302 @@ func _on_day30_boss_decomposed(_block: FallingBlock, _reason: StringName) -> voi
 		_finish_temporary_run("cleared", Locale.ltr("run_day30_clear"))
 
 
+func _enter_intermission() -> void:
+	if _is_intermission or _is_next_day_transitioning:
+		return
+	_is_day_active = false
+	_is_intermission = true
+	_is_intermission_locked = false
+	_intermission_elapsed = 0.0
+	_shop_ui_open = false
+	_waiting_for_day_kiosk = true
+	_kiosk_spawn_delay_remaining = -1.0
+	_day_time_remaining = 0.0
+	GameState.day_time_remaining = 0.0
+	spawn_timer.stop()
+	GameState.set_status_text("Day 종료. 키오스크와 상호작용해 다음 날로 이동하세요.")
 
 
-# ---- 기존 유틸 ----
+func _update_intermission(delta: float) -> void:
+	_update_day_kiosk_deployment(delta)
+	if _is_intermission_locked:
+		return
+	_intermission_elapsed += delta
+	if _intermission_elapsed >= GameConstants.DAY_INTERMISSION_GRACE_DURATION:
+		_is_intermission_locked = true
+		GameState.set_status_text("유예 시간이 끝났습니다. 채굴만 정지되고 모래 반응은 유지됩니다.")
+
+
+func _spawn_day_kiosk() -> void:
+	if _day_kiosk != null and is_instance_valid(_day_kiosk):
+		return
+	_waiting_for_day_kiosk = false
+	_kiosk_spawn_delay_remaining = -1.0
+	_day_kiosk = DAY_KIOSK_SCRIPT.new() as Node2D
+	add_child(_day_kiosk)
+	var center_rect := GameConstants.get_center_rect()
+	var camera_top_y := world_camera.position.y - float(GameConstants.VIEWPORT_SIZE.y) * 0.5
+	var spawn_position := Vector2(
+		center_rect.position.x + center_rect.size.x * 0.5,
+		camera_top_y - 96.0
+	)
+	if _day_kiosk.has_method("setup"):
+		_day_kiosk.call("setup", world_grid, sand_field, blocks_root, spawn_position)
+	else:
+		_day_kiosk.global_position = spawn_position
+	_update_day_kiosk_prompt()
+
+
+func _update_day_kiosk_prompt() -> void:
+	if _day_kiosk == null or not is_instance_valid(_day_kiosk):
+		return
+	var kiosk_ready := true
+	if _day_kiosk.has_method("is_interactable"):
+		kiosk_ready = bool(_day_kiosk.call("is_interactable"))
+	var can_interact := kiosk_ready and _is_player_near_day_kiosk() and not _shop_ui_open and not _is_next_day_transitioning
+	if _day_kiosk.has_method("set_interaction_available"):
+		_day_kiosk.call("set_interaction_available", can_interact)
+
+
+func _despawn_day_kiosk() -> void:
+	_waiting_for_day_kiosk = false
+	_kiosk_spawn_delay_remaining = -1.0
+	if _day_kiosk == null or not is_instance_valid(_day_kiosk):
+		return
+	_day_kiosk.queue_free()
+	_day_kiosk = null
+
+
+func _is_player_near_day_kiosk() -> bool:
+	if _day_kiosk == null or not is_instance_valid(_day_kiosk):
+		return false
+	if _day_kiosk.has_method("is_interactable") and not bool(_day_kiosk.call("is_interactable")):
+		return false
+	return player.global_position.distance_to(_day_kiosk.global_position) <= GameConstants.DAY_KIOSK_INTERACTION_RANGE
+
+
+func _open_day_shop() -> void:
+	if _shop_ui_open or _is_next_day_transitioning:
+		return
+	_day_shop_ui = DAY_SHOP_UI_SCRIPT.new()
+	add_child(_day_shop_ui)
+	_day_shop_ui.next_day_requested.connect(_request_next_day_transition)
+	_day_shop_ui.closed.connect(_on_day_shop_closed)
+	_shop_ui_open = true
+	_update_day_kiosk_prompt()
+	GameState.set_status_text("상점 화면이 열렸습니다. Next Day 버튼으로 다음 날을 시작할 수 있습니다.")
+
+
+func _close_day_shop() -> void:
+	if _day_shop_ui == null or not is_instance_valid(_day_shop_ui):
+		_day_shop_ui = null
+		_shop_ui_open = false
+		return
+	_day_shop_ui.queue_free()
+	_day_shop_ui = null
+	_shop_ui_open = false
+	_update_day_kiosk_prompt()
+
+
+func _on_day_shop_closed() -> void:
+	_day_shop_ui = null
+	_shop_ui_open = false
+	_update_day_kiosk_prompt()
+	GameState.set_status_text("상점을 닫았습니다. 키오스크에서 다시 열 수 있습니다.")
+
+
+func _request_next_day_transition() -> void:
+	if _is_next_day_transitioning:
+		return
+	_start_next_day_transition()
+
+
+func _start_next_day_transition() -> void:
+	_is_next_day_transitioning = true
+	_close_day_shop()
+	_despawn_day_kiosk()
+	await _play_fade(1.0, GameConstants.DAY_TRANSITION_FADE_DURATION)
+	_apply_next_day_interest()
+	_apply_pending_wall_reset_for_next_day()
+	_is_intermission = false
+	_is_intermission_locked = false
+	_intermission_elapsed = 0.0
+	_is_day_active = true
+	_advance_to_next_day()
+	spawn_timer.start()
+	await _play_fade(0.0, GameConstants.DAY_TRANSITION_FADE_DURATION)
+	_is_next_day_transitioning = false
+
+
+func queue_wall_reset_for_next_day() -> void:
+	# TODO: 특정 상점 구매가 확정되면 이 훅을 호출해 다음 Day 전환에서만 벽을 복구한다.
+	_pending_wall_reset_for_next_day = true
+
+
+func _apply_pending_wall_reset_for_next_day() -> void:
+	if not _pending_wall_reset_for_next_day:
+		_last_transition_sand_report = "skipped(reset=false)"
+		return
+	_pending_wall_reset_for_next_day = false
+	_restore_side_walls_preserving_sand()
+
+
+func _restore_side_walls_preserving_sand() -> void:
+	var sand_before := sand_field.get_sand_count()
+	var wall_rects = world_grid.get_wall_restore_rects()
+	var extracted_cells = sand_field.extract_sand_cells_in_rects(wall_rects)
+	var collected_count := extracted_cells.size()
+	var sand_after_extract := sand_field.get_sand_count()
+	world_grid.restore_mining_walls()
+	var blocked_rects := _collect_transition_blocking_rects()
+	var placed_count := sand_field.redistribute_sand_cells_to_center(extracted_cells, blocked_rects)
+	if placed_count < extracted_cells.size():
+		var remaining_cells: Array = []
+		for index in range(placed_count, extracted_cells.size()):
+			remaining_cells.append(extracted_cells[index])
+		placed_count += sand_field.redistribute_sand_cells_to_center(remaining_cells)
+	var sand_after := sand_field.get_sand_count()
+	var expected_after_extract := sand_before - collected_count
+	var expected_after := expected_after_extract + placed_count
+	_last_transition_sand_report = "before=%d collected=%d after_extract=%d reapplied=%d after=%d" % [
+		sand_before,
+		collected_count,
+		sand_after_extract,
+		placed_count,
+		sand_after,
+	]
+	print("DayTransitionSandReport ", _last_transition_sand_report)
+	if sand_after_extract != expected_after_extract:
+		push_error("Day transition sand extraction mismatch: expected=%s actual=%s | %s" % [
+			expected_after_extract,
+			sand_after_extract,
+			_last_transition_sand_report,
+		])
+	if sand_after != expected_after:
+		push_error("Day transition sand reapply mismatch: expected=%s actual=%s | %s" % [
+			expected_after,
+			sand_after,
+			_last_transition_sand_report,
+		])
+	if sand_before != sand_after or placed_count != collected_count:
+		push_error("Day transition sand preservation mismatch | %s" % _last_transition_sand_report)
+
+
+func _update_day_kiosk_deployment(delta: float) -> void:
+	if not _waiting_for_day_kiosk or _is_next_day_transitioning:
+		return
+	if _day_kiosk != null and is_instance_valid(_day_kiosk):
+		_waiting_for_day_kiosk = false
+		return
+	if _get_active_block_count() > 0:
+		return
+	if _kiosk_spawn_delay_remaining < 0.0:
+		_kiosk_spawn_delay_remaining = GameConstants.DAY_KIOSK_DEPLOY_DELAY
+		GameState.set_status_text("마지막 블록 정리 완료. 키오스크 투하를 준비합니다.")
+		return
+	_kiosk_spawn_delay_remaining = max(_kiosk_spawn_delay_remaining - delta, 0.0)
+	if _kiosk_spawn_delay_remaining > 0.0:
+		return
+	_spawn_day_kiosk()
+	GameState.set_status_text("키오스크가 투하되었습니다. 안착 후 상호작용할 수 있습니다.")
+
+
+func _get_active_block_count() -> int:
+	var active_count := 0
+	for child in blocks_root.get_children():
+		var block := child as FallingBlock
+		if block != null and block.active:
+			active_count += 1
+	return active_count
+
+
+func _collect_transition_blocking_rects() -> Array[Rect2]:
+	var blocked_rects: Array[Rect2] = [player.get_body_rect()]
+	for child in blocks_root.get_children():
+		var block := child as FallingBlock
+		if block != null and block.active:
+			blocked_rects.append(block.get_block_rect())
+	return blocked_rects
+
+
+func _ensure_fade_overlay() -> void:
+	if _fade_overlay != null:
+		return
+	var fade_layer := CanvasLayer.new()
+	fade_layer.layer = 100
+	add_child(fade_layer)
+	_fade_overlay = ColorRect.new()
+	_fade_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_fade_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_fade_overlay.color = Color(0.0, 0.0, 0.0, 0.0)
+	fade_layer.add_child(_fade_overlay)
+
+
+func _toggle_pause_menu() -> void:
+	if _shop_ui_open or _is_next_day_transitioning or run_finished:
+		return
+	if _pause_menu != null and is_instance_valid(_pause_menu):
+		_close_pause_menu()
+		return
+	_open_pause_menu()
+
+
+func _open_pause_menu() -> void:
+	if _pause_menu != null and is_instance_valid(_pause_menu):
+		return
+	_pause_menu = PAUSE_MENU_SCRIPT.new()
+	add_child(_pause_menu)
+	if _pause_menu.has_signal("closed"):
+		_pause_menu.closed.connect(_on_pause_menu_closed)
+	get_tree().paused = true
+
+
+func _close_pause_menu() -> void:
+	if _pause_menu == null or not is_instance_valid(_pause_menu):
+		_pause_menu = null
+		get_tree().paused = false
+		return
+	get_tree().paused = false
+	_pause_menu.queue_free()
+	_pause_menu = null
+
+
+func _on_pause_menu_closed() -> void:
+	_pause_menu = null
+
+
+func _update_player_regen(delta: float) -> void:
+	if _shop_ui_open or _is_next_day_transitioning:
+		return
+	if GameState.player_health <= 0 or GameState.player_health >= GameState.get_player_max_health():
+		return
+	var regen_interval := GameState.get_hp_regen_interval()
+	if not is_finite(regen_interval) or regen_interval <= 0.0:
+		return
+	_player_regen_accumulator += delta
+	while _player_regen_accumulator >= regen_interval:
+		_player_regen_accumulator -= regen_interval
+		if GameState.player_health >= GameState.get_player_max_health():
+			break
+		GameState.heal_player(1)
+
+
+func _apply_next_day_interest() -> void:
+	var interest_amount := GameState.calculate_interest_payout()
+	if interest_amount <= 0:
+		return
+	GameState.add_gold(interest_amount)
+
+
+func _play_fade(target_alpha: float, duration: float) -> void:
+	if _fade_overlay == null:
+		return
+	var tween := create_tween()
+	tween.tween_property(_fade_overlay, "color:a", target_alpha, duration)
+	await tween.finished
+
 
 func _refresh_debug() -> void:
-	# Day 정보는 항상 갱신 (게임플레이 UI)
 	hud.set_day_info(
 		_current_day,
 		GameData.get_total_days(),
@@ -268,11 +604,8 @@ func _refresh_debug() -> void:
 		GameData.get_day_type(_current_day),
 		GameState.current_run_difficulty_name
 	)
-	
 	if hud.has_method("update_sensors"):
 		hud.update_sensors(player, blocks_root, sand_field, world_camera, GameConstants.WEIGHT_LIMIT_SAND_CELLS)
-		
-	# 디버그 패널이 꺼져 있으면 데이터 수집 자체를 생략
 	if not hud.is_debug_visible():
 		return
 	hud.set_runtime_debug(
@@ -352,13 +685,12 @@ func _finish_temporary_run(reason_id: String = "run_end", reason_label: String =
 	GameState.finish_temporary_run(reason_id, reason_label)
 	get_tree().change_scene_to_file("res://scenes/ui/Result.tscn")
 
-# ---- UI 커스텀 ----
 
 func _show_level_up_ui() -> void:
 	if get_tree().paused:
-		return # 이미 일시중지(레벨업 팝업 중) 일 경우 방지
+		return
 	get_tree().paused = true
-	var LevelUpUIScript = load("res://scenes/ui/LevelUpUI.gd")
-	if LevelUpUIScript:
-		var level_ui = LevelUpUIScript.new()
-		$".".add_child(level_ui) # Main 트리에 추가하여 표시
+	var level_up_ui_script = load("res://scenes/ui/LevelUpUI.gd")
+	if level_up_ui_script:
+		var level_ui = level_up_ui_script.new()
+		add_child(level_ui)

@@ -293,8 +293,8 @@ func receive_crush_hit(amount: int) -> bool:
 		return false
 	damage_cooldown = GameConstants.PLAYER_DAMAGE_INVULNERABILITY
 	hurt_flash_remaining = GameConstants.PLAYER_HURT_FLASH_DURATION
-	GameState.damage_player(amount)
-	_spawn_player_damage_popup(amount)
+	var applied_damage := GameState.damage_player(amount)
+	_spawn_player_damage_popup(applied_damage)
 	_update_sprite_visuals(0.0)
 	return true
 
@@ -524,14 +524,14 @@ func _apply_jump_input() -> void:
 	if is_on_floor or coyote_time_remaining > 0.0:
 		jump_buffer_remaining = 0.0
 		coyote_time_remaining = 0.0
-		velocity.y = GameConstants.PLAYER_JUMP_SPEED
+		velocity.y = GameState.get_jump_speed()
 		jump_started_this_frame = true
 		return
 	if is_wall_climbing:
 		jump_buffer_remaining = 0.0
 		var wall_direction := 1 if is_on_left_wall else -1
 		velocity.x = wall_direction * GameConstants.PLAYER_WALL_JUMP_SPEED_X
-		velocity.y = GameConstants.PLAYER_JUMP_SPEED
+		velocity.y = GameState.get_jump_speed()
 		coyote_time_remaining = 0.0
 		is_wall_climbing = false
 		jump_started_this_frame = true
@@ -539,7 +539,7 @@ func _apply_jump_input() -> void:
 	if extra_jumps_left > 0:
 		jump_buffer_remaining = 0.0
 		extra_jumps_left -= 1
-		velocity.y = GameConstants.PLAYER_JUMP_SPEED
+		velocity.y = GameState.get_jump_speed()
 		jump_started_this_frame = true
 
 
@@ -768,6 +768,7 @@ func _get_attack_local_shape_data(direction: Vector2) -> Dictionary:
 		GameConstants.PLAYER_ATTACK_RANGE_WIDTH,
 		GameConstants.PLAYER_ATTACK_RANGE_HEIGHT
 	)
+	attack_size *= GameState.get_attack_range_multiplier()
 	var support_distance := _get_body_support_distance(attack_direction)
 	var center_offset := attack_direction * (support_distance + attack_size.x * 0.5)
 	return {
@@ -819,6 +820,7 @@ func _get_mining_local_shape_data(direction: Vector2) -> Dictionary:
 		GameConstants.PLAYER_MINING_RANGE_DISTANCE,
 		GameConstants.PLAYER_MINING_RANGE_HEIGHT
 	)
+	mining_size *= GameState.get_mining_range_multiplier()
 	var support_distance := _get_body_support_distance(mining_direction)
 	var center_offset := mining_direction * (support_distance + mining_size.x * 0.5)
 	return {

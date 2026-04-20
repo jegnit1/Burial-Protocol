@@ -30,6 +30,8 @@ func _ready() -> void:
 	vbox.add_child(card_container)
 	
 	var cards := GameConstants.LEVEL_UP_CARDS.values()
+	for extra_card in GameConstants.EXTRA_LEVEL_UP_CARDS:
+		cards.append(extra_card)
 	cards.shuffle()
 	
 	for i in range(min(3, cards.size())):

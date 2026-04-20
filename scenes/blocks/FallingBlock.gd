@@ -102,10 +102,10 @@ func get_block_base_debug_text() -> String:
 	return block_data.get_block_base_debug_text()
 
 
-func apply_damage(amount: int) -> void:
+func apply_damage(amount: int, is_critical: bool = false) -> void:
 	if not active:
 		return
-	_spawn_damage_popup(amount)
+	_spawn_damage_popup(amount, is_critical)
 	current_health -= amount
 	if current_health <= 0:
 		active = false
@@ -163,7 +163,7 @@ func _ensure_collision_shape() -> void:
 	(collision_shape.shape as RectangleShape2D).size = block_data.get_size_pixels()
 
 
-func _spawn_damage_popup(amount: int) -> void:
+func _spawn_damage_popup(amount: int, is_critical: bool = false) -> void:
 	if amount <= 0 or block_data == null:
 		return
 	var popup_parent := get_parent()
@@ -172,6 +172,16 @@ func _spawn_damage_popup(amount: int) -> void:
 	var popup := DAMAGE_POPUP_SCRIPT.new() as Node2D
 	popup_parent.add_child(popup)
 	popup.global_position = global_position + Vector2(0.0, -block_data.get_size_pixels().y * 0.5)
+	if is_critical:
+		popup.call(
+			"setup",
+			amount,
+			GameConstants.CRITICAL_DAMAGE_POPUP_TEXT_COLOR,
+			GameConstants.CRITICAL_DAMAGE_POPUP_SHADOW_COLOR,
+			"",
+			"!"
+		)
+		return
 	popup.call("setup", amount)
 
 

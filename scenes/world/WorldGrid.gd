@@ -173,6 +173,15 @@ func get_active_wall_count() -> int:
 	return _active_subcell_count
 
 
+func restore_mining_walls() -> void:
+	_build_wall_cells()
+	queue_redraw()
+
+
+func get_wall_restore_rects() -> Array[Rect2]:
+	return [_left_wall_rect, _right_wall_rect]
+
+
 func get_spawn_position(size_cells: Vector2i, rng: RandomNumberGenerator, camera_top_y: float) -> Vector2:
 	var min_column := GameConstants.WALL_COLUMNS
 	var max_column := GameConstants.WORLD_COLUMNS - GameConstants.WALL_COLUMNS - size_cells.x

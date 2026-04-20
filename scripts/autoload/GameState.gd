@@ -129,6 +129,14 @@ var run_bonus_max_hp := 0
 var run_attack_speed_mult := 1.0
 var run_bonus_mining_damage := 0
 var run_mining_speed_mult := 1.0
+var run_bonus_crit_chance := 0.0
+var run_bonus_hp_regen := 0.0
+var run_bonus_defense := 0
+var run_bonus_luck := 0.0
+var run_bonus_interest_rate := 0.0
+var run_attack_range_mult := 1.0
+var run_mining_range_mult := 1.0
+var run_bonus_jump_power := 0.0
 
 var cleared_difficulty_ids: PackedStringArray = PackedStringArray()
 var persistent_currencies: Dictionary = {}
@@ -162,6 +170,14 @@ func reset_run() -> void:
 	run_attack_speed_mult = 1.0
 	run_bonus_mining_damage = 0
 	run_mining_speed_mult = 1.0
+	run_bonus_crit_chance = 0.0
+	run_bonus_hp_regen = 0.0
+	run_bonus_defense = 0
+	run_bonus_luck = 0.0
+	run_bonus_interest_rate = 0.0
+	run_attack_range_mult = 1.0
+	run_mining_range_mult = 1.0
+	run_bonus_jump_power = 0.0
 	
 	status_text = Locale.ltr("status_run_start") % [
 		current_run_character_name,
@@ -200,13 +216,141 @@ func add_gold(amount: int) -> void:
 	gold_changed.emit(gold)
 
 
-func damage_player(amount: int) -> void:
-	player_health = max(player_health - amount, 0)
+func damage_player(amount: int) -> int:
+	if amount <= 0:
+		return 0
+	var applied_damage := maxi(amount - get_defense(), 1)
+	player_health = max(player_health - applied_damage, 0)
+	health_changed.emit(player_health, get_player_max_health())
+	return applied_damage
+
+
+func heal_player(amount: int) -> void:
+	if amount <= 0 or player_health <= 0:
+		return
+	player_health = min(player_health + amount, get_player_max_health())
 	health_changed.emit(player_health, get_player_max_health())
 
 
 func get_player_max_health() -> int:
 	return GameConstants.PLAYER_MAX_HEALTH + run_bonus_max_hp
+
+
+func get_attack_damage() -> int:
+	return GameConstants.PLAYER_ATTACK_DAMAGE + run_bonus_attack_damage
+
+
+func get_attack_cooldown_duration() -> float:
+	return GameConstants.PLAYER_ATTACK_COOLDOWN * run_attack_speed_mult
+
+
+func get_attacks_per_second() -> float:
+	var cooldown := get_attack_cooldown_duration()
+	if cooldown <= 0.0:
+		return 0.0
+	return 1.0 / cooldown
+
+
+func get_attack_range_multiplier() -> float:
+	return GameConstants.PLAYER_ATTACK_RANGE_MULTIPLIER * run_attack_range_mult
+
+
+func get_critical_chance_ratio() -> float:
+	return clampf(GameConstants.PLAYER_BASE_CRIT_CHANCE + run_bonus_crit_chance, 0.0, 1.0)
+
+
+func get_critical_chance_percent() -> float:
+	return get_critical_chance_ratio() * 100.0
+
+
+func get_critical_damage_multiplier() -> float:
+	return GameConstants.PLAYER_CRIT_DAMAGE_MULTIPLIER
+
+
+func get_critical_damage_percent() -> int:
+	return int(round(get_critical_damage_multiplier() * 100.0))
+
+
+func get_defense() -> int:
+	return GameConstants.PLAYER_BASE_DEFENSE + run_bonus_defense
+
+
+func get_hp_regen_stat() -> float:
+	return GameConstants.PLAYER_BASE_HP_REGEN + GameConstants.PLAYER_TEST_HP_REGEN_BONUS + run_bonus_hp_regen
+
+
+func get_hp_regen_interval() -> float:
+	var regen_value := get_hp_regen_stat()
+	if regen_value <= 0.0:
+		return INF
+	return 5.0 / (1.0 + (regen_value - 1.0) / 2.25)
+
+
+func get_move_speed() -> float:
+	return GameConstants.PLAYER_MOVE_SPEED + run_bonus_move_speed
+
+
+func get_jump_speed() -> float:
+	return GameConstants.PLAYER_JUMP_SPEED - run_bonus_jump_power
+
+
+func get_jump_power() -> float:
+	return absf(get_jump_speed())
+
+
+func get_mining_damage() -> int:
+	return GameConstants.PLAYER_MINING_DAMAGE + run_bonus_mining_damage
+
+
+func get_mining_cooldown_duration() -> float:
+	return GameConstants.PLAYER_MINING_COOLDOWN * run_mining_speed_mult
+
+
+func get_mines_per_second() -> float:
+	var cooldown := get_mining_cooldown_duration()
+	if cooldown <= 0.0:
+		return 0.0
+	return 1.0 / cooldown
+
+
+func get_mining_range_multiplier() -> float:
+	return GameConstants.PLAYER_MINING_RANGE_MULTIPLIER * run_mining_range_mult
+
+
+func get_interest_rate() -> float:
+	return maxf(GameConstants.STAGE_INTEREST_RATE + run_bonus_interest_rate, 0.0)
+
+
+func get_interest_percent() -> int:
+	return int(round(get_interest_rate() * 100.0))
+
+
+func calculate_interest_payout() -> int:
+	return int(floor(float(gold) * get_interest_rate()))
+
+
+func get_luck() -> float:
+	return GameConstants.PLAYER_BASE_LUCK + run_bonus_luck
+
+
+func get_stat_panel_entries() -> Array[Dictionary]:
+	return [
+		{"label": "공격력", "value": str(get_attack_damage())},
+		{"label": "공격속도", "value": "%.2f / sec" % get_attacks_per_second()},
+		{"label": "공격범위", "value": "%.2fx" % get_attack_range_multiplier()},
+		{"label": "치명타 확률", "value": "%.0f%%" % get_critical_chance_percent()},
+		{"label": "치명타 배율", "value": "%d%%" % get_critical_damage_percent()},
+		{"label": "현재 체력", "value": "%d / %d" % [player_health, get_player_max_health()]},
+		{"label": "방어력", "value": str(get_defense())},
+		{"label": "HP 재생", "value": "%.0f" % get_hp_regen_stat()},
+		{"label": "이동속도", "value": "%.0f" % get_move_speed()},
+		{"label": "점프력", "value": "%.0f" % get_jump_power()},
+		{"label": "채굴 데미지", "value": str(get_mining_damage())},
+		{"label": "채굴 속도", "value": "%.2f / sec" % get_mines_per_second()},
+		{"label": "채굴 범위", "value": "%.2fx" % get_mining_range_multiplier()},
+		{"label": "이자율", "value": "%d%%" % get_interest_percent()},
+		{"label": "행운", "value": "%.0f (효과 없음)" % get_luck()},
+	]
 
 
 func set_status_text(text: String) -> void:
@@ -541,6 +685,19 @@ func apply_level_up_card(card_id: String) -> void:
 			run_mining_speed_mult *= 0.90 # 10% 채굴 쿨다운 감소
 			
 	# 경험치 차감 및 레벨 증가
+	match card_id:
+		"atk_range_up":
+			run_attack_range_mult *= 1.10
+		"crit_chance_up":
+			run_bonus_crit_chance += 0.03
+		"def_up":
+			run_bonus_defense += 1
+		"hp_regen_up":
+			run_bonus_hp_regen += 1.0
+		"jump_up":
+			run_bonus_jump_power += 40.0
+		"mine_range_up":
+			run_mining_range_mult *= 1.10
 	player_current_xp -= player_next_level_xp
 	if player_current_xp < 0:
 		player_current_xp = 0

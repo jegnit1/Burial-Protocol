@@ -56,6 +56,15 @@ const PLAYER_SPAWN_POSITION := Vector2(
 )
 # 런 시작 시 플레이어의 최대 체력.
 const PLAYER_MAX_HEALTH := 100
+const PLAYER_BASE_CRIT_CHANCE := 0.01
+const PLAYER_CRIT_DAMAGE_MULTIPLIER := 2.0
+const PLAYER_BASE_HP_REGEN := 0.0
+const PLAYER_TEST_HP_REGEN_BONUS := 10.0
+const PLAYER_BASE_DEFENSE := 0
+const PLAYER_BASE_LUCK := 0.0
+const STAGE_INTEREST_RATE := 0.10
+const PLAYER_ATTACK_RANGE_MULTIPLIER := 1.0
+const PLAYER_MINING_RANGE_MULTIPLIER := 1.0
 # 지상 이동 속도(px/s).
 const PLAYER_MOVE_SPEED := 426.0
 # 공중에서의 가로 이동 속도(px/s).
@@ -71,8 +80,8 @@ const PLAYER_EXTRA_JUMPS := 1
 # 벽 점프 시 적용되는 가로 방향 초기 속도.
 const PLAYER_WALL_JUMP_SPEED_X := 480.0
 const PLAYER_BATTERY_MAX := 100.0
-const PLAYER_WALL_CLIMB_DRAIN_PER_SEC := 35.0
-const PLAYER_BATTERY_RECOVERY_PER_SEC := 55.0
+const PLAYER_WALL_CLIMB_DRAIN_PER_SEC := 5.0
+const PLAYER_BATTERY_RECOVERY_PER_SEC := 5.0
 const PLAYER_WALL_CLIMB_FALL_SPEED := 110.0
 const PLAYER_WALL_CLIMB_INPUT_DEADZONE := 0.25
 # 빠른 낙하 중 추가로 더해지는 아래쪽 가속도.
@@ -133,6 +142,11 @@ const WALL_SUBCELL_MAX_HP := 3
 const BLOCK_FALL_SPEED := 226.0
 # 자동 낙하 블록 생성 간격(초).
 const BLOCK_SPAWN_INTERVAL := 1.2
+const DAY_INTERMISSION_GRACE_DURATION := 3.0
+const DAY_KIOSK_INTERACTION_RANGE := CELL_SIZE * 2.0
+const DAY_KIOSK_DEPLOY_DELAY := 1.25
+const DAY_KIOSK_FALL_SPEED := 780.0
+const DAY_TRANSITION_FADE_DURATION := 0.35
 # 1U당 블록 체력
 const BLOCK_HP_PER_UNIT := 8.0
 # 블록이 화면 바깥 위쪽에서 진입하도록 하는 생성 Y 오프셋.
@@ -216,6 +230,8 @@ const DAMAGE_POPUP_HORIZONTAL_JITTER := 22.0
 const DAMAGE_POPUP_TEXT_COLOR := Color("fff2cf")
 # 데미지 팝업 그림자 색상.
 const DAMAGE_POPUP_SHADOW_COLOR := Color(0.07, 0.05, 0.04, 0.88)
+const CRITICAL_DAMAGE_POPUP_TEXT_COLOR := Color("ffe066")
+const CRITICAL_DAMAGE_POPUP_SHADOW_COLOR := Color(0.23, 0.16, 0.02, 0.92)
 const PLAYER_DAMAGE_POPUP_TEXT_COLOR := Color("ff7676")
 const PLAYER_DAMAGE_POPUP_SHADOW_COLOR := Color(0.18, 0.03, 0.03, 0.92)
 
@@ -308,6 +324,9 @@ const INPUT_BINDINGS := {
 	"dash_action": [
 		{"type": "key", "code": KEY_Z},
 	],
+	"interact_action": [
+		{"type": "key", "code": KEY_E},
+	],
 	"primary_action": [
 		{"type": "mouse_button", "button_index": MOUSE_BUTTON_LEFT},
 	],
@@ -322,6 +341,9 @@ const INPUT_BINDINGS := {
 	],
 	"ui_toggle_status": [
 		{"type": "key", "code": KEY_TAB},
+	],
+	"pause_menu": [
+		{"type": "key", "code": KEY_ESCAPE},
 	],
 }
 
@@ -479,6 +501,39 @@ const LEVEL_UP_CARDS := {
 		"desc": "채굴 쿨다운이 빨라집니다.",
 	}
 }
+
+const EXTRA_LEVEL_UP_CARDS := [
+	{
+		"id": "atk_range_up",
+		"title": "공격범위 증가",
+		"desc": "공격 판정 범위가 넓어집니다.",
+	},
+	{
+		"id": "crit_chance_up",
+		"title": "치명타 확률 증가",
+		"desc": "치명타 발생 확률이 상승합니다.",
+	},
+	{
+		"id": "def_up",
+		"title": "방어력 증가",
+		"desc": "받는 피해를 1 줄여줍니다.",
+	},
+	{
+		"id": "hp_regen_up",
+		"title": "HP 재생 증가",
+		"desc": "체력 재생 스탯이 상승합니다.",
+	},
+	{
+		"id": "jump_up",
+		"title": "점프력 증가",
+		"desc": "더 높게 점프할 수 있습니다.",
+	},
+	{
+		"id": "mine_range_up",
+		"title": "채굴범위 증가",
+		"desc": "채굴 판정 범위가 넓어집니다.",
+	},
+]
 
 func get_block_xp(width_cells: int, height_cells: int) -> int:
 	return width_cells * height_cells * 2

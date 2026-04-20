@@ -316,6 +316,61 @@ func get_sand_count() -> int:
 	return sand_cells.size()
 
 
+func extract_sand_cells_in_rects(world_rects: Array[Rect2]) -> Array[SandCellData]:
+	var extracted_cells: Array[SandCellData] = []
+	var removed_cells: Array[Vector2i] = []
+	for key in sand_cells.keys():
+		var cell: Vector2i = key
+		var cell_rect := get_sand_cell_rect(cell)
+		for world_rect in world_rects:
+			if not world_rect.intersects(cell_rect):
+				continue
+			extracted_cells.append((sand_cells[cell] as SandCellData).clone())
+			sand_cells.erase(cell)
+			mining_triggered_cells.erase(cell)
+			removed_cells.append(cell)
+			break
+	if not removed_cells.is_empty():
+		_mark_active_after_mining(removed_cells)
+		queue_redraw()
+	return extracted_cells
+
+
+func redistribute_sand_cells_to_center(
+	extracted_cells: Array[SandCellData],
+	blocked_rects: Array[Rect2] = []
+) -> int:
+	if extracted_cells.is_empty():
+		return 0
+	var center_start_x := GameConstants.WALL_COLUMNS * GameConstants.SAND_CELLS_PER_UNIT
+	var center_end_x := center_start_x + GameConstants.CENTER_COLUMNS * GameConstants.SAND_CELLS_PER_UNIT - 1
+	var sand_rows := _get_sand_rows()
+	var placed_count := 0
+	for y in range(sand_rows - 1, -1, -1):
+		for x in range(center_start_x, center_end_x + 1):
+			if placed_count >= extracted_cells.size():
+				queue_redraw()
+				return placed_count
+			var target_cell := Vector2i(x, y)
+			if not _can_occupy(target_cell):
+				continue
+			var target_rect := get_sand_cell_rect(target_cell)
+			var is_blocked := false
+			for blocked_rect in blocked_rects:
+				if blocked_rect.intersects(target_rect):
+					is_blocked = true
+					break
+			if is_blocked:
+				continue
+			sand_cells[target_cell] = extracted_cells[placed_count].clone()
+			mining_triggered_cells.erase(target_cell)
+			_mark_active(target_cell, 1)
+			_update_stability_for_cell(target_cell)
+			placed_count += 1
+	queue_redraw()
+	return placed_count
+
+
 func world_to_sand_cell(world_position: Vector2) -> Vector2i:
 	var local_position := world_position - Vector2(GameConstants.WORLD_ORIGIN)
 	return Vector2i(

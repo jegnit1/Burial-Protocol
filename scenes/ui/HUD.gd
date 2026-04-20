@@ -122,7 +122,7 @@ var econ_weight_status_label: Label
 
 var debug_label: Label
 
-var _tracked_player: Player
+var _tracked_player: Node2D
 var _skill_slot_views: Array[Dictionary] = []
 var _last_day_number := 0
 var _day_start_gold := 0
@@ -164,7 +164,7 @@ func set_runtime_debug(block_count: int, sand_count: int, wall_count: int, extra
 	debug_label.text = "\n".join(debug_lines)
 
 func update_sensors(p_player: Node2D, p_blocks: Node2D, p_sand: Node2D, p_camera: Camera2D, p_max_weight: int) -> void:
-	_tracked_player = p_player as Player
+	_tracked_player = p_player
 	if sensor_draw:
 		sensor_draw.player = p_player
 		sensor_draw.blocks_root = p_blocks
