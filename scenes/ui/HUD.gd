@@ -127,7 +127,7 @@ var _skill_slot_views: Array[Dictionary] = []
 var _last_day_number := 0
 var _day_start_gold := 0
 var _current_weight := 0
-var _max_weight := GameConstants.WEIGHT_LIMIT_SAND_CELLS
+var _max_weight := GameState.get_weight_limit_sand_cells()
 
 func _ready() -> void:
 	_build_layout()

@@ -36,6 +36,10 @@ var _kiosk_spawn_delay_remaining := -1.0
 var _pending_wall_reset_for_next_day := false
 var _pause_menu: CanvasLayer
 var _player_regen_accumulator := 0.0
+var _current_shop_item_ids := PackedStringArray()
+var _has_shop_inventory_for_intermission := false
+var _last_mining_idle_status_text := ""
+var _last_mining_idle_status_time := -INF
 
 var _current_day := 1
 var _day_time_remaining := 0.0
@@ -119,18 +123,16 @@ func _physics_process(delta: float) -> void:
 func _on_spawn_timer_timeout() -> void:
 	if run_finished or not _is_day_active or _is_intermission or _is_next_day_transitioning:
 		return
-	var base_definition = GameData.pick_block_base_definition(rng)
-	if base_definition == null:
-		return
 	var type_definition = GameData.pick_block_type_definition_or_none(rng)
-	var day_definition = GameData.get_day_definition(_current_day)
-	var difficulty_definition := GameConstants.get_difficulty_definition(GameState.current_run_difficulty_id)
-	var block_data := BlockData.from_spawn_selection(
-		base_definition,
-		type_definition,
-		day_definition,
-		difficulty_definition
+	var resolved_definition = GameData.resolve_random_block_definition(
+		rng,
+		StringName(GameState.current_run_difficulty_id),
+		_current_day,
+		type_definition
 	)
+	if resolved_definition == null:
+		return
+	var block_data := BlockData.from_resolved_definition(resolved_definition)
 	var camera_top_y := world_camera.position.y - float(GameConstants.VIEWPORT_SIZE.y) * 0.5
 	var spawn_position := _pick_fair_spawn_position(block_data.size_cells, camera_top_y)
 	last_spawned_column = int((spawn_position.x - float(GameConstants.WORLD_ORIGIN.x)) / float(GameConstants.CELL_SIZE))
@@ -180,30 +182,25 @@ func _handle_attack_action(direction: Vector2) -> void:
 func _handle_mining_action(direction: Vector2) -> void:
 	var mining_direction := player.get_mining_direction(direction)
 	if mining_direction == Vector2.ZERO:
-		GameState.set_status_text(Locale.ltr("status_mine_blocked"))
+		_set_mining_idle_status(Locale.ltr("status_mine_blocked"))
 		return
 	var mining_shape_data := player.get_mining_shape_data(mining_direction)
-	var final_mining_damage := GameConstants.PLAYER_MINING_DAMAGE + GameState.run_bonus_mining_damage
+	var final_mining_damage := GameState.get_mining_damage()
 	var sand_result: Dictionary = sand_field.try_mine_in_shape(mining_shape_data, final_mining_damage)
-	var wall_result: Dictionary = world_grid.try_mine_in_shape(mining_shape_data, final_mining_damage)
 	var sand_hits := int(sand_result["hit_count"])
 	var sand_removed := int(sand_result["removed_count"])
-	var wall_hits := int(wall_result["hit_count"])
-	var wall_removed := int(wall_result["removed_count"])
-	if sand_hits > 0 or wall_hits > 0:
-		var status_parts: Array[String] = []
-		if sand_hits > 0:
-			status_parts.append(Locale.ltr("status_mine_sand") % [sand_hits, sand_removed])
-		if wall_hits > 0:
-			status_parts.append(Locale.ltr("status_mine_wall") % [wall_hits, wall_removed])
-		var status_text := status_parts[0]
-		for index in range(1, status_parts.size()):
-			status_text += " " + status_parts[index]
+	if sand_hits > 0:
 		if sand_removed > 0:
 			GameState.add_xp(GameConstants.get_sand_xp(sand_removed))
-		GameState.set_status_text(status_text)
+		GameState.set_status_text(Locale.ltr("status_mine_sand") % [sand_hits, sand_removed])
 		return
-	GameState.set_status_text(Locale.ltr("status_mine_nothing"))
+	var wall_result: Dictionary = world_grid.try_mine_in_shape(mining_shape_data, final_mining_damage)
+	var wall_hits := int(wall_result["hit_count"])
+	var wall_removed := int(wall_result["removed_count"])
+	if wall_hits > 0:
+		GameState.set_status_text(Locale.ltr("status_mine_wall") % [wall_hits, wall_removed])
+		return
+	_set_mining_idle_status(Locale.ltr("status_mine_nothing"))
 
 
 func _on_block_destroyed(block: FallingBlock) -> void:
@@ -255,18 +252,22 @@ func _apply_day_spawn_interval() -> void:
 
 
 func _spawn_boss_block() -> void:
-	var boss_base_definition = GameData.get_boss_block_base_definition(_current_day)
-	if boss_base_definition == null:
+	var boss_material_definition = GameData.get_boss_block_base_definition(_current_day)
+	var boss_size_definition = GameData.get_boss_block_size_definition(_current_day)
+	if boss_material_definition == null or boss_size_definition == null:
 		return
 	var boss_type_definition = GameData.get_boss_block_type_definition(_current_day)
-	var day_definition = GameData.get_day_definition(_current_day)
-	var difficulty_definition := GameConstants.get_difficulty_definition(GameState.current_run_difficulty_id)
-	var block_data := BlockData.from_spawn_selection(
-		boss_base_definition,
+	var resolved_definition = GameData.resolve_specific_block_definition(
+		boss_material_definition.material_id,
+		boss_size_definition.size_id,
+		StringName(GameState.current_run_difficulty_id),
+		_current_day,
 		boss_type_definition,
-		day_definition,
-		difficulty_definition
 	)
+	if resolved_definition == null:
+		push_warning("Boss block could not be resolved for day %d." % _current_day)
+		return
+	var block_data := BlockData.from_resolved_definition(resolved_definition)
 	var camera_top_y := world_camera.position.y - float(GameConstants.VIEWPORT_SIZE.y) * 0.5
 	var spawn_position := _pick_fair_spawn_position(block_data.size_cells, camera_top_y)
 	var block := FALLING_BLOCK_SCENE.instantiate() as FallingBlock
@@ -294,7 +295,7 @@ func _on_day30_boss_decomposed(_block: FallingBlock, _reason: StringName) -> voi
 	if run_finished:
 		return
 	_day30_boss_alive = false
-	var surviving := GameState.player_health > 0 and sand_field.get_sand_count() < GameConstants.WEIGHT_LIMIT_SAND_CELLS
+	var surviving := GameState.player_health > 0 and sand_field.get_sand_count() < GameState.get_weight_limit_sand_cells()
 	if surviving:
 		GameState.run_cleared = true
 		GameState.current_run_stage_reached = _current_day
@@ -311,6 +312,8 @@ func _enter_intermission() -> void:
 	_shop_ui_open = false
 	_waiting_for_day_kiosk = true
 	_kiosk_spawn_delay_remaining = -1.0
+	_current_shop_item_ids = PackedStringArray()
+	_has_shop_inventory_for_intermission = false
 	_day_time_remaining = 0.0
 	GameState.day_time_remaining = 0.0
 	spawn_timer.stop()
@@ -378,10 +381,21 @@ func _is_player_near_day_kiosk() -> bool:
 func _open_day_shop() -> void:
 	if _shop_ui_open or _is_next_day_transitioning:
 		return
+	if not _has_shop_inventory_for_intermission:
+		_current_shop_item_ids = GameData.roll_shop_item_ids(
+			rng,
+			GameConstants.DAY_SHOP_ITEM_COUNT,
+			GameState.get_shop_roll_context()
+		)
+		_has_shop_inventory_for_intermission = true
 	_day_shop_ui = DAY_SHOP_UI_SCRIPT.new()
 	add_child(_day_shop_ui)
+	if _day_shop_ui.has_method("set_shop_item_ids"):
+		_day_shop_ui.call("set_shop_item_ids", _current_shop_item_ids)
 	_day_shop_ui.next_day_requested.connect(_request_next_day_transition)
 	_day_shop_ui.closed.connect(_on_day_shop_closed)
+	if _day_shop_ui.has_signal("item_purchased"):
+		_day_shop_ui.item_purchased.connect(_on_day_shop_item_purchased)
 	_shop_ui_open = true
 	_update_day_kiosk_prompt()
 	GameState.set_status_text("상점 화면이 열렸습니다. Next Day 버튼으로 다음 날을 시작할 수 있습니다.")
@@ -402,7 +416,30 @@ func _on_day_shop_closed() -> void:
 	_day_shop_ui = null
 	_shop_ui_open = false
 	_update_day_kiosk_prompt()
+
+
+func _set_mining_idle_status(text: String) -> void:
+	var now := Time.get_ticks_msec() * 0.001
+	if text == _last_mining_idle_status_text:
+		if now - _last_mining_idle_status_time < GameConstants.PLAYER_MINING_STATUS_MESSAGE_INTERVAL:
+			return
+	_last_mining_idle_status_text = text
+	_last_mining_idle_status_time = now
+	GameState.set_status_text(text)
 	GameState.set_status_text("상점을 닫았습니다. 키오스크에서 다시 열 수 있습니다.")
+
+
+func _on_day_shop_item_purchased(item_id: StringName) -> void:
+	# 같은 상점 단계에서는 구매한 상품을 메인 보관 목록에서도 제거해 재등장을 막는다.
+	var item_key := String(item_id)
+	if not _current_shop_item_ids.has(item_key):
+		return
+	var remaining_ids := PackedStringArray()
+	for raw_item_id in _current_shop_item_ids:
+		if raw_item_id == item_key:
+			continue
+		remaining_ids.append(raw_item_id)
+	_current_shop_item_ids = remaining_ids
 
 
 func _request_next_day_transition() -> void:
@@ -533,7 +570,11 @@ func _ensure_fade_overlay() -> void:
 
 
 func _toggle_pause_menu() -> void:
-	if _shop_ui_open or _is_next_day_transitioning or run_finished:
+	if _shop_ui_open:
+		_close_day_shop()
+		GameState.set_status_text("?곸젏???レ븯?듬땲?? ?ㅼ삤?ㅽ겕?먯꽌 ?ㅼ떆 ?????덉뒿?덈떎.")
+		return
+	if _is_next_day_transitioning or run_finished:
 		return
 	if _pause_menu != null and is_instance_valid(_pause_menu):
 		_close_pause_menu()
@@ -605,7 +646,7 @@ func _refresh_debug() -> void:
 		GameState.current_run_difficulty_name
 	)
 	if hud.has_method("update_sensors"):
-		hud.update_sensors(player, blocks_root, sand_field, world_camera, GameConstants.WEIGHT_LIMIT_SAND_CELLS)
+		hud.update_sensors(player, blocks_root, sand_field, world_camera, GameState.get_weight_limit_sand_cells())
 	if not hud.is_debug_visible():
 		return
 	hud.set_runtime_debug(
@@ -673,7 +714,7 @@ func _check_run_end_conditions() -> void:
 	if GameState.player_health <= 0:
 		_finish_temporary_run("health_depletion", Locale.ltr("run_health_depleted"))
 		return
-	if sand_field.get_sand_count() >= GameConstants.WEIGHT_LIMIT_SAND_CELLS:
+	if sand_field.get_sand_count() >= GameState.get_weight_limit_sand_cells():
 		_finish_temporary_run("weight_overload", Locale.ltr("run_weight_overload"))
 
 

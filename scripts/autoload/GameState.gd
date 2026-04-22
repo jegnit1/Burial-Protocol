@@ -7,6 +7,9 @@ signal selected_character_changed(character_id: String, character_name: String, 
 signal xp_changed(current: int, next_level_req: int)
 signal level_changed(level: int)
 signal level_up_ready()
+signal attack_module_changed(module_id: StringName)
+signal owned_attack_modules_changed(module_ids: PackedStringArray)
+signal run_items_changed()
 
 const SAVE_FILE_PATH := "user://profile.save"
 const SAVE_VERSION := 1
@@ -137,6 +140,17 @@ var run_bonus_interest_rate := 0.0
 var run_attack_range_mult := 1.0
 var run_mining_range_mult := 1.0
 var run_bonus_jump_power := 0.0
+var run_move_speed_mult := 1.0
+var run_jump_power_mult := 1.0
+var run_bonus_max_weight := 0
+var run_bonus_battery_recovery := 0.0
+var owned_attack_module_ids: PackedStringArray = PackedStringArray()
+var equipped_attack_module_id: StringName = StringName()
+var attack_module_runtime_state: Dictionary = {}
+var owned_function_module_ids: PackedStringArray = PackedStringArray()
+var owned_enhance_module_counts: Dictionary = {}
+var current_run_items: PackedStringArray = PackedStringArray()
+var current_run_effects: Dictionary = {}
 
 var cleared_difficulty_ids: PackedStringArray = PackedStringArray()
 var persistent_currencies: Dictionary = {}
@@ -178,6 +192,12 @@ func reset_run() -> void:
 	run_attack_range_mult = 1.0
 	run_mining_range_mult = 1.0
 	run_bonus_jump_power = 0.0
+	run_move_speed_mult = 1.0
+	run_jump_power_mult = 1.0
+	run_bonus_max_weight = 0
+	run_bonus_battery_recovery = 0.0
+	_reset_run_shop_items()
+	_reset_run_attack_modules()
 	
 	status_text = Locale.ltr("status_run_start") % [
 		current_run_character_name,
@@ -188,6 +208,7 @@ func reset_run() -> void:
 	level_changed.emit(player_level)
 	health_changed.emit(player_health, get_player_max_health())
 	status_text_changed.emit(status_text)
+	run_items_changed.emit()
 
 
 func finish_temporary_run(reason_id: String = "run_end", reason_label: String = "Run Ended") -> void:
@@ -216,6 +237,20 @@ func add_gold(amount: int) -> void:
 	gold_changed.emit(gold)
 
 
+func can_afford_gold(amount: int) -> bool:
+	return gold >= amount
+
+
+func try_spend_gold(amount: int) -> bool:
+	if amount < 0:
+		return false
+	if not can_afford_gold(amount):
+		return false
+	gold -= amount
+	gold_changed.emit(gold)
+	return true
+
+
 func damage_player(amount: int) -> int:
 	if amount <= 0:
 		return 0
@@ -237,11 +272,20 @@ func get_player_max_health() -> int:
 
 
 func get_attack_damage() -> int:
-	return GameConstants.PLAYER_ATTACK_DAMAGE + run_bonus_attack_damage
+	var current_attack_damage := GameConstants.PLAYER_ATTACK_DAMAGE + run_bonus_attack_damage
+	var module_definition = get_equipped_attack_module_definition()
+	if module_definition == null:
+		return current_attack_damage
+	return maxi(int(floor(float(current_attack_damage) * module_definition.damage_multiplier)), 1)
 
 
 func get_attack_cooldown_duration() -> float:
-	return GameConstants.PLAYER_ATTACK_COOLDOWN * run_attack_speed_mult
+	var current_attack_cooldown := GameConstants.PLAYER_ATTACK_COOLDOWN * run_attack_speed_mult
+	var module_definition = get_equipped_attack_module_definition()
+	if module_definition == null:
+		return current_attack_cooldown
+	var module_attack_speed := maxf(module_definition.attack_speed_multiplier, 0.01)
+	return current_attack_cooldown / module_attack_speed
 
 
 func get_attacks_per_second() -> float:
@@ -253,6 +297,186 @@ func get_attacks_per_second() -> float:
 
 func get_attack_range_multiplier() -> float:
 	return GameConstants.PLAYER_ATTACK_RANGE_MULTIPLIER * run_attack_range_mult
+
+
+func get_equipped_attack_module_id() -> StringName:
+	if equipped_attack_module_id != StringName():
+		return equipped_attack_module_id
+	return GameData.get_default_attack_module_id()
+
+
+func get_owned_attack_module_ids() -> PackedStringArray:
+	return owned_attack_module_ids.duplicate()
+
+
+func is_attack_module_owned(module_id: StringName) -> bool:
+	return owned_attack_module_ids.has(String(module_id))
+
+
+func get_equipped_attack_module_definition():
+	return GameData.get_attack_module_definition(get_equipped_attack_module_id())
+
+
+func get_equipped_attack_module_display_name() -> String:
+	var module_definition = get_equipped_attack_module_definition()
+	if module_definition == null:
+		return "없음"
+	return module_definition.display_name
+
+
+func get_attack_shape_size_units() -> Vector2:
+	var module_definition = get_equipped_attack_module_definition()
+	if module_definition == null:
+		return Vector2.ONE * get_attack_range_multiplier()
+	return Vector2(
+		module_definition.range_width_u,
+		module_definition.range_height_u
+	) * get_attack_range_multiplier()
+
+
+func get_attack_shape_size_pixels() -> Vector2:
+	return get_attack_shape_size_units() * float(GameConstants.CELL_SIZE)
+
+
+func get_owned_attack_module_definitions() -> Array:
+	var definitions: Array = []
+	for owned_module in owned_attack_module_ids:
+		var module_id: StringName = StringName(owned_module)
+		var definition = GameData.get_attack_module_definition(module_id)
+		if definition == null:
+			continue
+		definitions.append(definition)
+	return definitions
+
+
+func get_attack_module_shop_snapshot() -> Dictionary:
+	var module_entries: Array[Dictionary] = []
+	for raw_definition in GameData.get_attack_module_definitions():
+		var definition = raw_definition
+		if definition == null:
+			continue
+		module_entries.append({
+			"module_id": String(definition.module_id),
+			"display_name": String(definition.display_name),
+			"shop_price_gold": int(definition.shop_price_gold),
+			"owned": is_attack_module_owned(definition.module_id),
+			"equipped": definition.module_id == get_equipped_attack_module_id(),
+		})
+	return {
+		"equipped_module_id": String(get_equipped_attack_module_id()),
+		"equipped_module_name": get_equipped_attack_module_display_name(),
+		"owned_module_ids": Array(owned_attack_module_ids),
+		"module_entries": module_entries,
+	}
+
+
+func get_shop_roll_context() -> Dictionary:
+	return {
+		"owned_attack_module_ids": get_owned_attack_module_ids(),
+		"owned_function_module_ids": get_owned_function_module_ids(),
+		"luck": get_luck(),
+	}
+
+
+func get_owned_function_module_ids() -> PackedStringArray:
+	return owned_function_module_ids.duplicate()
+
+
+func get_owned_enhance_module_counts() -> Dictionary:
+	return owned_enhance_module_counts.duplicate(true)
+
+
+func get_enhance_module_stack_count(item_id: StringName) -> int:
+	return int(owned_enhance_module_counts.get(String(item_id), 0))
+
+
+func is_function_module_owned(item_id: StringName) -> bool:
+	return owned_function_module_ids.has(String(item_id))
+
+
+func get_current_run_effect_entries(effect_type: StringName = StringName()) -> Array[Dictionary]:
+	if effect_type == StringName():
+		var merged: Array[Dictionary] = []
+		for raw_entries in current_run_effects.values():
+			for raw_entry in raw_entries:
+				var entry: Dictionary = raw_entry
+				merged.append(entry.duplicate(true))
+		return merged
+	if not current_run_effects.has(effect_type):
+		return []
+	var entries: Array[Dictionary] = []
+	for raw_entry in current_run_effects[effect_type]:
+		var entry: Dictionary = raw_entry
+		entries.append(entry.duplicate(true))
+	return entries
+
+
+func get_day_shop_snapshot(item_ids: PackedStringArray) -> Dictionary:
+	var entries: Array[Dictionary] = []
+	for raw_item_id in item_ids:
+		var item_id := StringName(raw_item_id)
+		var definition := GameData.get_shop_item_definition(item_id)
+		if definition.is_empty():
+			continue
+		entries.append(_build_shop_item_snapshot(definition))
+	return {
+		"gold": gold,
+		"equipped_attack_module_id": String(get_equipped_attack_module_id()),
+		"equipped_attack_module_name": get_equipped_attack_module_display_name(),
+		"owned_attack_module_ids": Array(owned_attack_module_ids),
+		"owned_function_module_ids": Array(owned_function_module_ids),
+		"owned_enhance_module_counts": owned_enhance_module_counts.duplicate(true),
+		"current_run_effects": current_run_effects.duplicate(true),
+		"item_entries": entries,
+	}
+
+
+func purchase_shop_item(item_id: StringName) -> Dictionary:
+	var definition := GameData.get_shop_item_definition(item_id)
+	if definition.is_empty():
+		return {"ok": false, "reason": "missing_definition"}
+	var category := StringName(String(definition.get("item_category", "")))
+	var price_gold := int(definition.get("price_gold", 0))
+	if category == &"attack_module" and is_attack_module_owned(item_id):
+		return {"ok": false, "reason": "already_owned"}
+	if category == &"function_module" and is_function_module_owned(item_id):
+		return {"ok": false, "reason": "already_owned"}
+	if category != &"attack_module" and category != &"function_module" and category != &"enhance_module":
+		return {"ok": false, "reason": "unsupported_category"}
+	if not try_spend_gold(price_gold):
+		return {"ok": false, "reason": "insufficient_gold"}
+	match String(category):
+		"attack_module":
+			_register_owned_attack_module(item_id)
+		"function_module":
+			_register_function_module_purchase(definition)
+		"enhance_module":
+			_register_enhance_module_purchase(definition)
+	run_items_changed.emit()
+	return {"ok": true, "reason": "purchased", "category": String(category)}
+
+
+func grant_attack_module(module_id: StringName, auto_equip := false) -> bool:
+	var module_definition = GameData.get_attack_module_definition(module_id)
+	if module_definition == null:
+		return false
+	if not is_attack_module_owned(module_id):
+		owned_attack_module_ids.append(String(module_id))
+		owned_attack_modules_changed.emit(get_owned_attack_module_ids())
+	if auto_equip:
+		return equip_attack_module(module_id)
+	return true
+
+
+func equip_attack_module(module_id: StringName) -> bool:
+	if not is_attack_module_owned(module_id):
+		return false
+	if GameData.get_attack_module_definition(module_id) == null:
+		return false
+	equipped_attack_module_id = module_id
+	attack_module_changed.emit(equipped_attack_module_id)
+	run_items_changed.emit()
+	return true
 
 
 func get_critical_chance_ratio() -> float:
@@ -287,11 +511,16 @@ func get_hp_regen_interval() -> float:
 
 
 func get_move_speed() -> float:
-	return GameConstants.PLAYER_MOVE_SPEED + run_bonus_move_speed
+	return (GameConstants.PLAYER_MOVE_SPEED + run_bonus_move_speed) * run_move_speed_mult
+
+
+func get_air_move_speed() -> float:
+	return (GameConstants.PLAYER_AIR_SPEED + run_bonus_move_speed) * run_move_speed_mult
 
 
 func get_jump_speed() -> float:
-	return GameConstants.PLAYER_JUMP_SPEED - run_bonus_jump_power
+	var jump_power := (absf(GameConstants.PLAYER_JUMP_SPEED) + run_bonus_jump_power) * run_jump_power_mult
+	return -jump_power
 
 
 func get_jump_power() -> float:
@@ -333,11 +562,21 @@ func get_luck() -> float:
 	return GameConstants.PLAYER_BASE_LUCK + run_bonus_luck
 
 
+func get_weight_limit_sand_cells() -> int:
+	return GameConstants.WEIGHT_LIMIT_SAND_CELLS + run_bonus_max_weight
+
+
+func get_battery_recovery_per_second() -> float:
+	return maxf(GameConstants.PLAYER_BATTERY_RECOVERY_PER_SEC + run_bonus_battery_recovery, 0.0)
+
+
 func get_stat_panel_entries() -> Array[Dictionary]:
+	var attack_shape_units := get_attack_shape_size_units()
 	return [
+		{"label": "공격 모듈", "value": get_equipped_attack_module_display_name()},
 		{"label": "공격력", "value": str(get_attack_damage())},
 		{"label": "공격속도", "value": "%.2f / sec" % get_attacks_per_second()},
-		{"label": "공격범위", "value": "%.2fx" % get_attack_range_multiplier()},
+		{"label": "공격범위", "value": "%.2fU x %.2fU" % [attack_shape_units.x, attack_shape_units.y]},
 		{"label": "치명타 확률", "value": "%.0f%%" % get_critical_chance_percent()},
 		{"label": "치명타 배율", "value": "%d%%" % get_critical_damage_percent()},
 		{"label": "현재 체력", "value": "%d / %d" % [player_health, get_player_max_health()]},
@@ -563,6 +802,9 @@ func _emit_initial_state() -> void:
 	health_changed.emit(player_health, get_player_max_health())
 	status_text_changed.emit(status_text)
 	selected_character_changed.emit(selected_character_id, selected_character_name, best_record_summary)
+	owned_attack_modules_changed.emit(get_owned_attack_module_ids())
+	attack_module_changed.emit(get_equipped_attack_module_id())
+	run_items_changed.emit()
 
 
 func _merge_simple_dict(defaults: Dictionary, overrides: Variant) -> Dictionary:
@@ -655,6 +897,143 @@ func _update_best_record(character_id: String, difficulty_id: String, stage_reac
 	var record_map := best_records_by_character[character_id] as Dictionary
 	record_map[difficulty_id] = maxi(int(record_map.get(difficulty_id, 0)), stage_reached)
 	best_records_by_character[character_id] = record_map
+
+
+func _reset_run_attack_modules() -> void:
+	owned_attack_module_ids = PackedStringArray()
+	attack_module_runtime_state = {}
+	var default_module_id := GameData.get_default_attack_module_id()
+	if default_module_id != StringName():
+		owned_attack_module_ids.append(String(default_module_id))
+	equipped_attack_module_id = default_module_id
+	owned_attack_modules_changed.emit(get_owned_attack_module_ids())
+	attack_module_changed.emit(equipped_attack_module_id)
+
+
+func _reset_run_shop_items() -> void:
+	owned_function_module_ids = PackedStringArray()
+	owned_enhance_module_counts = {}
+	current_run_items = PackedStringArray()
+	current_run_effects = {}
+
+
+func _build_shop_item_snapshot(definition: Dictionary) -> Dictionary:
+	var item_id := String(definition.get("item_id", ""))
+	var category := String(definition.get("item_category", ""))
+	var owned := false
+	var equipped := false
+	var stack_count := 0
+	match category:
+		"attack_module":
+			owned = is_attack_module_owned(StringName(item_id))
+			equipped = get_equipped_attack_module_id() == StringName(item_id)
+		"function_module":
+			owned = is_function_module_owned(StringName(item_id))
+		"enhance_module":
+			stack_count = get_enhance_module_stack_count(StringName(item_id))
+			owned = stack_count > 0
+	return {
+		"item_id": item_id,
+		"item_category": category,
+		"name": String(definition.get("name", item_id)),
+		"rank": String(definition.get("rank", "D")),
+		"price_gold": int(definition.get("price_gold", 0)),
+		"short_desc": String(definition.get("short_desc", "")),
+		"desc": String(definition.get("desc", "")),
+		"stackable": bool(definition.get("stackable", false)),
+		"owned": owned,
+		"equipped": equipped,
+		"stack_count": stack_count,
+		"can_afford": can_afford_gold(int(definition.get("price_gold", 0))),
+	}
+
+
+func _register_owned_attack_module(module_id: StringName) -> void:
+	grant_attack_module(module_id, false)
+	current_run_items.append(String(module_id))
+
+
+func _register_function_module_purchase(definition: Dictionary) -> void:
+	var item_id := String(definition.get("item_id", ""))
+	if not owned_function_module_ids.has(item_id):
+		owned_function_module_ids.append(item_id)
+	current_run_items.append(item_id)
+	_register_runtime_effect_entry(definition)
+
+
+func _register_enhance_module_purchase(definition: Dictionary) -> void:
+	var item_id := String(definition.get("item_id", ""))
+	owned_enhance_module_counts[item_id] = get_enhance_module_stack_count(StringName(item_id)) + 1
+	current_run_items.append(item_id)
+	_register_runtime_effect_entry(definition)
+	_apply_shop_effect_values(definition)
+
+
+func _register_runtime_effect_entry(definition: Dictionary) -> void:
+	var effect_type := StringName(String(definition.get("effect_type", "none")))
+	if effect_type == StringName():
+		return
+	if not current_run_effects.has(effect_type):
+		current_run_effects[effect_type] = []
+	(current_run_effects[effect_type] as Array).append({
+		"item_id": String(definition.get("item_id", "")),
+		"effect_type": String(effect_type),
+		"effect_values": (definition.get("effect_values", {}) as Dictionary).duplicate(true),
+	})
+
+
+func _apply_shop_effect_values(definition: Dictionary) -> void:
+	if String(definition.get("effect_type", "")) != "stat_bonus":
+		return
+	var effect_values: Dictionary = definition.get("effect_values", {})
+	for raw_key in effect_values.keys():
+		var effect_key := String(raw_key)
+		var effect_value = effect_values[raw_key]
+		_apply_stat_bonus_effect(effect_key, effect_value)
+
+
+func _apply_stat_bonus_effect(effect_key: String, effect_value: Variant) -> void:
+	match effect_key:
+		"attack_damage_flat":
+			run_bonus_attack_damage += int(effect_value)
+		"attack_speed_percent":
+			run_attack_speed_mult /= maxf(1.0 + float(effect_value), 0.01)
+		"attack_range_percent":
+			run_attack_range_mult *= 1.0 + float(effect_value)
+		"max_hp_flat":
+			var previous_max_health := get_player_max_health()
+			run_bonus_max_hp += int(effect_value)
+			var new_max_health := get_player_max_health()
+			player_health = min(player_health + max(new_max_health - previous_max_health, 0), new_max_health)
+			health_changed.emit(player_health, new_max_health)
+		"defense_flat":
+			run_bonus_defense += int(effect_value)
+		"hp_regen_flat":
+			run_bonus_hp_regen += float(effect_value)
+		"max_weight_flat":
+			run_bonus_max_weight += int(effect_value)
+		"mining_damage_flat":
+			run_bonus_mining_damage += int(effect_value)
+		"mining_speed_percent":
+			run_mining_speed_mult /= maxf(1.0 + float(effect_value), 0.01)
+		"mining_range_percent":
+			run_mining_range_mult *= 1.0 + float(effect_value)
+		"move_speed_percent":
+			run_move_speed_mult *= 1.0 + float(effect_value)
+		"move_speed_flat":
+			run_bonus_move_speed += float(effect_value)
+		"jump_power_percent":
+			run_jump_power_mult *= 1.0 + float(effect_value)
+		"jump_power_flat":
+			run_bonus_jump_power += float(effect_value)
+		"crit_chance_flat":
+			run_bonus_crit_chance += float(effect_value)
+		"luck_flat":
+			run_bonus_luck += float(effect_value)
+		"interest_rate_percent":
+			run_bonus_interest_rate += float(effect_value)
+		"battery_recovery_flat":
+			run_bonus_battery_recovery += float(effect_value)
 
 
 # ---- 경험치 및 레벨업 ----

@@ -1,0 +1,2 @@
+id	display_name	name_prefix	name_suffix	can_spawn_randomly	spawn_weight_multiplier	hp_multiplier	reward_multiplier	sand_units_multiplier	special_result_override
+boss	boss	boss		false	1.0	3.0	1.0	1.0	none

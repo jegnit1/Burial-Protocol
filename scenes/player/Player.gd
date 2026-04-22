@@ -3,11 +3,20 @@ class_name Player
 
 const IDLE_ANIMATION: StringName = &"idle"
 const RUN_ANIMATION: StringName = &"run"
+const HORIZONTAL_SAND_PUSH_ATTEMPTS := 2
 const DASH_HORIZONTAL_SAND_PUSH_ATTEMPTS := 2
+const SAND_SLOPE_STEP_HEIGHT := 10
+const SAND_SLOPE_STEP_SAMPLES := 3
 const DASH_DOWNWARD_SAND_SIDE_MARGIN := 6.0
 const DASH_FEEDBACK_DURATION := 0.14
 const DASH_TRAIL_ALPHA := 0.32
 const DASH_OUTLINE_WIDTH := 3.0
+const ATTACK_MODULE_ORBIT_RADIUS := 36.0
+const ATTACK_MODULE_ORBIT_SPEED := 1.35
+const ATTACK_MODULE_BOB_AMPLITUDE := 4.0
+const ATTACK_MODULE_BOB_SPEED := 2.6
+const ATTACK_MODULE_STRIKE_DISTANCE := 22.0
+const ATTACK_MODULE_STRIKE_DURATION := 0.12
 const DAMAGE_POPUP_SCRIPT := preload("res://scenes/ui/DamagePopup.gd")
 # 스프라이트 시각 영역에 맞게 충돌 박스를 줄이는 inset (픽셀).
 # x: 좌우 각각 줄임. y는 반드시 0 — y를 바꾸면 바닥/블록 감지가 깨짐.
@@ -57,6 +66,12 @@ var is_on_right_wall := false
 var current_battery := GameConstants.PLAYER_BATTERY_MAX
 var is_wall_climbing := false
 var animated_sprite_base_scale := Vector2.ONE
+var attack_module_visual: Node2D
+var attack_module_visual_scene_path := ""
+var attack_module_orbit_angle := 0.0
+var attack_module_bob_time := 0.0
+var attack_module_strike_time_remaining := 0.0
+var attack_module_strike_direction := Vector2.RIGHT
 
 @onready var animated_sprite: AnimatedSprite2D = $AnimatedSprite2D
 
@@ -97,6 +112,9 @@ func setup(target_world: WorldGrid, target_sand: SandField, target_blocks: Node2
 	blocks_root = target_blocks
 	current_battery = GameConstants.PLAYER_BATTERY_MAX
 	is_wall_climbing = false
+	if not GameState.attack_module_changed.is_connected(_on_attack_module_changed):
+		GameState.attack_module_changed.connect(_on_attack_module_changed)
+	_sync_attack_module_visual()
 	_refresh_contacts()
 
 
@@ -107,13 +125,16 @@ func _physics_process(delta: float) -> void:
 	_ride_supporting_block()
 	jump_buffer_remaining = max(jump_buffer_remaining - delta, 0.0)
 	coyote_time_remaining = max(coyote_time_remaining - delta, 0.0)
-	attack_cooldown = max(attack_cooldown - delta * (1.0 / GameState.run_attack_speed_mult), 0.0)
+	attack_cooldown = max(attack_cooldown - delta, 0.0)
 	attack_buffer_remaining = max(attack_buffer_remaining - delta, 0.0)
 	
 	if Input.is_action_pressed("attack_action"):
 		attack_buffer_remaining = GameConstants.PLAYER_ATTACK_BUFFER_TIME
 		pending_attack_direction = _resolve_attack_direction()
-	mining_cooldown = max(mining_cooldown - delta * (1.0 / GameState.run_mining_speed_mult), 0.0)
+	if Input.is_action_pressed("mine_action"):
+		mining_buffer_remaining = GameConstants.PLAYER_MINING_BUFFER_TIME
+		pending_mine_direction = _resolve_attack_direction()
+	mining_cooldown = max(mining_cooldown - delta, 0.0)
 	mining_buffer_remaining = max(mining_buffer_remaining - delta, 0.0)
 	dash_cooldown_remaining = max(dash_cooldown_remaining - delta, 0.0)
 	dash_time_remaining = max(dash_time_remaining - delta, 0.0)
@@ -122,6 +143,7 @@ func _physics_process(delta: float) -> void:
 	hurt_flash_remaining = max(hurt_flash_remaining - delta, 0.0)
 	attack_visual_time = max(attack_visual_time - delta, 0.0)
 	mining_visual_time = max(mining_visual_time - delta, 0.0)
+	attack_module_strike_time_remaining = max(attack_module_strike_time_remaining - delta, 0.0)
 	_process_pending_dash_request()
 	_update_dash_state()
 	jump_started_this_frame = false
@@ -137,6 +159,7 @@ func _physics_process(delta: float) -> void:
 	_snap_to_supporting_block()
 	_refresh_contacts()
 	_update_sprite_visuals(position.x - previous_position.x)
+	_update_attack_module_visual(delta)
 	var _has_active_visuals := (
 		is_dashing
 		or dash_feedback_time > 0.0
@@ -207,12 +230,13 @@ func consume_attack_direction() -> Vector2:
 	if attack_buffer_remaining <= 0.0:
 		return Vector2.ZERO
 	attack_buffer_remaining = 0.0
-	attack_cooldown = GameConstants.PLAYER_ATTACK_COOLDOWN
+	attack_cooldown = GameState.get_attack_cooldown_duration()
 	var direction := pending_attack_direction
 	if direction == Vector2.ZERO:
 		direction = _resolve_attack_direction()
 	attack_visual_direction = direction
 	attack_visual_time = GameConstants.PLAYER_ATTACK_VISUAL_DURATION
+	_play_attack_module_strike(direction)
 	queue_redraw()
 	return direction
 
@@ -225,7 +249,7 @@ func consume_mining_direction() -> Vector2:
 	if mining_buffer_remaining <= 0.0:
 		return Vector2.ZERO
 	mining_buffer_remaining = 0.0
-	mining_cooldown = GameConstants.PLAYER_MINING_COOLDOWN
+	mining_cooldown = GameState.get_mining_cooldown_duration()
 	var direction := pending_mine_direction
 	if direction == Vector2.ZERO:
 		direction = _resolve_attack_direction()
@@ -509,7 +533,7 @@ func _apply_horizontal_input() -> void:
 	var input_strength := Input.get_axis("move_left", "move_right")
 	if input_strength != 0.0:
 		facing = Vector2i(_sign_to_int(input_strength), 0)
-	var move_speed := (GameConstants.PLAYER_MOVE_SPEED + GameState.run_bonus_move_speed) if is_on_floor else (GameConstants.PLAYER_AIR_SPEED + GameState.run_bonus_move_speed)
+	var move_speed := GameState.get_move_speed() if is_on_floor else GameState.get_air_move_speed()
 	if is_on_sand:
 		move_speed *= GameConstants.PLAYER_SAND_SPEED_MULTIPLIER
 	velocity.x = input_strength * move_speed
@@ -575,7 +599,7 @@ func _update_wall_climb_state(delta: float) -> void:
 			is_wall_climbing = false
 		return
 	current_battery = minf(
-		current_battery + GameConstants.PLAYER_BATTERY_RECOVERY_PER_SEC * delta,
+		current_battery + GameState.get_battery_recovery_per_second() * delta,
 		GameConstants.PLAYER_BATTERY_MAX
 	)
 
@@ -618,6 +642,10 @@ func _move_axis(steps: int, horizontal: bool) -> int:
 		var body_local := _get_body_local_rect()
 		var next_rect := Rect2(next_position + body_local.position, body_local.size)
 		if _movement_collides(next_rect, horizontal, direction):
+			var hit_sand := horizontal and sand_field.rect_collides(_get_lower_sand_rect(next_rect))
+			if hit_sand and _try_step_up_on_sand(direction):
+				moved_steps += direction
+				continue
 			if horizontal:
 				velocity.x = 0.0
 			else:
@@ -648,7 +676,7 @@ func _movement_collides(rect: Rect2, horizontal: bool, direction: int) -> bool:
 
 
 func _try_resolve_horizontal_sand_collision(rect: Rect2, sand_rect: Rect2, direction: int) -> bool:
-	var push_attempts := 1
+	var push_attempts := HORIZONTAL_SAND_PUSH_ATTEMPTS
 	if is_dashing:
 		push_attempts = DASH_HORIZONTAL_SAND_PUSH_ATTEMPTS
 	for _attempt in range(push_attempts):
@@ -660,6 +688,30 @@ func _try_resolve_horizontal_sand_collision(rect: Rect2, sand_rect: Rect2, direc
 			continue
 		if not sand_field.rect_collides(rect):
 			return true
+	return false
+
+
+func _try_step_up_on_sand(direction: int) -> bool:
+	if is_dashing or direction == 0:
+		return false
+	var body_local := _get_body_local_rect()
+	for sample_index in range(1, SAND_SLOPE_STEP_SAMPLES + 1):
+		var step_height := int(ceil(float(SAND_SLOPE_STEP_HEIGHT * sample_index) / float(SAND_SLOPE_STEP_SAMPLES)))
+		var candidate_position := position + Vector2(direction, -step_height)
+		var candidate_rect := Rect2(candidate_position + body_local.position, body_local.size)
+		if world_grid.rect_collides_static(candidate_rect) or is_rect_blocked_by_falling_block(candidate_rect):
+			continue
+		var candidate_sand_rect := _get_lower_sand_rect(candidate_rect)
+		if sand_field.rect_collides(candidate_sand_rect):
+			if not sand_field.try_push_for_body(candidate_rect, direction):
+				continue
+			if sand_field.rect_collides(candidate_sand_rect):
+				continue
+		position = candidate_position
+		motion_remainder.y = 0.0
+		if velocity.y > 0.0:
+			velocity.y = 0.0
+		return true
 	return false
 
 
@@ -764,11 +816,7 @@ func _get_attack_local_shape_data(direction: Vector2) -> Dictionary:
 	var attack_direction := direction.normalized()
 	if attack_direction == Vector2.ZERO:
 		attack_direction = Vector2(facing)
-	var attack_size := Vector2(
-		GameConstants.PLAYER_ATTACK_RANGE_WIDTH,
-		GameConstants.PLAYER_ATTACK_RANGE_HEIGHT
-	)
-	attack_size *= GameState.get_attack_range_multiplier()
+	var attack_size := GameState.get_attack_shape_size_pixels()
 	var support_distance := _get_body_support_distance(attack_direction)
 	var center_offset := attack_direction * (support_distance + attack_size.x * 0.5)
 	return {
@@ -895,6 +943,64 @@ func _vector_to_debug_text(value: Vector2) -> String:
 	if value == Vector2.ZERO:
 		return "(0,0)"
 	return "(%d,%d)" % [_sign_to_int(value.x), _sign_to_int(value.y)]
+
+
+func _on_attack_module_changed(_module_id: StringName) -> void:
+	_sync_attack_module_visual()
+
+
+func _sync_attack_module_visual() -> void:
+	var module_definition = GameState.get_equipped_attack_module_definition()
+	var scene_path := ""
+	if module_definition != null:
+		scene_path = module_definition.visual_scene_path
+	if attack_module_visual != null and is_instance_valid(attack_module_visual) and scene_path == attack_module_visual_scene_path:
+		return
+	if attack_module_visual != null and is_instance_valid(attack_module_visual):
+		attack_module_visual.queue_free()
+	attack_module_visual = null
+	attack_module_visual_scene_path = scene_path
+	if scene_path.is_empty():
+		return
+	var visual_scene = load(scene_path)
+	if visual_scene == null or not (visual_scene is PackedScene):
+		push_warning("Attack module visual scene load failed: %s" % scene_path)
+		return
+	attack_module_visual = (visual_scene as PackedScene).instantiate() as Node2D
+	if attack_module_visual == null:
+		return
+	add_child(attack_module_visual)
+	attack_module_visual.z_index = 20
+	attack_module_visual.position = Vector2.RIGHT * ATTACK_MODULE_ORBIT_RADIUS
+
+
+func _update_attack_module_visual(delta: float) -> void:
+	if attack_module_visual == null or not is_instance_valid(attack_module_visual):
+		return
+	attack_module_orbit_angle = wrapf(
+		attack_module_orbit_angle + delta * ATTACK_MODULE_ORBIT_SPEED,
+		0.0,
+		TAU
+	)
+	attack_module_bob_time += delta * ATTACK_MODULE_BOB_SPEED
+	var orbit_offset := Vector2.RIGHT.rotated(attack_module_orbit_angle) * ATTACK_MODULE_ORBIT_RADIUS
+	orbit_offset.y += sin(attack_module_bob_time) * ATTACK_MODULE_BOB_AMPLITUDE
+	var strike_ratio := 0.0
+	if attack_module_strike_time_remaining > 0.0:
+		strike_ratio = attack_module_strike_time_remaining / ATTACK_MODULE_STRIKE_DURATION
+	var strike_offset := attack_module_strike_direction.normalized() * ATTACK_MODULE_STRIKE_DISTANCE * strike_ratio
+	attack_module_visual.position = orbit_offset + strike_offset
+	if attack_module_strike_time_remaining > 0.0:
+		attack_module_visual.rotation = attack_module_strike_direction.angle()
+	else:
+		attack_module_visual.rotation = orbit_offset.angle()
+
+
+func _play_attack_module_strike(direction: Vector2) -> void:
+	if direction == Vector2.ZERO:
+		direction = Vector2(facing)
+	attack_module_strike_direction = direction.normalized()
+	attack_module_strike_time_remaining = ATTACK_MODULE_STRIKE_DURATION
 
 
 func _get_dash_visual_color() -> Color:

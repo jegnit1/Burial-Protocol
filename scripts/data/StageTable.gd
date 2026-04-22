@@ -57,6 +57,13 @@ func get_boss_block_base_id(day_number: int) -> StringName:
 	return definition.boss_block_base_id
 
 
+func get_boss_block_size_id(day_number: int) -> StringName:
+	var definition = get_day_definition(day_number)
+	if definition == null:
+		return StringName()
+	return definition.boss_block_size_id
+
+
 func get_boss_block_type_id(day_number: int) -> StringName:
 	var definition = get_day_definition(day_number)
 	if definition == null:

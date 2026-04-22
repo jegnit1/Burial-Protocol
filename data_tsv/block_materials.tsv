@@ -1,0 +1,9 @@
+material_id	display_name	hp_multiplier	reward_multiplier	base_spawn_weight	special_result_type	color_key	block_color	min_difficulty	min_stage	max_stage	max_allowed_area	max_allowed_width	max_allowed_height	is_enabled	notes
+wood	나무	1.0	1.0	1.0	none	amber	#9a6d43ff		1	0	4	2	4	true	
+rock	바위	1.5	1.0	1.0	none	cobalt	#7d8591ff		4	0	4	2	3	true	
+marble	대리석	2.0	1.0	0.85	none	cobalt	#d9dde4ff		8	0	4	2	2	true	
+cement	시멘트	3.0	1.0	0.9	none	ember	#707983ff		12	0	4	2	4	true	
+steel	강철	5.0	1.0	0.8	none	ember	#5d6979ff		14	0	4	4	2	true	
+bomb	폭탄	2.0	1.0	0.65	explosion	ember	#d45858ff		16	0	1	1	1	true	
+glass	유리	1.0	1.0	1.0	glass_shatter_damage	amber	#b8d8f4ff		1	0	4	2	2	true	
+gold	황금	3.0	2.5	0.75	bonus_gold	cobalt	#d7b94dff		10	0	2	2	2	true	

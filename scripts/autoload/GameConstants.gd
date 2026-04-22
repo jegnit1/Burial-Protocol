@@ -124,6 +124,8 @@ const PLAYER_MINING_DAMAGE := 1
 const PLAYER_MINING_COOLDOWN := 0.15
 # 채굴 입력을 미리 저장해두는 버퍼 시간.
 const PLAYER_MINING_BUFFER_TIME := 0.12
+# 채굴 실패/불가 상태 문구가 과도하게 반복되지 않도록 두는 최소 간격.
+const PLAYER_MINING_STATUS_MESSAGE_INTERVAL := 0.3
 # 채굴 범위: 플레이어 몸체에서 뻗는 거리 (0.25U).
 const PLAYER_MINING_RANGE_DISTANCE := float(CELL_SIZE) * 0.25
 # 채굴 범위: 세로 높이 (1U).
@@ -147,8 +149,12 @@ const DAY_KIOSK_INTERACTION_RANGE := CELL_SIZE * 2.0
 const DAY_KIOSK_DEPLOY_DELAY := 1.25
 const DAY_KIOSK_FALL_SPEED := 780.0
 const DAY_TRANSITION_FADE_DURATION := 0.35
+const DAY_SHOP_ITEM_COUNT := 5
 # 1U당 블록 체력
-const BLOCK_HP_PER_UNIT := 8.0
+const BLOCK_HP_PER_UNIT := 10.0
+# 1U당 블록 보상
+const BLOCK_REWARD_PER_UNIT := 5.0
+const BLOCK_SAND_UNITS_PER_UNIT := 36.0
 # 블록이 화면 바깥 위쪽에서 진입하도록 하는 생성 Y 오프셋.
 const BLOCK_SPAWN_Y_OFFSET := 16.0
 
@@ -464,6 +470,14 @@ func get_difficulty_definition(difficulty_id: String) -> Dictionary:
 		if String(option["id"]) == difficulty_id:
 			return option
 	return DIFFICULTY_OPTIONS[0]
+
+
+func get_difficulty_rank(difficulty_id: String) -> int:
+	for index in range(DIFFICULTY_OPTIONS.size()):
+		var option: Dictionary = DIFFICULTY_OPTIONS[index]
+		if String(option["id"]) == difficulty_id:
+			return index
+	return 0
 
 
 # ---- 레벨업 및 경험치 시스템 ----

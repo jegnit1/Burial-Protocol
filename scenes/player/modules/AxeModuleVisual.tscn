@@ -1,0 +1,11 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scenes/player/modules/AttackModuleVisual.gd" id="1_script"]
+
+[node name="AxeModuleVisual" type="Node2D"]
+script = ExtResource("1_script")
+module_id = "axe_module"
+shape_style = "axe"
+fill_color = Color(0.905882, 0.521569, 0.458824, 1)
+accent_color = Color(0.278431, 0.172549, 0.121569, 1)
+visual_scale = 1.0

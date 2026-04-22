@@ -1,109 +1,220 @@
-[gd_resource type="Resource" script_class="BlockCatalog" format=3 uid="uid://mtsyxbyw6vi0"]
+[gd_resource type="Resource" script_class="BlockCatalog" format=3]
 
-[ext_resource type="Script" uid="uid://00s7anp6a73y" path="res://scripts/data/BlockCatalog.gd" id="1_catalog"]
-[ext_resource type="Script" uid="uid://c10xafc8ebql3" path="res://scripts/data/BlockBaseDefinition.gd" id="2_base"]
-[ext_resource type="Script" uid="uid://dmc18osygbhv3" path="res://scripts/data/BlockTypeDefinition.gd" id="3_type"]
+[ext_resource type="Script" path="res://scripts/data/BlockCatalog.gd" id="1_catalog"]
+[ext_resource type="Script" path="res://scripts/data/BlockMaterialData.gd" id="2_material"]
+[ext_resource type="Script" path="res://scripts/data/BlockSizeData.gd" id="3_size"]
+[ext_resource type="Script" path="res://scripts/data/BlockTypeDefinition.gd" id="5_type"]
 
-[sub_resource type="Resource" id="BlockBaseDefinition_amber_small"]
-script = ExtResource("2_base")
-id = "amber_small"
-display_name = "유리"
-reward = 2
-sand_units = 27
-block_color = Color(0.721569, 0.847059, 0.956863, 1)
-special_result_type = "glass_shatter_damage"
-
-[sub_resource type="Resource" id="BlockBaseDefinition_amber_tall_wood"]
-script = ExtResource("2_base")
-id = "amber_tall_wood"
+[sub_resource type="Resource" id="Resource_o1k74"]
+script = ExtResource("2_material")
+material_id = &"wood"
 display_name = "나무"
-size_cells = Vector2i(1, 2)
-hp_multiplier = 0.875
-reward = 3
-sand_units = 54
-block_color = Color(0.603922, 0.427451, 0.262745, 1)
+block_color = Color(0.6039216, 0.42745098, 0.2627451, 1)
+min_difficulty = &""
+max_allowed_area = 4
+max_allowed_width = 2
+max_allowed_height = 4
 
-[sub_resource type="Resource" id="BlockBaseDefinition_cobalt_tall"]
-script = ExtResource("2_base")
-id = "cobalt_tall"
+[sub_resource type="Resource" id="Resource_1e1yw"]
+script = ExtResource("2_material")
+material_id = &"rock"
 display_name = "바위"
-size_cells = Vector2i(1, 2)
-hp_multiplier = 1.3125
-reward = 4
-sand_units = 54
-color_key = "cobalt"
-block_color = Color(0.490196, 0.521569, 0.568627, 1)
-
-[sub_resource type="Resource" id="BlockBaseDefinition_cobalt_marble"]
-script = ExtResource("2_base")
-id = "cobalt_marble"
-display_name = "대리석"
-size_cells = Vector2i(2, 1)
-hp_multiplier = 1.25
-reward = 4
-sand_units = 54
-color_key = "cobalt"
-block_color = Color(0.85098, 0.866667, 0.894118, 1)
-spawn_weight = 0.85
-
-[sub_resource type="Resource" id="BlockBaseDefinition_cobalt_gold"]
-script = ExtResource("2_base")
-id = "cobalt_gold"
-display_name = "금"
-hp_multiplier = 3.0
-reward = 5
-sand_units = 27
-color_key = "cobalt"
-block_color = Color(0.843137, 0.72549, 0.301961, 1)
-spawn_weight = 0.75
-special_result_type = "bonus_gold"
-
-[sub_resource type="Resource" id="BlockBaseDefinition_ember_cement"]
-script = ExtResource("2_base")
-id = "ember_cement"
-display_name = "시멘트"
-size_cells = Vector2i(1, 2)
-hp_multiplier = 1.25
-reward = 4
-sand_units = 54
-color_key = "ember"
-block_color = Color(0.439216, 0.47451, 0.513725, 1)
-spawn_weight = 0.9
-
-[sub_resource type="Resource" id="BlockBaseDefinition_ember_wide"]
-script = ExtResource("2_base")
-id = "ember_wide"
-display_name = "강철"
-size_cells = Vector2i(2, 1)
 hp_multiplier = 1.5
-reward = 4
-sand_units = 54
-color_key = "ember"
-block_color = Color(0.364706, 0.411765, 0.47451, 1)
-spawn_weight = 0.8
+color_key = &"cobalt"
+block_color = Color(0.49019608, 0.52156866, 0.5686275, 1)
+min_difficulty = &""
+min_stage = 4
+max_allowed_area = 4
+max_allowed_width = 2
+max_allowed_height = 3
 
-[sub_resource type="Resource" id="BlockBaseDefinition_ember_bomb"]
-script = ExtResource("2_base")
-id = "ember_bomb"
+[sub_resource type="Resource" id="Resource_u3on1"]
+script = ExtResource("2_material")
+material_id = &"marble"
+display_name = "대리석"
+hp_multiplier = 2.0
+base_spawn_weight = 0.85
+color_key = &"cobalt"
+block_color = Color(0.8509804, 0.8666667, 0.89411765, 1)
+min_difficulty = &""
+min_stage = 8
+max_allowed_area = 4
+max_allowed_width = 2
+max_allowed_height = 2
+
+[sub_resource type="Resource" id="Resource_gtkrb"]
+script = ExtResource("2_material")
+material_id = &"cement"
+display_name = "시멘트"
+hp_multiplier = 3.0
+base_spawn_weight = 0.9
+color_key = &"ember"
+block_color = Color(0.4392157, 0.4745098, 0.5137255, 1)
+min_difficulty = &""
+min_stage = 12
+max_allowed_area = 4
+max_allowed_width = 2
+max_allowed_height = 4
+
+[sub_resource type="Resource" id="Resource_fwkum"]
+script = ExtResource("2_material")
+material_id = &"steel"
+display_name = "강철"
+hp_multiplier = 5.0
+base_spawn_weight = 0.8
+color_key = &"ember"
+block_color = Color(0.3647059, 0.4117647, 0.4745098, 1)
+min_difficulty = &""
+min_stage = 14
+max_allowed_area = 4
+max_allowed_width = 4
+max_allowed_height = 2
+
+[sub_resource type="Resource" id="Resource_3oy47"]
+script = ExtResource("2_material")
+material_id = &"bomb"
 display_name = "폭탄"
-hp_multiplier = 1.75
-reward = 3
-sand_units = 27
-color_key = "ember"
-block_color = Color(0.831373, 0.345098, 0.345098, 1)
-spawn_weight = 0.65
-special_result_type = "explosion"
+hp_multiplier = 2.0
+base_spawn_weight = 0.65
+special_result_type = &"explosion"
+color_key = &"ember"
+block_color = Color(0.83137256, 0.34509805, 0.34509805, 1)
+min_difficulty = &""
+min_stage = 16
+max_allowed_area = 1
+max_allowed_width = 1
+max_allowed_height = 1
 
-[sub_resource type="Resource" id="BlockTypeDefinition_boss"]
-script = ExtResource("3_type")
-id = "boss"
-display_name = "보스"
-name_prefix = "보스"
+[sub_resource type="Resource" id="Resource_m7plc"]
+script = ExtResource("2_material")
+material_id = &"glass"
+display_name = "유리"
+special_result_type = &"glass_shatter_damage"
+block_color = Color(0.72156864, 0.84705883, 0.95686275, 1)
+min_difficulty = &""
+max_allowed_area = 4
+max_allowed_width = 2
+max_allowed_height = 2
+
+[sub_resource type="Resource" id="Resource_ci4w0"]
+script = ExtResource("2_material")
+material_id = &"gold"
+display_name = "황금"
+hp_multiplier = 3.0
+reward_multiplier = 2.5
+base_spawn_weight = 0.75
+special_result_type = &"bonus_gold"
+color_key = &"cobalt"
+block_color = Color(0.84313726, 0.7254902, 0.3019608, 1)
+min_difficulty = &""
+min_stage = 10
+max_allowed_area = 2
+max_allowed_width = 2
+max_allowed_height = 2
+
+[sub_resource type="Resource" id="Resource_e0c4j"]
+script = ExtResource("3_size")
+size_id = &"size_1x1"
+min_difficulty = &""
+tags = PackedStringArray("starter", "compact")
+
+[sub_resource type="Resource" id="Resource_kaa8a"]
+script = ExtResource("3_size")
+size_id = &"size_1x2"
+height_u = 2
+area = 2
+hp_multiplier = 2.0
+reward_multiplier = 2.0
+base_spawn_weight = 0.95
+min_difficulty = &""
+min_stage = 2
+tags = PackedStringArray("tall", "area2")
+
+[sub_resource type="Resource" id="Resource_uf52m"]
+script = ExtResource("3_size")
+size_id = &"size_2x1"
+width_u = 2
+area = 2
+hp_multiplier = 2.0
+reward_multiplier = 2.0
+base_spawn_weight = 0.85
+min_difficulty = &""
+min_stage = 4
+tags = PackedStringArray("wide", "area2")
+
+[sub_resource type="Resource" id="Resource_ujker"]
+script = ExtResource("3_size")
+size_id = &"size_2x2"
+width_u = 2
+height_u = 2
+area = 4
+hp_multiplier = 4.0
+reward_multiplier = 4.0
+base_spawn_weight = 0.55
+min_difficulty = &"hard"
+min_stage = 12
+tags = PackedStringArray("big", "area4")
+
+[sub_resource type="Resource" id="Resource_c5u3c"]
+script = ExtResource("3_size")
+size_id = &"size_1x3"
+height_u = 3
+area = 3
+hp_multiplier = 3.0
+reward_multiplier = 3.0
+base_spawn_weight = 0.55
+min_difficulty = &"hard"
+min_stage = 14
+tags = PackedStringArray("tall", "area3")
+
+[sub_resource type="Resource" id="Resource_0wav6"]
+script = ExtResource("3_size")
+size_id = &"size_3x1"
+width_u = 3
+area = 3
+hp_multiplier = 3.0
+reward_multiplier = 3.0
+base_spawn_weight = 0.4
+min_difficulty = &"hard"
+min_stage = 16
+tags = PackedStringArray("wide", "area3")
+
+[sub_resource type="Resource" id="Resource_djeim"]
+script = ExtResource("3_size")
+size_id = &"size_1x4"
+height_u = 4
+area = 4
+hp_multiplier = 4.0
+reward_multiplier = 4.0
+base_spawn_weight = 0.3
+min_difficulty = &"hard"
+min_stage = 20
+tags = PackedStringArray("tall", "area4")
+
+[sub_resource type="Resource" id="Resource_fkl0g"]
+script = ExtResource("3_size")
+size_id = &"size_4x1"
+width_u = 4
+area = 4
+hp_multiplier = 4.0
+reward_multiplier = 4.0
+base_spawn_weight = 0.2
+min_difficulty = &"hard"
+min_stage = 22
+tags = PackedStringArray("wide", "area4")
+
+[sub_resource type="Resource" id="Resource_1dmua"]
+script = ExtResource("5_type")
+id = &"boss"
+display_name = "boss"
+name_prefix = "boss"
 can_spawn_randomly = false
 hp_multiplier = 3.0
 
 [resource]
 script = ExtResource("1_catalog")
-default_block_base_id = "amber_small"
-block_bases = Array[Resource]([SubResource("BlockBaseDefinition_amber_small"), SubResource("BlockBaseDefinition_amber_tall_wood"), SubResource("BlockBaseDefinition_cobalt_tall"), SubResource("BlockBaseDefinition_cobalt_marble"), SubResource("BlockBaseDefinition_cobalt_gold"), SubResource("BlockBaseDefinition_ember_cement"), SubResource("BlockBaseDefinition_ember_wide"), SubResource("BlockBaseDefinition_ember_bomb")])
-block_types = Array[Resource]([SubResource("BlockTypeDefinition_boss")])
+default_block_base_id = &"glass"
+default_block_size_id = &"size_1x1"
+block_materials = Array[Resource]([SubResource("Resource_o1k74"), SubResource("Resource_1e1yw"), SubResource("Resource_u3on1"), SubResource("Resource_gtkrb"), SubResource("Resource_fwkum"), SubResource("Resource_3oy47"), SubResource("Resource_m7plc"), SubResource("Resource_ci4w0")])
+block_sizes = Array[Resource]([SubResource("Resource_e0c4j"), SubResource("Resource_kaa8a"), SubResource("Resource_uf52m"), SubResource("Resource_ujker"), SubResource("Resource_c5u3c"), SubResource("Resource_0wav6"), SubResource("Resource_djeim"), SubResource("Resource_fkl0g")])
+block_types = Array[Resource]([SubResource("Resource_1dmua")])

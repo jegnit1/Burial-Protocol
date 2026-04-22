@@ -7,6 +7,7 @@ class_name StageDayDefinition
 @export var duration := 40.0
 @export var block_hp_multiplier := 1.0
 @export var boss_block_base_id: StringName
+@export var boss_block_size_id: StringName
 @export var boss_block_type_id: StringName
 @export var spawn_interval_multiplier := 1.0
 @export var reward_multiplier := 1.0

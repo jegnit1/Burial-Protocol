@@ -1,0 +1,11 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scenes/player/modules/AttackModuleVisual.gd" id="1_script"]
+
+[node name="GreatswordModuleVisual" type="Node2D"]
+script = ExtResource("1_script")
+module_id = "greatsword_module"
+shape_style = "greatsword"
+fill_color = Color(0.756863, 0.690196, 0.960784, 1)
+accent_color = Color(0.223529, 0.176471, 0.321569, 1)
+visual_scale = 1.08

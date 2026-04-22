@@ -1,0 +1,1578 @@
+[gd_resource type="Resource" script_class="ShopItemResourceCatalog" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ShopItemDefinition.gd" id="1_eikcl"]
+[ext_resource type="Script" path="res://scripts/data/ShopItemResourceCatalog.gd" id="2_010nu"]
+
+[sub_resource type="Resource" id="Resource_eikcl"]
+script = ExtResource("1_eikcl")
+item_id = &"sword_module"
+name = "소드 모듈"
+equip_slot = "attack_module"
+is_equippable = true
+default_start_module = true
+module_type = &"melee"
+range_width_u = 1.0
+range_height_u = 1.0
+icon_path = "res://assets/ui/items/attack_modules/sword_module.png"
+world_visual_scene_path = "res://scenes/items/attack_modules/SwordModuleVisual.tscn"
+tags = PackedStringArray("starter", "melee", "standard")
+short_desc = "기준형 근거리 공격 모듈"
+desc = "가장 표준적인 1U x 1U 범위를 가지는 기본 공격 모듈이다."
+
+[sub_resource type="Resource" id="Resource_010nu"]
+script = ExtResource("1_eikcl")
+item_id = &"dagger_module"
+name = "단검 모듈"
+rank = "C"
+equip_slot = "attack_module"
+is_equippable = true
+module_type = &"melee"
+range_width_u = 0.5
+range_height_u = 1.0
+damage_multiplier = 0.8
+attack_speed_multiplier = 1.4
+icon_path = "res://assets/ui/items/attack_modules/dagger_module.png"
+world_visual_scene_path = "res://scenes/items/attack_modules/DaggerModuleVisual.tscn"
+tags = PackedStringArray("melee", "fast", "close_range")
+short_desc = "짧지만 빠른 연타형 모듈"
+desc = "범위는 짧지만 공격속도가 높아 빠르게 위협을 정리하는 데 유리한 공격 모듈이다."
+
+[sub_resource type="Resource" id="Resource_sax2b"]
+script = ExtResource("1_eikcl")
+item_id = &"lance_module"
+name = "랜스 모듈"
+rank = "B"
+equip_slot = "attack_module"
+is_equippable = true
+module_type = &"melee"
+range_width_u = 2.5
+range_height_u = 0.5
+attack_speed_multiplier = 0.85
+icon_path = "res://assets/ui/items/attack_modules/lance_module.png"
+world_visual_scene_path = "res://scenes/items/attack_modules/LanceModuleVisual.tscn"
+tags = PackedStringArray("melee", "reach", "pierce_like")
+short_desc = "긴 리치를 가진 전방 특화 모듈"
+desc = "세로 범위는 좁지만 전방으로 긴 리치를 제공해 멀리 있는 위협을 먼저 타격하기 좋은 공격 모듈이다."
+
+[sub_resource type="Resource" id="Resource_qx6ce"]
+script = ExtResource("1_eikcl")
+item_id = &"axe_module"
+name = "도끼 모듈"
+rank = "A"
+equip_slot = "attack_module"
+is_equippable = true
+module_type = &"melee"
+range_width_u = 1.0
+range_height_u = 2.0
+damage_multiplier = 1.2
+attack_speed_multiplier = 0.8
+icon_path = "res://assets/ui/items/attack_modules/axe_module.png"
+world_visual_scene_path = "res://scenes/items/attack_modules/AxeModuleVisual.tscn"
+tags = PackedStringArray("melee", "heavy", "vertical_cover")
+short_desc = "세로 커버가 넓은 중량형 모듈"
+desc = "위아래 범위를 넓게 커버하며 묵직한 타격을 가하는 공격 모듈이다."
+
+[sub_resource type="Resource" id="Resource_r61lr"]
+script = ExtResource("1_eikcl")
+item_id = &"greatsword_module"
+name = "대검 모듈"
+rank = "S"
+equip_slot = "attack_module"
+is_equippable = true
+module_type = &"melee"
+range_width_u = 1.5
+range_height_u = 1.0
+damage_multiplier = 1.5
+attack_speed_multiplier = 0.65
+icon_path = "res://assets/ui/items/attack_modules/greatsword_module.png"
+world_visual_scene_path = "res://scenes/items/attack_modules/GreatswordModuleVisual.tscn"
+tags = PackedStringArray("melee", "heavy", "burst")
+short_desc = "강한 한 방의 중화력 모듈"
+desc = "넓은 전방 범위와 높은 데미지를 가지지만 공격속도가 크게 느린 고중량 공격 모듈이다."
+
+[sub_resource type="Resource" id="Resource_q3pi3"]
+script = ExtResource("1_eikcl")
+item_id = &"combat_drone_d"
+name = "하급 전투 드론"
+item_category = &"function_module"
+icon_path = "res://assets/ui/items/function_modules/combat_drone_d.png"
+effect_type = &"combat_drone"
+effect_values = {
+"damage_multiplier": 0.1
+}
+tags = PackedStringArray("drone", "offense", "support")
+short_desc = "직선 미사일을 발사하는 보조 드론"
+desc = "전투영역을 배회하며 직선의 미사일을 발사한다. 피해량은 현재 공격력의 10%를 기준으로 계산한다."
+
+[sub_resource type="Resource" id="Resource_sfxbr"]
+script = ExtResource("1_eikcl")
+item_id = &"combat_drone_c"
+name = "중급 전투 드론"
+item_category = &"function_module"
+rank = "C"
+icon_path = "res://assets/ui/items/function_modules/combat_drone_c.png"
+effect_type = &"combat_drone"
+effect_values = {
+"damage_multiplier": 0.2
+}
+tags = PackedStringArray("drone", "offense", "support")
+short_desc = "직선 미사일을 발사하는 보조 드론"
+desc = "전투영역을 배회하며 직선의 미사일을 발사한다. 피해량은 현재 공격력의 20%를 기준으로 계산한다."
+
+[sub_resource type="Resource" id="Resource_sr35s"]
+script = ExtResource("1_eikcl")
+item_id = &"combat_drone_b"
+name = "상급 전투 드론"
+item_category = &"function_module"
+rank = "B"
+icon_path = "res://assets/ui/items/function_modules/combat_drone_b.png"
+effect_type = &"combat_drone"
+effect_values = {
+"damage_multiplier": 0.3
+}
+tags = PackedStringArray("drone", "offense", "support")
+short_desc = "직선 미사일을 발사하는 보조 드론"
+desc = "전투영역을 배회하며 직선의 미사일을 발사한다. 피해량은 현재 공격력의 30%를 기준으로 계산한다."
+
+[sub_resource type="Resource" id="Resource_2m00x"]
+script = ExtResource("1_eikcl")
+item_id = &"combat_drone_a"
+name = "군용 전투 드론"
+item_category = &"function_module"
+rank = "A"
+icon_path = "res://assets/ui/items/function_modules/combat_drone_a.png"
+effect_type = &"combat_drone"
+effect_values = {
+"damage_multiplier": 0.4
+}
+tags = PackedStringArray("drone", "offense", "support")
+short_desc = "직선 미사일을 발사하는 보조 드론"
+desc = "전투영역을 배회하며 직선의 미사일을 발사한다. 피해량은 현재 공격력의 40%를 기준으로 계산한다."
+
+[sub_resource type="Resource" id="Resource_fwr7e"]
+script = ExtResource("1_eikcl")
+item_id = &"combat_drone_s"
+name = "완성형 전투 드론"
+item_category = &"function_module"
+rank = "S"
+icon_path = "res://assets/ui/items/function_modules/combat_drone_s.png"
+effect_type = &"combat_drone"
+effect_values = {
+"damage_multiplier": 0.5
+}
+tags = PackedStringArray("drone", "offense", "support")
+short_desc = "직선 미사일을 발사하는 보조 드론"
+desc = "전투영역을 배회하며 직선의 미사일을 발사한다. 피해량은 현재 공격력의 50%를 기준으로 계산한다."
+
+[sub_resource type="Resource" id="Resource_24o0h"]
+script = ExtResource("1_eikcl")
+item_id = &"cleaner_bot_d"
+name = "하급 청소로봇"
+item_category = &"function_module"
+icon_path = "res://assets/ui/items/function_modules/cleaner_bot_d.png"
+effect_type = &"sand_cleaner"
+effect_values = {
+"sand_remove_count": 1,
+"sand_remove_interval_sec": 5.0
+}
+tags = PackedStringArray("utility", "sand", "cleanup")
+short_desc = "모래를 천천히 제거하는 보조 로봇"
+desc = "모래 위를 배회하며 5초당 1개의 모래를 제거한다."
+
+[sub_resource type="Resource" id="Resource_1i621"]
+script = ExtResource("1_eikcl")
+item_id = &"cleaner_bot_c"
+name = "중급 청소로봇"
+item_category = &"function_module"
+rank = "C"
+icon_path = "res://assets/ui/items/function_modules/cleaner_bot_c.png"
+effect_type = &"sand_cleaner"
+effect_values = {
+"sand_remove_count": 2,
+"sand_remove_interval_sec": 5.0
+}
+tags = PackedStringArray("utility", "sand", "cleanup")
+short_desc = "모래를 천천히 제거하는 보조 로봇"
+desc = "모래 위를 배회하며 5초당 2개의 모래를 제거한다."
+
+[sub_resource type="Resource" id="Resource_52h7w"]
+script = ExtResource("1_eikcl")
+item_id = &"cleaner_bot_b"
+name = "상급 청소로봇"
+item_category = &"function_module"
+rank = "B"
+icon_path = "res://assets/ui/items/function_modules/cleaner_bot_b.png"
+effect_type = &"sand_cleaner"
+effect_values = {
+"sand_remove_count": 3,
+"sand_remove_interval_sec": 5.0
+}
+tags = PackedStringArray("utility", "sand", "cleanup")
+short_desc = "모래를 천천히 제거하는 보조 로봇"
+desc = "모래 위를 배회하며 5초당 3개의 모래를 제거한다."
+
+[sub_resource type="Resource" id="Resource_g2xfx"]
+script = ExtResource("1_eikcl")
+item_id = &"cleaner_bot_a"
+name = "최첨단 청소로봇"
+item_category = &"function_module"
+rank = "A"
+icon_path = "res://assets/ui/items/function_modules/cleaner_bot_a.png"
+effect_type = &"sand_cleaner"
+effect_values = {
+"sand_remove_count": 1,
+"sand_remove_interval_sec": 1.0
+}
+tags = PackedStringArray("utility", "sand", "cleanup")
+short_desc = "모래를 빠르게 제거하는 보조 로봇"
+desc = "모래 위를 배회하며 1초당 1개의 모래를 제거한다."
+
+[sub_resource type="Resource" id="Resource_6sumg"]
+script = ExtResource("1_eikcl")
+item_id = &"cleaner_bot_s"
+name = "인공지능 청소로봇"
+item_category = &"function_module"
+rank = "S"
+icon_path = "res://assets/ui/items/function_modules/cleaner_bot_s.png"
+effect_type = &"sand_cleaner"
+effect_values = {
+"sand_remove_count": 2,
+"sand_remove_interval_sec": 1.0
+}
+tags = PackedStringArray("utility", "sand", "cleanup")
+short_desc = "모래를 매우 빠르게 제거하는 보조 로봇"
+desc = "모래 위를 배회하며 1초당 2개의 모래를 제거한다."
+
+[sub_resource type="Resource" id="Resource_ner1i"]
+script = ExtResource("1_eikcl")
+item_id = &"spark_field_d"
+name = "스파크 필드"
+item_category = &"function_module"
+icon_path = "res://assets/ui/items/function_modules/spark_field_d.png"
+effect_type = &"aura_damage"
+effect_values = {
+"damage_multiplier": 0.1,
+"radius_u": 1.0,
+"tick_interval_sec": 0.5
+}
+tags = PackedStringArray("aura", "electric", "damage")
+short_desc = "주변 블록에 주기 피해를 주는 방전 필드"
+desc = "캐릭터 주위에 방전필드를 생성하여 닿는 블록에 0.5초마다 피해를 준다. 피해량은 현재 공격력의 10%를 기준으로 한다."
+
+[sub_resource type="Resource" id="Resource_ifuhn"]
+script = ExtResource("1_eikcl")
+item_id = &"spark_field_c"
+name = "방전 필드"
+item_category = &"function_module"
+rank = "C"
+icon_path = "res://assets/ui/items/function_modules/spark_field_c.png"
+effect_type = &"aura_damage"
+effect_values = {
+"damage_multiplier": 0.2,
+"radius_u": 1.0,
+"tick_interval_sec": 0.5
+}
+tags = PackedStringArray("aura", "electric", "damage")
+short_desc = "주변 블록에 주기 피해를 주는 방전 필드"
+desc = "캐릭터 주위에 방전필드를 생성하여 닿는 블록에 0.5초마다 피해를 준다. 피해량은 현재 공격력의 20%를 기준으로 한다."
+
+[sub_resource type="Resource" id="Resource_wfepa"]
+script = ExtResource("1_eikcl")
+item_id = &"spark_field_b"
+name = "아크 필드"
+item_category = &"function_module"
+rank = "B"
+icon_path = "res://assets/ui/items/function_modules/spark_field_b.png"
+effect_type = &"aura_damage"
+effect_values = {
+"damage_multiplier": 0.3,
+"radius_u": 1.0,
+"tick_interval_sec": 0.5
+}
+tags = PackedStringArray("aura", "electric", "damage")
+short_desc = "주변 블록에 주기 피해를 주는 방전 필드"
+desc = "캐릭터 주위에 방전필드를 생성하여 닿는 블록에 0.5초마다 피해를 준다. 피해량은 현재 공격력의 30%를 기준으로 한다."
+
+[sub_resource type="Resource" id="Resource_lqn15"]
+script = ExtResource("1_eikcl")
+item_id = &"spark_field_a"
+name = "고압 필드"
+item_category = &"function_module"
+rank = "A"
+icon_path = "res://assets/ui/items/function_modules/spark_field_a.png"
+effect_type = &"aura_damage"
+effect_values = {
+"damage_multiplier": 0.4,
+"radius_u": 1.0,
+"tick_interval_sec": 0.5
+}
+tags = PackedStringArray("aura", "electric", "damage")
+short_desc = "주변 블록에 주기 피해를 주는 방전 필드"
+desc = "캐릭터 주위에 방전필드를 생성하여 닿는 블록에 0.5초마다 피해를 준다. 피해량은 현재 공격력의 40%를 기준으로 한다."
+
+[sub_resource type="Resource" id="Resource_caub1"]
+script = ExtResource("1_eikcl")
+item_id = &"spark_field_s"
+name = "테슬라 필드"
+item_category = &"function_module"
+rank = "S"
+icon_path = "res://assets/ui/items/function_modules/spark_field_s.png"
+effect_type = &"aura_damage"
+effect_values = {
+"damage_multiplier": 0.5,
+"radius_u": 1.0,
+"tick_interval_sec": 0.5
+}
+tags = PackedStringArray("aura", "electric", "damage")
+short_desc = "주변 블록에 주기 피해를 주는 방전 필드"
+desc = "캐릭터 주위에 방전필드를 생성하여 닿는 블록에 0.5초마다 피해를 준다. 피해량은 현재 공격력의 50%를 기준으로 한다."
+
+[sub_resource type="Resource" id="Resource_ck13a"]
+script = ExtResource("1_eikcl")
+item_id = &"small_gear"
+name = "작은 톱니"
+item_category = &"enhance_module"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/small_gear.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"attack_damage_flat": 1
+}
+tags = PackedStringArray("stat", "attack_damage")
+short_desc = "공격력 +1"
+desc = "기본 공격력을 1 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_dfgn1"]
+script = ExtResource("1_eikcl")
+item_id = &"reinforced_bolt"
+name = "보강 볼트"
+item_category = &"enhance_module"
+rank = "C"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/reinforced_bolt.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"attack_damage_flat": 2
+}
+tags = PackedStringArray("stat", "attack_damage")
+short_desc = "공격력 +2"
+desc = "기본 공격력을 2 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_cvj2l"]
+script = ExtResource("1_eikcl")
+item_id = &"aux_gear"
+name = "보조 기어"
+item_category = &"enhance_module"
+rank = "B"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/aux_gear.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"attack_damage_flat": 3
+}
+tags = PackedStringArray("stat", "attack_damage")
+short_desc = "공격력 +3"
+desc = "기본 공격력을 3 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_3yajc"]
+script = ExtResource("1_eikcl")
+item_id = &"output_amp_motor"
+name = "출력 증폭 모터"
+item_category = &"enhance_module"
+rank = "A"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/output_amp_motor.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"attack_damage_flat": 5
+}
+tags = PackedStringArray("stat", "attack_damage")
+short_desc = "공격력 +5"
+desc = "기본 공격력을 5 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_urbi2"]
+script = ExtResource("1_eikcl")
+item_id = &"reinforced_servo_arm"
+name = "강화 서보 암"
+item_category = &"enhance_module"
+rank = "S"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/reinforced_servo_arm.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"attack_damage_flat": 10
+}
+tags = PackedStringArray("stat", "attack_damage")
+short_desc = "공격력 +10"
+desc = "기본 공격력을 10 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_hi1ak"]
+script = ExtResource("1_eikcl")
+item_id = &"lubricant"
+name = "윤활유"
+item_category = &"enhance_module"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/lubricant.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"attack_speed_percent": 0.03
+}
+tags = PackedStringArray("stat", "attack_speed")
+short_desc = "공격속도 +3%"
+desc = "공격 속도를 3% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_hpalw"]
+script = ExtResource("1_eikcl")
+item_id = &"aux_spring"
+name = "보조 스프링"
+item_category = &"enhance_module"
+rank = "C"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/aux_spring.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"attack_speed_percent": 0.05
+}
+tags = PackedStringArray("stat", "attack_speed")
+short_desc = "공격속도 +5%"
+desc = "공격 속도를 5% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_vnb2v"]
+script = ExtResource("1_eikcl")
+item_id = &"thin_belt"
+name = "얇은 벨트"
+item_category = &"enhance_module"
+rank = "B"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/thin_belt.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"attack_speed_percent": 0.1
+}
+tags = PackedStringArray("stat", "attack_speed")
+short_desc = "공격속도 +10%"
+desc = "공격 속도를 10% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_c4qly"]
+script = ExtResource("1_eikcl")
+item_id = &"reaction_speed_amp"
+name = "반응속도 증폭기"
+item_category = &"enhance_module"
+rank = "A"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/reaction_speed_amp.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"attack_speed_percent": 0.15
+}
+tags = PackedStringArray("stat", "attack_speed")
+short_desc = "공격속도 +15%"
+desc = "공격 속도를 15% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_bdset"]
+script = ExtResource("1_eikcl")
+item_id = &"overclock_chipset"
+name = "오버클럭 칩셋"
+item_category = &"enhance_module"
+rank = "S"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/overclock_chipset.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"attack_speed_percent": 0.3
+}
+tags = PackedStringArray("stat", "attack_speed")
+short_desc = "공격속도 +30%"
+desc = "공격 속도를 30% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_3kjki"]
+script = ExtResource("1_eikcl")
+item_id = &"aux_rod"
+name = "보조 막대"
+item_category = &"enhance_module"
+rank = "C"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/aux_rod.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"attack_range_percent": 0.1
+}
+tags = PackedStringArray("stat", "attack_range")
+short_desc = "공격범위 +10%"
+desc = "기본 공격 범위를 10% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_26e71"]
+script = ExtResource("1_eikcl")
+item_id = &"extended_rod"
+name = "확장 막대"
+item_category = &"enhance_module"
+rank = "B"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/extended_rod.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"attack_range_percent": 0.2
+}
+tags = PackedStringArray("stat", "attack_range")
+short_desc = "공격범위 +20%"
+desc = "기본 공격 범위를 20% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_0vob6"]
+script = ExtResource("1_eikcl")
+item_id = &"long_arm_frame"
+name = "장거리 암 프레임"
+item_category = &"enhance_module"
+rank = "A"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/long_arm_frame.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"attack_range_percent": 0.3
+}
+tags = PackedStringArray("stat", "attack_range")
+short_desc = "공격범위 +30%"
+desc = "기본 공격 범위를 30% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_vr4of"]
+script = ExtResource("1_eikcl")
+item_id = &"reach_extension_module"
+name = "리치 확장 모듈"
+item_category = &"enhance_module"
+rank = "S"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/reach_extension_module.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"attack_range_percent": 0.5
+}
+tags = PackedStringArray("stat", "attack_range")
+short_desc = "공격범위 +50%"
+desc = "기본 공격 범위를 50% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_68lw0"]
+script = ExtResource("1_eikcl")
+item_id = &"aim_sticker"
+name = "조준점 스티커"
+item_category = &"enhance_module"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/aim_sticker.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"crit_chance_flat": 0.01
+}
+tags = PackedStringArray("stat", "crit")
+short_desc = "치명타 확률 +1%"
+desc = "치명타 확률을 1% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_r6dc0"]
+script = ExtResource("1_eikcl")
+item_id = &"small_lens"
+name = "작은 렌즈"
+item_category = &"enhance_module"
+rank = "C"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/small_lens.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"crit_chance_flat": 0.02
+}
+tags = PackedStringArray("stat", "crit")
+short_desc = "치명타 확률 +2%"
+desc = "치명타 확률을 2% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_qgss1"]
+script = ExtResource("1_eikcl")
+item_id = &"micro_sensor"
+name = "미세 센서"
+item_category = &"enhance_module"
+rank = "B"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/micro_sensor.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"crit_chance_flat": 0.05
+}
+tags = PackedStringArray("stat", "crit")
+short_desc = "치명타 확률 +5%"
+desc = "치명타 확률을 5% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_ghypo"]
+script = ExtResource("1_eikcl")
+item_id = &"precision_aim_sensor"
+name = "정밀 조준 센서"
+item_category = &"enhance_module"
+rank = "A"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/precision_aim_sensor.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"crit_chance_flat": 0.1
+}
+tags = PackedStringArray("stat", "crit")
+short_desc = "치명타 확률 +10%"
+desc = "치명타 확률을 10% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_lbe4v"]
+script = ExtResource("1_eikcl")
+item_id = &"weakpoint_analyzer"
+name = "취약점 분석기"
+item_category = &"enhance_module"
+rank = "S"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/weakpoint_analyzer.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"crit_chance_flat": 0.2
+}
+tags = PackedStringArray("stat", "crit")
+short_desc = "치명타 확률 +20%"
+desc = "치명타 확률을 20% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_5u7iw"]
+script = ExtResource("1_eikcl")
+item_id = &"rubber_pad"
+name = "고무 패드"
+item_category = &"enhance_module"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/rubber_pad.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"max_hp_flat": 5
+}
+tags = PackedStringArray("stat", "hp")
+short_desc = "체력 +5"
+desc = "최대 체력을 5 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_7h7qm"]
+script = ExtResource("1_eikcl")
+item_id = &"overlay_plate"
+name = "덧판"
+item_category = &"enhance_module"
+rank = "C"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/overlay_plate.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"max_hp_flat": 10
+}
+tags = PackedStringArray("stat", "hp")
+short_desc = "체력 +10"
+desc = "최대 체력을 10 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_ilaat"]
+script = ExtResource("1_eikcl")
+item_id = &"thick_packing"
+name = "두꺼운 패킹"
+item_category = &"enhance_module"
+rank = "B"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/thick_packing.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"max_hp_flat": 20
+}
+tags = PackedStringArray("stat", "hp")
+short_desc = "체력 +20"
+desc = "최대 체력을 20 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_ko7vj"]
+script = ExtResource("1_eikcl")
+item_id = &"reinforced_outer_plate"
+name = "강화 외장판"
+item_category = &"enhance_module"
+rank = "A"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/reinforced_outer_plate.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"max_hp_flat": 50
+}
+tags = PackedStringArray("stat", "hp")
+short_desc = "체력 +50"
+desc = "최대 체력을 50 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_em1ck"]
+script = ExtResource("1_eikcl")
+item_id = &"impact_resist_frame"
+name = "내충격 프레임"
+item_category = &"enhance_module"
+rank = "S"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/impact_resist_frame.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"max_hp_flat": 100
+}
+tags = PackedStringArray("stat", "hp")
+short_desc = "체력 +100"
+desc = "최대 체력을 100 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_hkn42"]
+script = ExtResource("1_eikcl")
+item_id = &"thin_armor_plate"
+name = "얇은 장갑판"
+item_category = &"enhance_module"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/thin_armor_plate.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"defense_flat": 1
+}
+tags = PackedStringArray("stat", "defense")
+short_desc = "방어력 +1"
+desc = "방어력을 1 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_4yy3m"]
+script = ExtResource("1_eikcl")
+item_id = &"protective_cap"
+name = "보호 캡"
+item_category = &"enhance_module"
+rank = "C"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/protective_cap.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"defense_flat": 2
+}
+tags = PackedStringArray("stat", "defense")
+short_desc = "방어력 +2"
+desc = "방어력을 2 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_oylcm"]
+script = ExtResource("1_eikcl")
+item_id = &"ballistic_alloy"
+name = "방탄 합금"
+item_category = &"enhance_module"
+rank = "B"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/ballistic_alloy.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"defense_flat": 3
+}
+tags = PackedStringArray("stat", "defense")
+short_desc = "방어력 +3"
+desc = "방어력을 3 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_r1x8l"]
+script = ExtResource("1_eikcl")
+item_id = &"shock_absorb_plate"
+name = "충격 흡수 플레이트"
+item_category = &"enhance_module"
+rank = "A"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/shock_absorb_plate.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"defense_flat": 5
+}
+tags = PackedStringArray("stat", "defense")
+short_desc = "방어력 +5"
+desc = "방어력을 5 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_mi7qc"]
+script = ExtResource("1_eikcl")
+item_id = &"reactive_armor_module"
+name = "반응형 장갑 모듈"
+item_category = &"enhance_module"
+rank = "S"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/reactive_armor_module.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"defense_flat": 10
+}
+tags = PackedStringArray("stat", "defense")
+short_desc = "방어력 +10"
+desc = "방어력을 10 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_ok2b0"]
+script = ExtResource("1_eikcl")
+item_id = &"repair_tape"
+name = "수리 테이프"
+item_category = &"enhance_module"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/repair_tape.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"hp_regen_flat": 1
+}
+tags = PackedStringArray("stat", "hp_regen")
+short_desc = "체력재생 +1"
+desc = "체력 재생 수치를 1 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_xvfw6"]
+script = ExtResource("1_eikcl")
+item_id = &"repair_kit"
+name = "수리 키트"
+item_category = &"enhance_module"
+rank = "C"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/repair_kit.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"hp_regen_flat": 2
+}
+tags = PackedStringArray("stat", "hp_regen")
+short_desc = "체력재생 +2"
+desc = "체력 재생 수치를 2 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_jhoii"]
+script = ExtResource("1_eikcl")
+item_id = &"emergency_recovery_unit"
+name = "응급 복구 유닛"
+item_category = &"enhance_module"
+rank = "B"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/emergency_recovery_unit.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"hp_regen_flat": 3
+}
+tags = PackedStringArray("stat", "hp_regen")
+short_desc = "체력재생 +3"
+desc = "체력 재생 수치를 3 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_7jw7h"]
+script = ExtResource("1_eikcl")
+item_id = &"auto_maintenance_module"
+name = "자동 정비 모듈"
+item_category = &"enhance_module"
+rank = "A"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/auto_maintenance_module.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"hp_regen_flat": 5
+}
+tags = PackedStringArray("stat", "hp_regen")
+short_desc = "체력재생 +5"
+desc = "체력 재생 수치를 5 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_gvcms"]
+script = ExtResource("1_eikcl")
+item_id = &"self_repair_nanokit"
+name = "자가수복 나노킷"
+item_category = &"enhance_module"
+rank = "S"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/self_repair_nanokit.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"hp_regen_flat": 10
+}
+tags = PackedStringArray("stat", "hp_regen")
+short_desc = "체력재생 +10"
+desc = "체력 재생 수치를 10 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_4stsp"]
+script = ExtResource("1_eikcl")
+item_id = &"load_distribution_frame"
+name = "하중 분산 프레임"
+item_category = &"enhance_module"
+rank = "B"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/load_distribution_frame.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"max_weight_flat": 100
+}
+tags = PackedStringArray("stat", "max_weight")
+short_desc = "최대 무게 +100"
+desc = "최대 허용 무게를 100 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_oo13g"]
+script = ExtResource("1_eikcl")
+item_id = &"structural_reinforcement_beam"
+name = "구조 보강 빔"
+item_category = &"enhance_module"
+rank = "A"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/structural_reinforcement_beam.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"max_weight_flat": 200
+}
+tags = PackedStringArray("stat", "max_weight")
+short_desc = "최대 무게 +200"
+desc = "최대 허용 무게를 200 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_4q4rv"]
+script = ExtResource("1_eikcl")
+item_id = &"antigravity_device"
+name = "반중력 장치"
+item_category = &"enhance_module"
+rank = "S"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/antigravity_device.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"max_weight_flat": 300
+}
+tags = PackedStringArray("stat", "max_weight")
+short_desc = "최대 무게 +300"
+desc = "최대 허용 무게를 300 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_8k56i"]
+script = ExtResource("1_eikcl")
+item_id = &"old_bit"
+name = "낡은 비트"
+item_category = &"enhance_module"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/old_bit.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"mining_damage_flat": 1
+}
+tags = PackedStringArray("stat", "mining_damage")
+short_desc = "채굴공격력 +1"
+desc = "채굴 공격력을 1 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_qxnhu"]
+script = ExtResource("1_eikcl")
+item_id = &"small_drill_blade"
+name = "작은 드릴날"
+item_category = &"enhance_module"
+rank = "C"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/small_drill_blade.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"mining_damage_flat": 2
+}
+tags = PackedStringArray("stat", "mining_damage")
+short_desc = "채굴공격력 +2"
+desc = "채굴 공격력을 2 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_n7w0o"]
+script = ExtResource("1_eikcl")
+item_id = &"reinforced_drill_bit"
+name = "강화 드릴 비트"
+item_category = &"enhance_module"
+rank = "B"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/reinforced_drill_bit.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"mining_damage_flat": 3
+}
+tags = PackedStringArray("stat", "mining_damage")
+short_desc = "채굴공격력 +3"
+desc = "채굴 공격력을 3 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_ehkcc"]
+script = ExtResource("1_eikcl")
+item_id = &"hydraulic_breaker"
+name = "유압 브레이커"
+item_category = &"enhance_module"
+rank = "A"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/hydraulic_breaker.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"mining_damage_flat": 5
+}
+tags = PackedStringArray("stat", "mining_damage")
+short_desc = "채굴공격력 +5"
+desc = "채굴 공격력을 5 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_22sj6"]
+script = ExtResource("1_eikcl")
+item_id = &"ultra_hard_excavation_blade"
+name = "초경합금 굴착날"
+item_category = &"enhance_module"
+rank = "S"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/ultra_hard_excavation_blade.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"mining_damage_flat": 10
+}
+tags = PackedStringArray("stat", "mining_damage")
+short_desc = "채굴공격력 +10"
+desc = "채굴 공격력을 10 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_2q51h"]
+script = ExtResource("1_eikcl")
+item_id = &"small_motor"
+name = "작은 모터"
+item_category = &"enhance_module"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/small_motor.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"mining_speed_percent": 0.03
+}
+tags = PackedStringArray("stat", "mining_speed")
+short_desc = "채굴속도 +3%"
+desc = "채굴 속도를 3% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_i5c7a"]
+script = ExtResource("1_eikcl")
+item_id = &"rotary_shaft"
+name = "회전축"
+item_category = &"enhance_module"
+rank = "C"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/rotary_shaft.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"mining_speed_percent": 0.05
+}
+tags = PackedStringArray("stat", "mining_speed")
+short_desc = "채굴속도 +5%"
+desc = "채굴 속도를 5% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_8d0yx"]
+script = ExtResource("1_eikcl")
+item_id = &"high_speed_drill_motor"
+name = "고속 천공 모터"
+item_category = &"enhance_module"
+rank = "B"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/high_speed_drill_motor.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"mining_speed_percent": 0.1
+}
+tags = PackedStringArray("stat", "mining_speed")
+short_desc = "채굴속도 +10%"
+desc = "채굴 속도를 10% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_uryk4"]
+script = ExtResource("1_eikcl")
+item_id = &"turbo_drill_motor"
+name = "터보 천공 모터"
+item_category = &"enhance_module"
+rank = "A"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/turbo_drill_motor.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"mining_speed_percent": 0.15
+}
+tags = PackedStringArray("stat", "mining_speed")
+short_desc = "채굴속도 +15%"
+desc = "채굴 속도를 15% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_vr6vo"]
+script = ExtResource("1_eikcl")
+item_id = &"high_rpm_excavation_shaft"
+name = "고회전 굴착 샤프트"
+item_category = &"enhance_module"
+rank = "S"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/high_rpm_excavation_shaft.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"mining_speed_percent": 0.3
+}
+tags = PackedStringArray("stat", "mining_speed")
+short_desc = "채굴속도 +30%"
+desc = "채굴 속도를 30% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_r186l"]
+script = ExtResource("1_eikcl")
+item_id = &"extended_handle"
+name = "확장 손잡이"
+item_category = &"enhance_module"
+rank = "C"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/extended_handle.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"mining_range_percent": 0.1
+}
+tags = PackedStringArray("stat", "mining_range")
+short_desc = "채굴범위 +10%"
+desc = "채굴 범위를 10% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_1xqo7"]
+script = ExtResource("1_eikcl")
+item_id = &"extended_drill"
+name = "확장 드릴"
+item_category = &"enhance_module"
+rank = "B"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/extended_drill.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"mining_range_percent": 0.2
+}
+tags = PackedStringArray("stat", "mining_range")
+short_desc = "채굴범위 +20%"
+desc = "채굴 범위를 20% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_rqfe3"]
+script = ExtResource("1_eikcl")
+item_id = &"long_range_mining_frame"
+name = "장거리 채굴 프레임"
+item_category = &"enhance_module"
+rank = "A"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/long_range_mining_frame.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"mining_range_percent": 0.3
+}
+tags = PackedStringArray("stat", "mining_range")
+short_desc = "채굴범위 +30%"
+desc = "채굴 범위를 30% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_ow312"]
+script = ExtResource("1_eikcl")
+item_id = &"excavation_reach_module"
+name = "굴착 리치 모듈"
+item_category = &"enhance_module"
+rank = "S"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/excavation_reach_module.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"mining_range_percent": 0.5
+}
+tags = PackedStringArray("stat", "mining_range")
+short_desc = "채굴범위 +50%"
+desc = "채굴 범위를 50% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_6tc8r"]
+script = ExtResource("1_eikcl")
+item_id = &"thin_sole"
+name = "얇은 밑창"
+item_category = &"enhance_module"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/thin_sole.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"move_speed_percent": 0.05
+}
+tags = PackedStringArray("stat", "move_speed")
+short_desc = "이동속도 +5%"
+desc = "이동 속도를 5% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_4m2hx"]
+script = ExtResource("1_eikcl")
+item_id = &"aux_roller"
+name = "보조 롤러"
+item_category = &"enhance_module"
+rank = "C"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/aux_roller.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"move_speed_percent": 0.1
+}
+tags = PackedStringArray("stat", "move_speed")
+short_desc = "이동속도 +10%"
+desc = "이동 속도를 10% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_kvmb5"]
+script = ExtResource("1_eikcl")
+item_id = &"propulsion_aux_roller"
+name = "추진 보조 롤러"
+item_category = &"enhance_module"
+rank = "B"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/propulsion_aux_roller.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"move_speed_percent": 0.15
+}
+tags = PackedStringArray("stat", "move_speed")
+short_desc = "이동속도 +15%"
+desc = "이동 속도를 15% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_01irc"]
+script = ExtResource("1_eikcl")
+item_id = &"booster"
+name = "부스터"
+item_category = &"enhance_module"
+rank = "A"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/booster.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"move_speed_percent": 0.3
+}
+tags = PackedStringArray("stat", "move_speed")
+short_desc = "이동속도 +30%"
+desc = "이동 속도를 30% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_wj45g"]
+script = ExtResource("1_eikcl")
+item_id = &"high_output_booster"
+name = "고출력 부스터"
+item_category = &"enhance_module"
+rank = "S"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/high_output_booster.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"move_speed_percent": 0.5
+}
+tags = PackedStringArray("stat", "move_speed")
+short_desc = "이동속도 +50%"
+desc = "이동 속도를 50% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_hm7mf"]
+script = ExtResource("1_eikcl")
+item_id = &"small_jump_spring"
+name = "작은 스프링"
+item_category = &"enhance_module"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/small_jump_spring.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"jump_power_percent": 0.05
+}
+tags = PackedStringArray("stat", "jump_power")
+short_desc = "점프력 +5%"
+desc = "점프력을 5% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_3jn15"]
+script = ExtResource("1_eikcl")
+item_id = &"aux_piston"
+name = "보조 피스톤"
+item_category = &"enhance_module"
+rank = "C"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/aux_piston.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"jump_power_percent": 0.1
+}
+tags = PackedStringArray("stat", "jump_power")
+short_desc = "점프력 +10%"
+desc = "점프력을 10% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_qcn1n"]
+script = ExtResource("1_eikcl")
+item_id = &"compression_spring"
+name = "압축 스프링"
+item_category = &"enhance_module"
+rank = "B"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/compression_spring.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"jump_power_percent": 0.15
+}
+tags = PackedStringArray("stat", "jump_power")
+short_desc = "점프력 +15%"
+desc = "점프력을 15% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_eyes3"]
+script = ExtResource("1_eikcl")
+item_id = &"amplified_spring"
+name = "증폭 스프링"
+item_category = &"enhance_module"
+rank = "A"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/amplified_spring.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"jump_power_percent": 0.25
+}
+tags = PackedStringArray("stat", "jump_power")
+short_desc = "점프력 +25%"
+desc = "점프력을 25% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_cho2x"]
+script = ExtResource("1_eikcl")
+item_id = &"high_pressure_jump_piston"
+name = "고압 점프 피스톤"
+item_category = &"enhance_module"
+rank = "S"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/high_pressure_jump_piston.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"jump_power_percent": 0.4
+}
+tags = PackedStringArray("stat", "jump_power")
+short_desc = "점프력 +40%"
+desc = "점프력을 40% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_ch3pu"]
+script = ExtResource("1_eikcl")
+item_id = &"lottery_fragment"
+name = "복권 조각"
+item_category = &"enhance_module"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/lottery_fragment.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"luck_flat": 1
+}
+tags = PackedStringArray("stat", "luck")
+short_desc = "행운 +1"
+desc = "행운 수치를 1 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_8cnss"]
+script = ExtResource("1_eikcl")
+item_id = &"four_leaf_clover"
+name = "네잎클로버"
+item_category = &"enhance_module"
+rank = "C"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/four_leaf_clover.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"luck_flat": 2
+}
+tags = PackedStringArray("stat", "luck")
+short_desc = "행운 +2"
+desc = "행운 수치를 2 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_wyu0p"]
+script = ExtResource("1_eikcl")
+item_id = &"lucky_coin"
+name = "행운의 동전"
+item_category = &"enhance_module"
+rank = "B"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/lucky_coin.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"luck_flat": 5
+}
+tags = PackedStringArray("stat", "luck")
+short_desc = "행운 +5"
+desc = "행운 수치를 5 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_ky4ve"]
+script = ExtResource("1_eikcl")
+item_id = &"luck_adjust_module"
+name = "행운 보정 모듈"
+item_category = &"enhance_module"
+rank = "A"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/luck_adjust_module.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"luck_flat": 10
+}
+tags = PackedStringArray("stat", "luck")
+short_desc = "행운 +10"
+desc = "행운 수치를 10 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_ekspe"]
+script = ExtResource("1_eikcl")
+item_id = &"variance_stabilizer"
+name = "변수 안정화 프로세서"
+item_category = &"enhance_module"
+rank = "S"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/variance_stabilizer.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"luck_flat": 20
+}
+tags = PackedStringArray("stat", "luck")
+short_desc = "행운 +20"
+desc = "행운 수치를 20 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_rmwf7"]
+script = ExtResource("1_eikcl")
+item_id = &"coin_pouch"
+name = "잔돈 주머니"
+item_category = &"enhance_module"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/coin_pouch.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"interest_rate_percent": 0.1
+}
+tags = PackedStringArray("stat", "interest")
+short_desc = "이자 +10%"
+desc = "이자율을 10% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_bwhd4"]
+script = ExtResource("1_eikcl")
+item_id = &"piggy_bank"
+name = "저금통"
+item_category = &"enhance_module"
+rank = "C"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/piggy_bank.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"interest_rate_percent": 0.2
+}
+tags = PackedStringArray("stat", "interest")
+short_desc = "이자 +20%"
+desc = "이자율을 20% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_h1nko"]
+script = ExtResource("1_eikcl")
+item_id = &"compound_interest_module"
+name = "복리 계산 모듈"
+item_category = &"enhance_module"
+rank = "B"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/compound_interest_module.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"interest_rate_percent": 0.3
+}
+tags = PackedStringArray("stat", "interest")
+short_desc = "이자 +30%"
+desc = "이자율을 30% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_0hk8n"]
+script = ExtResource("1_eikcl")
+item_id = &"asset_management_firmware"
+name = "자산 운용 펌웨어"
+item_category = &"enhance_module"
+rank = "A"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/asset_management_firmware.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"interest_rate_percent": 0.5
+}
+tags = PackedStringArray("stat", "interest")
+short_desc = "이자 +50%"
+desc = "이자율을 50% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_148f2"]
+script = ExtResource("1_eikcl")
+item_id = &"investment_algorithm_chip"
+name = "투자 알고리즘 칩"
+item_category = &"enhance_module"
+rank = "S"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/investment_algorithm_chip.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"interest_rate_percent": 0.8
+}
+tags = PackedStringArray("stat", "interest")
+short_desc = "이자 +80%"
+desc = "이자율을 80% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_cs5wd"]
+script = ExtResource("1_eikcl")
+item_id = &"battery_cell"
+name = "건전지"
+item_category = &"enhance_module"
+rank = "C"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/battery_cell.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"battery_recovery_flat": 1
+}
+tags = PackedStringArray("stat", "battery_recovery")
+short_desc = "배터리 회복속도 +1"
+desc = "배터리 회복 속도를 1 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_v57lr"]
+script = ExtResource("1_eikcl")
+item_id = &"fast_charger"
+name = "급속 충전기"
+item_category = &"enhance_module"
+rank = "A"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/fast_charger.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"battery_recovery_flat": 3
+}
+tags = PackedStringArray("stat", "battery_recovery")
+short_desc = "배터리 회복속도 +3"
+desc = "배터리 회복 속도를 3 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_f55g3"]
+script = ExtResource("1_eikcl")
+item_id = &"overcharge_amplifier"
+name = "과충전 증폭기"
+item_category = &"enhance_module"
+rank = "S"
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/overcharge_amplifier.png"
+effect_type = &"stat_bonus"
+effect_values = {
+"battery_recovery_flat": 5
+}
+tags = PackedStringArray("stat", "battery_recovery")
+short_desc = "배터리 회복속도 +5"
+desc = "배터리 회복 속도를 5 증가시킨다."
+
+[resource]
+script = ExtResource("2_010nu")
+items = Array[Resource]([SubResource("Resource_eikcl"), SubResource("Resource_010nu"), SubResource("Resource_sax2b"), SubResource("Resource_qx6ce"), SubResource("Resource_r61lr"), SubResource("Resource_q3pi3"), SubResource("Resource_sfxbr"), SubResource("Resource_sr35s"), SubResource("Resource_2m00x"), SubResource("Resource_fwr7e"), SubResource("Resource_24o0h"), SubResource("Resource_1i621"), SubResource("Resource_52h7w"), SubResource("Resource_g2xfx"), SubResource("Resource_6sumg"), SubResource("Resource_ner1i"), SubResource("Resource_ifuhn"), SubResource("Resource_wfepa"), SubResource("Resource_lqn15"), SubResource("Resource_caub1"), SubResource("Resource_ck13a"), SubResource("Resource_dfgn1"), SubResource("Resource_cvj2l"), SubResource("Resource_3yajc"), SubResource("Resource_urbi2"), SubResource("Resource_hi1ak"), SubResource("Resource_hpalw"), SubResource("Resource_vnb2v"), SubResource("Resource_c4qly"), SubResource("Resource_bdset"), SubResource("Resource_3kjki"), SubResource("Resource_26e71"), SubResource("Resource_0vob6"), SubResource("Resource_vr4of"), SubResource("Resource_68lw0"), SubResource("Resource_r6dc0"), SubResource("Resource_qgss1"), SubResource("Resource_ghypo"), SubResource("Resource_lbe4v"), SubResource("Resource_5u7iw"), SubResource("Resource_7h7qm"), SubResource("Resource_ilaat"), SubResource("Resource_ko7vj"), SubResource("Resource_em1ck"), SubResource("Resource_hkn42"), SubResource("Resource_4yy3m"), SubResource("Resource_oylcm"), SubResource("Resource_r1x8l"), SubResource("Resource_mi7qc"), SubResource("Resource_ok2b0"), SubResource("Resource_xvfw6"), SubResource("Resource_jhoii"), SubResource("Resource_7jw7h"), SubResource("Resource_gvcms"), SubResource("Resource_4stsp"), SubResource("Resource_oo13g"), SubResource("Resource_4q4rv"), SubResource("Resource_8k56i"), SubResource("Resource_qxnhu"), SubResource("Resource_n7w0o"), SubResource("Resource_ehkcc"), SubResource("Resource_22sj6"), SubResource("Resource_2q51h"), SubResource("Resource_i5c7a"), SubResource("Resource_8d0yx"), SubResource("Resource_uryk4"), SubResource("Resource_vr6vo"), SubResource("Resource_r186l"), SubResource("Resource_1xqo7"), SubResource("Resource_rqfe3"), SubResource("Resource_ow312"), SubResource("Resource_6tc8r"), SubResource("Resource_4m2hx"), SubResource("Resource_kvmb5"), SubResource("Resource_01irc"), SubResource("Resource_wj45g"), SubResource("Resource_hm7mf"), SubResource("Resource_3jn15"), SubResource("Resource_qcn1n"), SubResource("Resource_eyes3"), SubResource("Resource_cho2x"), SubResource("Resource_ch3pu"), SubResource("Resource_8cnss"), SubResource("Resource_wyu0p"), SubResource("Resource_ky4ve"), SubResource("Resource_ekspe"), SubResource("Resource_rmwf7"), SubResource("Resource_bwhd4"), SubResource("Resource_h1nko"), SubResource("Resource_0hk8n"), SubResource("Resource_148f2"), SubResource("Resource_cs5wd"), SubResource("Resource_v57lr"), SubResource("Resource_f55g3")])

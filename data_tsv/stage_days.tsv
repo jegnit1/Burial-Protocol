@@ -1,0 +1,31 @@
+day_number	day_type	duration	block_hp_multiplier	boss_block_base_id	boss_block_size_id	boss_block_type_id	spawn_interval_multiplier	reward_multiplier	special_rules
+1	normal	40.0	1.0				1.0	1.0	
+2	normal	40.0	1.05				1.0	1.0	
+3	normal	40.0	1.1				1.0	1.0	
+4	normal	40.0	1.15				1.0	1.0	
+5	rush	40.0	1.2				0.5	1.0	
+6	normal	40.0	1.25				1.0	1.0	
+7	normal	40.0	1.3				1.0	1.0	
+8	normal	40.0	1.35				1.0	1.0	
+9	normal	40.0	1.4				1.0	1.0	
+10	boss	40.0	1.45	steel	size_2x1	boss	0.8	1.0	
+11	normal	40.0	1.5				1.0	1.0	
+12	normal	40.0	1.55				1.0	1.0	
+13	normal	40.0	1.6				1.0	1.0	
+14	normal	40.0	1.65				1.0	1.0	
+15	rush	40.0	1.7				0.5	1.0	
+16	normal	40.0	1.75				1.0	1.0	
+17	normal	40.0	1.8				1.0	1.0	
+18	normal	40.0	1.85				1.0	1.0	
+19	normal	40.0	1.9				1.0	1.0	
+20	boss	40.0	1.95	steel	size_2x1	boss	0.8	1.0	
+21	normal	40.0	2.0				1.0	1.0	
+22	normal	40.0	2.05				1.0	1.0	
+23	normal	40.0	2.1				1.0	1.0	
+24	normal	40.0	2.15				1.0	1.0	
+25	rush	40.0	2.2				0.5	1.0	
+26	normal	40.0	2.25				1.0	1.0	
+27	normal	40.0	2.3				1.0	1.0	
+28	normal	40.0	2.35				1.0	1.0	
+29	normal	40.0	2.4				1.0	1.0	
+30	boss	40.0	2.5	steel	size_2x1	boss	0.8	1.0	
