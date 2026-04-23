@@ -3,10 +3,12 @@ class_name LevelUpUI
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_WHEN_PAUSED
-	
+	layer = 50
+
 	var bg := ColorRect.new()
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	bg.color = Color(0.0, 0.0, 0.0, 0.75)
+	bg.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(bg)
 	
 	var center_container := CenterContainer.new()
@@ -39,6 +41,11 @@ func _ready() -> void:
 		var btn := _create_card_button(card_data)
 		btn.pressed.connect(_on_card_selected.bind(String(card_data["id"])))
 		card_container.add_child(btn)
+
+
+func _input(event: InputEvent) -> void:
+	if event.is_action_pressed("pause_menu"):
+		get_viewport().set_input_as_handled()
 
 
 func _create_card_button(data: Dictionary) -> Button:

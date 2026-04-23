@@ -7,17 +7,10 @@ signal closed()
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_WHEN_PAUSED
 	set_process_input(true)
-	set_process_shortcut_input(true)
 	_build_layout()
 
 
 func _input(event: InputEvent) -> void:
-	if event.is_action_pressed("pause_menu", false, false):
-		_resume_game()
-		get_viewport().set_input_as_handled()
-
-
-func _shortcut_input(event: InputEvent) -> void:
 	if event.is_action_pressed("pause_menu", false, false):
 		_resume_game()
 		get_viewport().set_input_as_handled()

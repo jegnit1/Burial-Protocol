@@ -1,7 +1,7 @@
 extends Area2D
 class_name FallingBlock
 
-const DAMAGE_POPUP_SCRIPT := preload("res://scenes/ui/DamagePopup.gd")
+const DAMAGE_POPUP_MANAGER_SCRIPT := preload("res://scenes/ui/DamagePopupManager.gd")
 
 signal destroyed(block: FallingBlock)
 signal decomposed(block: FallingBlock, reason: StringName)
@@ -16,6 +16,7 @@ var active := false
 var frame_motion := Vector2.ZERO
 # HP 오버레이 상태. 피격 시 타이머를 설정해 잠깐 표시한다.
 var _hp_overlay_timer := 0.0
+static var _damage_popup_manager = DAMAGE_POPUP_MANAGER_SCRIPT.new()
 var _max_health_cache := 0  # setup() 시점에 캐시. 추후 체력바 비율 계산에도 사용 가능.
 
 @onready var collision_shape: CollisionShape2D = $CollisionShape2D
@@ -169,12 +170,12 @@ func _spawn_damage_popup(amount: int, is_critical: bool = false) -> void:
 	var popup_parent := get_parent()
 	if popup_parent == null:
 		return
-	var popup := DAMAGE_POPUP_SCRIPT.new() as Node2D
-	popup_parent.add_child(popup)
-	popup.global_position = global_position + Vector2(0.0, -block_data.get_size_pixels().y * 0.5)
+	var anchor_position := global_position + Vector2(0.0, -block_data.get_size_pixels().y * 0.35)
 	if is_critical:
-		popup.call(
-			"setup",
+		_damage_popup_manager.request_popup(
+			popup_parent,
+			get_instance_id(),
+			anchor_position,
 			amount,
 			GameConstants.CRITICAL_DAMAGE_POPUP_TEXT_COLOR,
 			GameConstants.CRITICAL_DAMAGE_POPUP_SHADOW_COLOR,
@@ -182,7 +183,7 @@ func _spawn_damage_popup(amount: int, is_critical: bool = false) -> void:
 			"!"
 		)
 		return
-	popup.call("setup", amount)
+	_damage_popup_manager.request_popup(popup_parent, get_instance_id(), anchor_position, amount)
 
 
 func _get_player_crush_damage() -> int:

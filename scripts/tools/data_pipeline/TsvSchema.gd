@@ -159,10 +159,23 @@ static func get_attack_module_item_headers() -> Array:
 	headers.append_array([
 		"default_start_module",
 		"module_type",
+		"attack_style",
 		"range_width_u",
 		"range_height_u",
 		"damage_multiplier",
 		"attack_speed_multiplier",
+		"projectile_count",
+		"projectile_spread_degrees",
+		"projectile_pierce_count",
+		"projectile_speed",
+		"projectile_lifetime",
+		"projectile_max_distance",
+		"projectile_size_x",
+		"projectile_size_y",
+		"projectile_hit_scan",
+		"projectile_homing",
+		"mechanic_drone_count",
+		"mechanic_targeting",
 		"world_visual_scene_path",
 	])
 	return headers

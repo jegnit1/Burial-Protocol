@@ -5,7 +5,9 @@ const GOLD_POPUP_SCRIPT := preload("res://scenes/ui/GoldPopup.gd")
 const DAY_KIOSK_SCRIPT := preload("res://scenes/world/DayKiosk.gd")
 const DAY_SHOP_UI_SCRIPT := preload("res://scenes/ui/DayShopUI.gd")
 const PAUSE_MENU_SCRIPT := preload("res://scenes/ui/PauseMenu.gd")
+const ATTACK_MODULE_PROJECTILE_SCRIPT := preload("res://scenes/projectiles/AttackModuleProjectile.gd")
 const CAMERA_PLAYER_Y_OFFSET := 110.0
+const RANGED_PROJECTILE_LANE_GAP_UNITS := 0.26
 
 @onready var world_grid: WorldGrid = $WorldGrid
 @onready var sand_field: SandField = $SandField
@@ -35,6 +37,7 @@ var _waiting_for_day_kiosk := false
 var _kiosk_spawn_delay_remaining := -1.0
 var _pending_wall_reset_for_next_day := false
 var _pause_menu: CanvasLayer
+var _projectiles_root: Node2D
 var _player_regen_accumulator := 0.0
 var _current_shop_item_ids := PackedStringArray()
 var _has_shop_inventory_for_intermission := false
@@ -53,6 +56,7 @@ func _ready() -> void:
 	_configure_camera()
 	sand_field.setup(world_grid)
 	player.setup(world_grid, sand_field, blocks_root)
+	_ensure_projectiles_root()
 	_ensure_fade_overlay()
 	_current_day = 1
 	_day_time_remaining = GameData.get_day_duration(_current_day)
@@ -63,6 +67,7 @@ func _ready() -> void:
 	if GameData.is_boss_day(_current_day):
 		_spawn_boss_block()
 	_refresh_debug()
+	GameState.grant_attack_module(&"laser_module", true)
 
 
 func _physics_process(delta: float) -> void:
@@ -71,9 +76,6 @@ func _physics_process(delta: float) -> void:
 	if Input.is_action_just_pressed("restart"):
 		_finish_temporary_run("run_end", Locale.ltr("run_end_label"))
 		return
-	if Input.is_action_just_pressed("pause_menu"):
-		_toggle_pause_menu()
-		return
 	if Input.is_action_just_pressed("ui_toggle_status"):
 		hud.toggle_debug_panel()
 
@@ -81,9 +83,12 @@ func _physics_process(delta: float) -> void:
 		_update_intermission(delta)
 
 	if not _shop_ui_open and not _is_next_day_transitioning:
-		var attack_direction := player.consume_attack_direction()
-		if attack_direction != Vector2.ZERO:
-			_handle_attack_action(attack_direction)
+		var attack_triggers := player.consume_attack_module_triggers()
+		_assign_ranged_attack_lanes(attack_triggers)
+		for attack_trigger in attack_triggers:
+			_handle_attack_module_action(attack_trigger)
+		for mechanic_trigger in player.consume_mechanic_attack_module_triggers():
+			_handle_attack_module_action(mechanic_trigger, true)
 
 	if run_finished:
 		return
@@ -134,7 +139,11 @@ func _on_spawn_timer_timeout() -> void:
 		return
 	var block_data := BlockData.from_resolved_definition(resolved_definition)
 	var camera_top_y := world_camera.position.y - float(GameConstants.VIEWPORT_SIZE.y) * 0.5
-	var spawn_position := _pick_fair_spawn_position(block_data.size_cells, camera_top_y)
+	var spawn_result := _pick_fair_spawn_position(block_data.size_cells, camera_top_y)
+	if not bool(spawn_result.get("ok", false)):
+		last_spawned_block_debug = "Spawn skipped: no safe airspace"
+		return
+	var spawn_position: Vector2 = spawn_result["position"]
 	last_spawned_column = int((spawn_position.x - float(GameConstants.WORLD_ORIGIN.x)) / float(GameConstants.CELL_SIZE))
 	var block := FALLING_BLOCK_SCENE.instantiate() as FallingBlock
 	blocks_root.add_child(block)
@@ -144,8 +153,45 @@ func _on_spawn_timer_timeout() -> void:
 	last_spawned_block_debug = "Spawn %s | %s" % [block_data.display_name, block_data.get_block_base_debug_text()]
 
 
-func _handle_attack_action(direction: Vector2) -> void:
-	var attack_shape_data := player.get_attack_shape_data(direction)
+func _assign_ranged_attack_lanes(attack_triggers: Array[Dictionary]) -> void:
+	var ranged_trigger_indices: Array[int] = []
+	for index in range(attack_triggers.size()):
+		var trigger: Dictionary = attack_triggers[index]
+		var module_entry: Dictionary = trigger.get("module_entry", {})
+		var module_definition = GameState.get_attack_module_definition_from_entry(module_entry)
+		if module_definition == null or module_definition.module_type != &"ranged":
+			continue
+		ranged_trigger_indices.append(index)
+	var lane_count := ranged_trigger_indices.size()
+	if lane_count <= 0:
+		return
+	for lane_index in range(lane_count):
+		var trigger_index := ranged_trigger_indices[lane_index]
+		var trigger: Dictionary = attack_triggers[trigger_index]
+		trigger["ranged_lane_index"] = lane_index
+		trigger["ranged_lane_count"] = lane_count
+		attack_triggers[trigger_index] = trigger
+
+
+func _handle_attack_module_action(trigger: Dictionary, is_mechanic := false) -> void:
+	var module_entry: Dictionary = trigger.get("module_entry", {})
+	if module_entry.is_empty():
+		return
+	var direction: Vector2 = trigger.get("direction", Vector2.ZERO)
+	if is_mechanic:
+		_handle_mechanic_attack_module_action(module_entry)
+		return
+	var module_definition = GameState.get_attack_module_definition_from_entry(module_entry)
+	if module_definition != null and module_definition.module_type == &"ranged":
+		_handle_ranged_attack_module_action(
+			module_entry,
+			module_definition,
+			direction,
+			int(trigger.get("ranged_lane_index", 0)),
+			int(trigger.get("ranged_lane_count", 1))
+		)
+		return
+	var attack_shape_data := player.get_attack_shape_data_for_module(direction, module_entry)
 	var attack_shape := RectangleShape2D.new()
 	attack_shape.size = attack_shape_data["size"]
 	var query := PhysicsShapeQueryParameters2D.new()
@@ -159,24 +205,172 @@ func _handle_attack_action(direction: Vector2) -> void:
 	var hit_count := 0
 	var crit_count := 0
 	var hit_once: Dictionary = {}
+	var module_damage := GameState.get_attack_module_damage(module_entry)
 	for result in results:
 		var block := result["collider"] as FallingBlock
 		if block != null and not hit_once.has(block):
 			hit_once[block] = true
 			var is_critical := rng.randf() < GameState.get_critical_chance_ratio()
-			var damage := GameState.get_attack_damage()
+			var damage := module_damage
 			if is_critical:
 				damage = int(round(float(damage) * GameState.get_critical_damage_multiplier()))
 				crit_count += 1
 			block.apply_damage(damage, is_critical)
 			hit_count += 1
 	if hit_count > 0:
-		var status_text := Locale.ltr("status_attack_hit") % hit_count
+		var status_text := "%s: %s" % [GameState.get_attack_module_entry_label(module_entry), Locale.ltr("status_attack_hit") % hit_count]
 		if crit_count > 0:
 			status_text += " CRIT x%d" % crit_count
 		GameState.set_status_text(status_text)
 	else:
 		GameState.set_status_text(Locale.ltr("status_attack_miss"))
+
+
+func _get_ranged_lane_offset(fire_direction: Vector2, lane_index: int, lane_count: int) -> Vector2:
+	if lane_count <= 1:
+		return Vector2.ZERO
+	var normalized_direction := fire_direction.normalized()
+	if normalized_direction == Vector2.ZERO:
+		normalized_direction = Vector2.RIGHT
+	var perpendicular := Vector2(-normalized_direction.y, normalized_direction.x)
+	var centered_index := float(lane_index) - (float(lane_count) - 1.0) * 0.5
+	var lane_gap := float(GameConstants.CELL_SIZE) * RANGED_PROJECTILE_LANE_GAP_UNITS
+	return perpendicular * centered_index * lane_gap
+
+
+func _get_ranged_attack_distance(module_entry: Dictionary) -> float:
+	return maxf(GameState.get_attack_module_shape_size_pixels(module_entry).x, 1.0)
+
+
+func _handle_ranged_attack_module_action(
+	module_entry: Dictionary,
+	module_definition,
+	direction: Vector2,
+	lane_index: int,
+	lane_count: int
+) -> void:
+	var fire_direction := direction.normalized()
+	if fire_direction == Vector2.ZERO:
+		fire_direction = player.get_attack_direction()
+	if fire_direction == Vector2.ZERO:
+		fire_direction = Vector2.RIGHT
+	var lane_offset := _get_ranged_lane_offset(fire_direction, lane_index, lane_count)
+	if module_definition.attack_style == &"laser" or module_definition.projectile_hit_scan:
+		_fire_laser_placeholder(module_entry, module_definition, fire_direction, lane_offset)
+		return
+	_fire_projectile_burst(module_entry, module_definition, fire_direction, lane_offset)
+
+
+func _fire_projectile_burst(module_entry: Dictionary, module_definition, fire_direction: Vector2, lane_offset: Vector2) -> void:
+	_ensure_projectiles_root()
+	var projectile_count: int = max(module_definition.projectile_count, 1)
+	var spread_degrees: float = module_definition.projectile_spread_degrees
+	var range_distance := _get_ranged_attack_distance(module_entry)
+	var projectile_speed: float = maxf(module_definition.projectile_speed, 1.0)
+	var projectile_lifetime: float = maxf(module_definition.projectile_lifetime, range_distance / projectile_speed + 0.05)
+	var start_angle := -spread_degrees * 0.5
+	var angle_step := 0.0
+	if projectile_count > 1:
+		angle_step = spread_degrees / float(projectile_count - 1)
+	for index in range(projectile_count):
+		var angle_degrees := start_angle + angle_step * float(index)
+		var shot_direction := fire_direction.rotated(deg_to_rad(angle_degrees)).normalized()
+		var projectile := ATTACK_MODULE_PROJECTILE_SCRIPT.new() as Node2D
+		_projectiles_root.add_child(projectile)
+		var is_critical := rng.randf() < GameState.get_critical_chance_ratio()
+		var damage := GameState.get_attack_module_damage(module_entry)
+		if is_critical:
+			damage = int(round(float(damage) * GameState.get_critical_damage_multiplier()))
+		projectile.call("setup", {
+			"position": player.global_position,
+			"direction": shot_direction,
+			"visual_offset": lane_offset,
+			"speed": projectile_speed,
+			"lifetime": projectile_lifetime,
+			"max_distance": range_distance,
+			"size": module_definition.projectile_size,
+			"damage": damage,
+			"is_critical": is_critical,
+			"pierce_count": module_definition.projectile_pierce_count,
+			"homing": module_definition.projectile_homing,
+			"blocks_root": blocks_root,
+		})
+	GameState.set_status_text("%s fired x%d." % [GameState.get_attack_module_entry_label(module_entry), projectile_count])
+
+
+func _fire_laser_placeholder(module_entry: Dictionary, module_definition, fire_direction: Vector2, lane_offset: Vector2) -> void:
+	var range_distance := _get_ranged_attack_distance(module_entry)
+	var shape_size := GameState.get_attack_module_shape_size_pixels(module_entry)
+	var attack_shape_data := {
+		"center": player.global_position + fire_direction * (range_distance * 0.5),
+		"size": Vector2(range_distance, shape_size.y),
+		"rotation": fire_direction.angle(),
+	}
+	var attack_shape := RectangleShape2D.new()
+	attack_shape.size = attack_shape_data["size"]
+	var query := PhysicsShapeQueryParameters2D.new()
+	query.shape = attack_shape
+	query.transform = Transform2D(attack_shape_data["rotation"], attack_shape_data["center"])
+	query.collide_with_areas = true
+	query.collide_with_bodies = false
+	query.collision_mask = 1
+	var space_state: PhysicsDirectSpaceState2D = get_world_2d().direct_space_state
+	var results: Array[Dictionary] = space_state.intersect_shape(query, 32)
+	var hit_count := 0
+	var hit_once: Dictionary = {}
+	for result in results:
+		var block := result["collider"] as FallingBlock
+		if block == null or hit_once.has(block):
+			continue
+		hit_once[block] = true
+		var is_critical := rng.randf() < GameState.get_critical_chance_ratio()
+		var damage := GameState.get_attack_module_damage(module_entry)
+		if is_critical:
+			damage = int(round(float(damage) * GameState.get_critical_damage_multiplier()))
+		block.apply_damage(damage, is_critical)
+		hit_count += 1
+	_spawn_laser_line(
+		player.global_position + lane_offset,
+		player.global_position + fire_direction * range_distance + lane_offset
+	)
+	GameState.set_status_text("%s laser hit %d." % [GameState.get_attack_module_entry_label(module_entry), hit_count])
+
+
+func _spawn_laser_line(from_position: Vector2, to_position: Vector2) -> void:
+	_ensure_projectiles_root()
+	var line := Line2D.new()
+	line.width = 5.0
+	line.default_color = Color(0.55, 0.92, 1.0, 0.8)
+	line.points = PackedVector2Array([from_position, to_position])
+	_projectiles_root.add_child(line)
+	var tween := create_tween()
+	tween.tween_property(line, "modulate:a", 0.0, 0.12)
+	tween.finished.connect(line.queue_free)
+
+
+func _handle_mechanic_attack_module_action(module_entry: Dictionary) -> void:
+	var target := _find_nearest_attackable_block(GameState.get_attack_module_shape_size_pixels(module_entry).x)
+	if target == null:
+		return
+	var damage := GameState.get_mechanic_attack_module_damage(module_entry)
+	target.apply_damage(damage, false)
+	GameState.set_status_text("%s auto hit." % GameState.get_attack_module_entry_label(module_entry))
+
+
+func _find_nearest_attackable_block(max_distance: float) -> FallingBlock:
+	var best_block: FallingBlock = null
+	var best_distance := INF
+	var origin := player.global_position
+	for child in blocks_root.get_children():
+		var block := child as FallingBlock
+		if block == null or not block.active:
+			continue
+		var distance := origin.distance_to(block.global_position)
+		if distance > max_distance or distance >= best_distance:
+			continue
+		best_distance = distance
+		best_block = block
+	return best_block
 
 
 func _handle_mining_action(direction: Vector2) -> void:
@@ -269,7 +463,11 @@ func _spawn_boss_block() -> void:
 		return
 	var block_data := BlockData.from_resolved_definition(resolved_definition)
 	var camera_top_y := world_camera.position.y - float(GameConstants.VIEWPORT_SIZE.y) * 0.5
-	var spawn_position := _pick_fair_spawn_position(block_data.size_cells, camera_top_y)
+	var spawn_result := _pick_fair_spawn_position(block_data.size_cells, camera_top_y)
+	if not bool(spawn_result.get("ok", false)):
+		last_spawned_block_debug = "Boss spawn skipped: no safe airspace"
+		return
+	var spawn_position: Vector2 = spawn_result["position"]
 	var block := FALLING_BLOCK_SCENE.instantiate() as FallingBlock
 	blocks_root.add_child(block)
 	block.setup(block_data, spawn_position, world_grid, sand_field, player)
@@ -416,6 +614,7 @@ func _on_day_shop_closed() -> void:
 	_day_shop_ui = null
 	_shop_ui_open = false
 	_update_day_kiosk_prompt()
+	GameState.set_status_text("상점을 닫았습니다. 키오스크에서 다시 열 수 있습니다.")
 
 
 func _set_mining_idle_status(text: String) -> void:
@@ -426,7 +625,6 @@ func _set_mining_idle_status(text: String) -> void:
 	_last_mining_idle_status_text = text
 	_last_mining_idle_status_time = now
 	GameState.set_status_text(text)
-	GameState.set_status_text("상점을 닫았습니다. 키오스크에서 다시 열 수 있습니다.")
 
 
 func _on_day_shop_item_purchased(item_id: StringName) -> void:
@@ -569,6 +767,23 @@ func _ensure_fade_overlay() -> void:
 	fade_layer.add_child(_fade_overlay)
 
 
+func _ensure_projectiles_root() -> void:
+	if _projectiles_root != null and is_instance_valid(_projectiles_root):
+		return
+	_projectiles_root = Node2D.new()
+	_projectiles_root.name = "Projectiles"
+	_projectiles_root.z_index = 35
+	add_child(_projectiles_root)
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if run_finished:
+		return
+	if event.is_action_pressed("pause_menu"):
+		_toggle_pause_menu()
+		get_viewport().set_input_as_handled()
+
+
 func _toggle_pause_menu() -> void:
 	if _shop_ui_open:
 		_close_day_shop()
@@ -665,49 +880,85 @@ func _configure_camera() -> void:
 	world_camera.position_smoothing_enabled = false
 	world_camera.limit_left = GameConstants.WORLD_ORIGIN.x
 	world_camera.limit_right = GameConstants.WORLD_ORIGIN.x + GameConstants.WORLD_PIXEL_WIDTH
-	world_camera.limit_top = GameConstants.WORLD_ORIGIN.y
+	world_camera.limit_top = int(GameConstants.WORLD_PLAYABLE_TOP_Y)
 	world_camera.limit_bottom = GameConstants.WORLD_ORIGIN.y + GameConstants.WORLD_PIXEL_HEIGHT
 	world_camera.position = Vector2(
 		float(GameConstants.WORLD_ORIGIN.x) + float(GameConstants.WORLD_PIXEL_WIDTH) * 0.5,
-		player.position.y - CAMERA_PLAYER_Y_OFFSET
+		_get_clamped_camera_y(player.position.y - CAMERA_PLAYER_Y_OFFSET)
 	)
 
 
 func _update_camera_y() -> void:
-	world_camera.position.y = player.position.y - CAMERA_PLAYER_Y_OFFSET
+	world_camera.position.y = _get_clamped_camera_y(player.position.y - CAMERA_PLAYER_Y_OFFSET)
 
 
-func _pick_fair_spawn_position(size_cells: Vector2i, camera_top_y: float) -> Vector2:
+func _pick_fair_spawn_position(size_cells: Vector2i, camera_top_y: float) -> Dictionary:
 	var min_col := GameConstants.WALL_COLUMNS
 	var max_col := GameConstants.WORLD_COLUMNS - GameConstants.WALL_COLUMNS - size_cells.x
-	var spawn_y := camera_top_y - float(GameConstants.CELL_SIZE) * 3.0 - float(size_cells.y) * float(GameConstants.CELL_SIZE) * 0.5
-	for attempt in range(8):
-		var col := rng.randi_range(min_col, max_col)
-		if attempt == 0 and last_spawned_column >= 0 and max_col > min_col:
-			var tries := 0
-			while col == last_spawned_column and tries < 4:
-				col = rng.randi_range(min_col, max_col)
-				tries += 1
+	camera_top_y = maxf(camera_top_y, GameConstants.BLOCK_SPAWN_MIN_CAMERA_TOP_Y)
+	var half_size := Vector2(size_cells) * float(GameConstants.CELL_SIZE) * 0.5
+	var band_near := float(GameConstants.CELL_SIZE) * GameConstants.BLOCK_SPAWN_BAND_NEAR_UNITS
+	var band_far := float(GameConstants.CELL_SIZE) * GameConstants.BLOCK_SPAWN_BAND_FAR_UNITS
+	var highest_active_top := _get_highest_active_block_top_y()
+	for attempt in range(GameConstants.BLOCK_SPAWN_POSITION_ATTEMPTS):
+		var col := _pick_spawn_column(min_col, max_col, attempt)
 		var spawn_x := float(GameConstants.WORLD_ORIGIN.x) + (float(col) + float(size_cells.x) * 0.5) * float(GameConstants.CELL_SIZE)
+		var spawn_y := camera_top_y - rng.randf_range(band_near, band_far) - half_size.y
+		if is_finite(highest_active_top):
+			spawn_y = minf(spawn_y, highest_active_top - band_near - half_size.y)
 		var spawn_pos := Vector2(spawn_x, spawn_y)
-		var half_size := Vector2(size_cells) * float(GameConstants.CELL_SIZE) * 0.5
 		var spawn_rect := Rect2(spawn_pos - half_size, half_size * 2.0)
-		if player != null and spawn_rect.intersects(player.get_body_rect()):
+		if not _is_spawn_rect_safe(spawn_rect):
 			continue
-		if _spawn_rect_overlaps_active_block(spawn_rect):
-			continue
-		return spawn_pos
+		return {
+			"ok": true,
+			"position": spawn_pos,
+		}
+	return {"ok": false}
+
+
+func _get_clamped_camera_y(target_y: float) -> float:
+	return clampf(
+		target_y,
+		GameConstants.WORLD_PLAYABLE_TOP_Y + float(GameConstants.VIEWPORT_SIZE.y) * 0.5,
+		float(GameConstants.WORLD_ORIGIN.y + GameConstants.WORLD_PIXEL_HEIGHT) - float(GameConstants.VIEWPORT_SIZE.y) * 0.5
+	)
+
+
+func _pick_spawn_column(min_col: int, max_col: int, attempt: int) -> int:
 	var col := rng.randi_range(min_col, max_col)
-	var spawn_x := float(GameConstants.WORLD_ORIGIN.x) + (float(col) + float(size_cells.x) * 0.5) * float(GameConstants.CELL_SIZE)
-	return Vector2(spawn_x, spawn_y)
+	if attempt == 0 and last_spawned_column >= 0 and max_col > min_col:
+		var tries := 0
+		while col == last_spawned_column and tries < 4:
+			col = rng.randi_range(min_col, max_col)
+			tries += 1
+	return col
+
+
+func _is_spawn_rect_safe(rect: Rect2) -> bool:
+	if player != null and rect.intersects(player.get_body_rect()):
+		return false
+	return not _spawn_rect_overlaps_active_block(rect)
 
 
 func _spawn_rect_overlaps_active_block(rect: Rect2) -> bool:
+	var clearance := float(GameConstants.CELL_SIZE) * GameConstants.BLOCK_SPAWN_ACTIVE_BLOCK_CLEARANCE_UNITS
+	var test_rect := rect.grow(clearance)
 	for child in blocks_root.get_children():
 		var block := child as FallingBlock
-		if block != null and block.active and block.get_block_rect().intersects(rect):
+		if block != null and block.active and block.get_block_rect().intersects(test_rect):
 			return true
 	return false
+
+
+func _get_highest_active_block_top_y() -> float:
+	var highest := INF
+	for child in blocks_root.get_children():
+		var block := child as FallingBlock
+		if block == null or not block.active:
+			continue
+		highest = minf(highest, block.get_block_rect().position.y)
+	return highest
 
 
 func _check_run_end_conditions() -> void:

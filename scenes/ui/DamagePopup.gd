@@ -3,6 +3,8 @@ extends Node2D
 var amount := 0
 var elapsed := 0.0
 var horizontal_speed := 0.0
+var drift_velocity := Vector2.ZERO
+var has_custom_motion := false
 var text_color := GameConstants.DAMAGE_POPUP_TEXT_COLOR
 var shadow_color := GameConstants.DAMAGE_POPUP_SHADOW_COLOR
 var prefix := ""
@@ -24,13 +26,22 @@ func setup(
 		-GameConstants.DAMAGE_POPUP_HORIZONTAL_JITTER,
 		GameConstants.DAMAGE_POPUP_HORIZONTAL_JITTER
 	)
+	has_custom_motion = false
 	queue_redraw()
+
+
+func set_motion(custom_drift_velocity: Vector2) -> void:
+	drift_velocity = custom_drift_velocity
+	has_custom_motion = true
 
 
 func _process(delta: float) -> void:
 	elapsed += delta
-	position.x += horizontal_speed * delta
-	position.y -= GameConstants.DAMAGE_POPUP_RISE_SPEED * delta
+	if has_custom_motion:
+		position += drift_velocity * delta
+	else:
+		position.x += horizontal_speed * delta
+		position.y -= GameConstants.DAMAGE_POPUP_RISE_SPEED * delta
 	modulate.a = 1.0 - clampf(elapsed / GameConstants.DAMAGE_POPUP_LIFETIME, 0.0, 1.0)
 	if elapsed >= GameConstants.DAMAGE_POPUP_LIFETIME:
 		queue_free()

@@ -22,6 +22,8 @@ func _draw() -> void:
 			_draw_axe()
 		&"greatsword":
 			_draw_greatsword()
+		&"drone":
+			_draw_drone()
 		_:
 			_draw_sword()
 
@@ -84,6 +86,13 @@ func _draw_greatsword() -> void:
 	draw_rect(hilt, accent_color)
 	draw_colored_polygon(blade_points, fill_color)
 	draw_line(_scaled_vector(Vector2(5.0, -7.0)), _scaled_vector(Vector2(5.0, 7.0)), accent_color, 2.0 * visual_scale)
+
+
+func _draw_drone() -> void:
+	draw_circle(Vector2.ZERO, 9.0 * visual_scale, fill_color)
+	draw_circle(Vector2.ZERO, 4.0 * visual_scale, accent_color)
+	draw_line(_scaled_vector(Vector2(-14.0, 0.0)), _scaled_vector(Vector2(-6.0, 0.0)), accent_color, 2.0 * visual_scale)
+	draw_line(_scaled_vector(Vector2(6.0, 0.0)), _scaled_vector(Vector2(14.0, 0.0)), accent_color, 2.0 * visual_scale)
 
 
 func _scaled_rect(value: Rect2) -> Rect2:

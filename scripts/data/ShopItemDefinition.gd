@@ -15,10 +15,22 @@ class_name ShopItemDefinition
 @export var is_equippable := false
 @export var default_start_module := false
 @export var module_type: StringName = &""
+@export var attack_style: StringName = &"slash"
 @export var range_width_u := 0.0
 @export var range_height_u := 0.0
 @export var damage_multiplier := 1.0
 @export var attack_speed_multiplier := 1.0
+@export var projectile_count := 1
+@export var projectile_spread_degrees := 0.0
+@export var projectile_pierce_count := 0
+@export var projectile_speed := 900.0
+@export var projectile_lifetime := 1.2
+@export var projectile_max_distance := 900.0
+@export var projectile_size := Vector2(18.0, 6.0)
+@export var projectile_hit_scan := false
+@export var projectile_homing := false
+@export var mechanic_drone_count := 1
+@export var mechanic_targeting: StringName = &"nearest"
 @export_file("*.png", "*.svg", "*.webp") var icon_path := ""
 @export_file("*.tscn") var world_visual_scene_path := ""
 @export var effect_type: StringName = &"none"
@@ -59,10 +71,23 @@ func to_dictionary() -> Dictionary:
 		"is_equippable": is_equippable,
 		"default_start_module": default_start_module,
 		"module_type": String(module_type),
+		"attack_style": String(attack_style),
 		"range_width_u": range_width_u,
 		"range_height_u": range_height_u,
 		"damage_multiplier": damage_multiplier,
 		"attack_speed_multiplier": attack_speed_multiplier,
+		"projectile_count": projectile_count,
+		"projectile_spread_degrees": projectile_spread_degrees,
+		"projectile_pierce_count": projectile_pierce_count,
+		"projectile_speed": projectile_speed,
+		"projectile_lifetime": projectile_lifetime,
+		"projectile_max_distance": projectile_max_distance,
+		"projectile_size_x": projectile_size.x,
+		"projectile_size_y": projectile_size.y,
+		"projectile_hit_scan": projectile_hit_scan,
+		"projectile_homing": projectile_homing,
+		"mechanic_drone_count": mechanic_drone_count,
+		"mechanic_targeting": String(mechanic_targeting),
 		"icon_path": icon_path,
 		"world_visual_scene_path": world_visual_scene_path,
 		"effect_type": String(effect_type),
@@ -87,10 +112,25 @@ func apply_dictionary(data: Dictionary) -> void:
 	is_equippable = bool(data.get("is_equippable", false))
 	default_start_module = bool(data.get("default_start_module", false))
 	module_type = StringName(String(data.get("module_type", "")))
+	attack_style = StringName(String(data.get("attack_style", "slash")))
 	range_width_u = float(data.get("range_width_u", 0.0))
 	range_height_u = float(data.get("range_height_u", 0.0))
 	damage_multiplier = float(data.get("damage_multiplier", 1.0))
 	attack_speed_multiplier = float(data.get("attack_speed_multiplier", 1.0))
+	projectile_count = int(data.get("projectile_count", 1))
+	projectile_spread_degrees = float(data.get("projectile_spread_degrees", 0.0))
+	projectile_pierce_count = int(data.get("projectile_pierce_count", 0))
+	projectile_speed = float(data.get("projectile_speed", 900.0))
+	projectile_lifetime = float(data.get("projectile_lifetime", 1.2))
+	projectile_max_distance = float(data.get("projectile_max_distance", 900.0))
+	projectile_size = Vector2(
+		float(data.get("projectile_size_x", 18.0)),
+		float(data.get("projectile_size_y", 6.0))
+	)
+	projectile_hit_scan = bool(data.get("projectile_hit_scan", false))
+	projectile_homing = bool(data.get("projectile_homing", false))
+	mechanic_drone_count = int(data.get("mechanic_drone_count", 1))
+	mechanic_targeting = StringName(String(data.get("mechanic_targeting", "nearest")))
 	icon_path = String(data.get("icon_path", ""))
 	world_visual_scene_path = String(data.get("world_visual_scene_path", ""))
 	effect_type = StringName(String(data.get("effect_type", "none")))

@@ -259,16 +259,16 @@ func _refresh_owned_attack_modules() -> void:
 	for child in _owned_attack_row.get_children():
 		child.queue_free()
 	_owned_attack_buttons.clear()
-	var equipped_id := GameState.get_equipped_attack_module_id()
-	for definition in GameState.get_owned_attack_module_definitions():
+	for entry in GameState.get_equipped_attack_module_entries():
+		var definition = GameState.get_attack_module_definition_from_entry(entry)
+		if definition == null:
+			continue
 		var button := Button.new()
-		var module_id: StringName = definition.module_id
-		button.text = "%s%s" % [
+		button.text = "%s %s" % [
 			String(definition.display_name),
-			" (Equipped)" if module_id == equipped_id else "",
+			String(entry.get("grade", "D")),
 		]
-		button.disabled = module_id == equipped_id
-		button.pressed.connect(_on_owned_attack_module_pressed.bind(module_id))
+		button.disabled = true
 		_owned_attack_row.add_child(button)
 		_owned_attack_buttons.append(button)
 	if _owned_attack_buttons.is_empty():
@@ -331,6 +331,7 @@ func _refresh_detail(snapshot: Dictionary) -> void:
 	var owned := bool(entry.get("owned", false))
 	var equipped := bool(entry.get("equipped", false))
 	var can_afford := bool(entry.get("can_afford", false))
+	var can_buy := bool(entry.get("can_buy", can_afford))
 	_detail_name_label.text = String(entry.get("name", item_id))
 	_detail_meta_label.text = "Category %s   Rank %s   Price %dG" % [
 		_category_label(category),
@@ -339,19 +340,12 @@ func _refresh_detail(snapshot: Dictionary) -> void:
 	]
 	_detail_short_desc_label.text = String(entry.get("short_desc", ""))
 	_detail_desc_label.text = String(entry.get("desc", ""))
-	_detail_state_label.text = _build_state_text(category, owned, equipped, stack_count, can_afford)
+	_detail_state_label.text = _build_state_text(category, owned, equipped, stack_count, can_buy)
 
 	match category:
 		"attack_module":
-			if equipped:
-				_action_button.text = "Equipped"
-				_action_button.disabled = true
-			elif owned:
-				_action_button.text = "Equip"
-				_action_button.disabled = false
-			else:
-				_action_button.text = "Buy"
-				_action_button.disabled = not can_afford
+			_action_button.text = "Buy / Merge"
+			_action_button.disabled = not can_buy
 		"function_module":
 			if owned:
 				_action_button.text = "Owned"
@@ -370,13 +364,11 @@ func _refresh_detail(snapshot: Dictionary) -> void:
 func _build_state_text(category: String, owned: bool, equipped: bool, stack_count: int, can_afford: bool) -> String:
 	match category:
 		"attack_module":
-			if equipped:
-				return "Currently equipped."
-			if owned:
-				return "Already owned. You can equip it for free."
 			if not can_afford:
-				return "Not enough gold."
-			return "Buying adds it to this run and equips can be swapped for free later."
+				return "Not enough gold, no empty slot, or no same-grade merge target."
+			if equipped or owned:
+				return "Buying another copy adds a duplicate slot or merges if slots are full."
+			return "Buying immediately equips this module into an empty slot."
 		"function_module":
 			if owned:
 				return "Already owned in this run and registered in current effects."
@@ -412,11 +404,6 @@ func _on_action_pressed() -> void:
 	var entry: Dictionary = entries[_selected_index]
 	var item_id := StringName(String(entry.get("item_id", "")))
 	var category := String(entry.get("item_category", ""))
-	if category == "attack_module" and bool(entry.get("owned", false)):
-		if GameState.equip_attack_module(item_id):
-			GameState.set_status_text("Attack module equipped: %s." % GameState.get_equipped_attack_module_display_name())
-		_refresh_ui()
-		return
 	var result := GameState.purchase_shop_item(item_id)
 	if bool(result.get("ok", false)):
 		GameState.set_status_text("%s purchased." % String(entry.get("name", "")))

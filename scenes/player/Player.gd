@@ -34,6 +34,7 @@ var coyote_time_remaining := 0.0
 var attack_cooldown := 0.0
 var attack_buffer_remaining := 0.0
 var pending_attack_direction := Vector2.ZERO
+var attack_module_cooldowns: Dictionary = {}
 var attack_visual_direction := Vector2.RIGHT
 var attack_visual_time := 0.0
 var mining_cooldown := 0.0
@@ -67,6 +68,7 @@ var current_battery := GameConstants.PLAYER_BATTERY_MAX
 var is_wall_climbing := false
 var animated_sprite_base_scale := Vector2.ONE
 var attack_module_visual: Node2D
+var attack_module_visuals: Dictionary = {}
 var attack_module_visual_scene_path := ""
 var attack_module_orbit_angle := 0.0
 var attack_module_bob_time := 0.0
@@ -127,6 +129,7 @@ func _physics_process(delta: float) -> void:
 	coyote_time_remaining = max(coyote_time_remaining - delta, 0.0)
 	attack_cooldown = max(attack_cooldown - delta, 0.0)
 	attack_buffer_remaining = max(attack_buffer_remaining - delta, 0.0)
+	_update_attack_module_cooldowns(delta)
 	
 	if Input.is_action_pressed("attack_action"):
 		attack_buffer_remaining = GameConstants.PLAYER_ATTACK_BUFFER_TIME
@@ -241,6 +244,54 @@ func consume_attack_direction() -> Vector2:
 	return direction
 
 
+func consume_attack_module_triggers() -> Array[Dictionary]:
+	var triggers: Array[Dictionary] = []
+	if is_dashing or attack_buffer_remaining <= 0.0:
+		return triggers
+	var direction := pending_attack_direction
+	if direction == Vector2.ZERO:
+		direction = _resolve_attack_direction()
+	for module_entry in GameState.get_input_attack_module_entries():
+		var instance_id := String(module_entry.get("instance_id", ""))
+		if instance_id.is_empty():
+			continue
+		if float(attack_module_cooldowns.get(instance_id, 0.0)) > 0.0:
+			continue
+		attack_module_cooldowns[instance_id] = GameState.get_attack_module_cooldown_duration(module_entry)
+		triggers.append({
+			"module_entry": module_entry,
+			"direction": direction,
+		})
+	if triggers.is_empty():
+		return triggers
+	attack_buffer_remaining = 0.0
+	attack_visual_direction = direction
+	attack_visual_time = GameConstants.PLAYER_ATTACK_VISUAL_DURATION
+	_play_attack_module_strike(direction)
+	queue_redraw()
+	return triggers
+
+
+func consume_mechanic_attack_module_triggers() -> Array[Dictionary]:
+	var triggers: Array[Dictionary] = []
+	if is_dashing:
+		return triggers
+	for module_entry in GameState.get_mechanic_attack_module_entries():
+		var instance_id := String(module_entry.get("instance_id", ""))
+		if instance_id.is_empty():
+			continue
+		if float(attack_module_cooldowns.get(instance_id, 0.0)) > 0.0:
+			continue
+		attack_module_cooldowns[instance_id] = GameState.get_attack_module_cooldown_duration(module_entry)
+		triggers.append({
+			"module_entry": module_entry,
+			"direction": Vector2.ZERO,
+		})
+	if not triggers.is_empty():
+		_play_attack_module_strike(Vector2.RIGHT)
+	return triggers
+
+
 func consume_mining_direction() -> Vector2:
 	if is_dashing:
 		return Vector2.ZERO
@@ -262,6 +313,15 @@ func consume_mining_direction() -> Vector2:
 
 func get_attack_shape_data(direction: Vector2) -> Dictionary:
 	var local_data := _get_attack_local_shape_data(direction)
+	return {
+		"center": position + local_data["center"],
+		"size": local_data["size"],
+		"rotation": local_data["rotation"],
+	}
+
+
+func get_attack_shape_data_for_module(direction: Vector2, module_entry: Dictionary) -> Dictionary:
+	var local_data := _get_attack_local_shape_data_for_module(direction, module_entry)
 	return {
 		"center": position + local_data["center"],
 		"size": local_data["size"],
@@ -365,6 +425,12 @@ func _process_pending_dash_request() -> void:
 	pending_dash_direction = Vector2.ZERO
 	dash_debug_last_event = "dash_armed"
 	_set_dash_feedback(&"armed")
+
+
+func _update_attack_module_cooldowns(delta: float) -> void:
+	for raw_key in attack_module_cooldowns.keys():
+		var key := String(raw_key)
+		attack_module_cooldowns[key] = maxf(float(attack_module_cooldowns[key]) - delta, 0.0)
 
 
 func _update_dash_state() -> void:
@@ -589,6 +655,7 @@ func _update_wall_climb_state(delta: float) -> void:
 		(climb_direction < 0.0 and is_on_left_wall)
 		or (climb_direction > 0.0 and is_on_right_wall)
 	)
+	can_wall_climb = can_wall_climb and position.y > GameConstants.PLAYER_WALL_CLIMB_TOP_LIMIT_Y
 	is_wall_climbing = can_wall_climb
 	if is_wall_climbing:
 		current_battery = maxf(
@@ -639,6 +706,11 @@ func _move_axis(steps: int, horizontal: bool) -> int:
 			next_position.x += direction
 		else:
 			next_position.y += direction
+			if direction < 0 and _would_cross_playable_top(next_position):
+				position.y = _get_min_player_center_y()
+				velocity.y = 0.0
+				motion_remainder.y = 0.0
+				break
 		var body_local := _get_body_local_rect()
 		var next_rect := Rect2(next_position + body_local.position, body_local.size)
 		if _movement_collides(next_rect, horizontal, direction):
@@ -654,6 +726,15 @@ func _move_axis(steps: int, horizontal: bool) -> int:
 		position = next_position
 		moved_steps += direction
 	return moved_steps
+
+
+func _would_cross_playable_top(next_position: Vector2) -> bool:
+	var body_local := _get_body_local_rect()
+	return next_position.y + body_local.position.y < GameConstants.WORLD_PLAYABLE_TOP_Y
+
+
+func _get_min_player_center_y() -> float:
+	return GameConstants.WORLD_PLAYABLE_TOP_Y - _get_body_local_rect().position.y
 
 
 func _movement_collides(rect: Rect2, horizontal: bool, direction: int) -> bool:
@@ -826,6 +907,20 @@ func _get_attack_local_shape_data(direction: Vector2) -> Dictionary:
 	}
 
 
+func _get_attack_local_shape_data_for_module(direction: Vector2, module_entry: Dictionary) -> Dictionary:
+	var attack_direction := direction.normalized()
+	if attack_direction == Vector2.ZERO:
+		attack_direction = Vector2(facing)
+	var attack_size := GameState.get_attack_module_shape_size_pixels(module_entry)
+	var support_distance := _get_body_support_distance(attack_direction)
+	var center_offset := attack_direction * (support_distance + attack_size.x * 0.5)
+	return {
+		"center": center_offset,
+		"size": attack_size,
+		"rotation": attack_direction.angle(),
+	}
+
+
 func _get_axis_attack_local_rect(direction: Vector2i) -> Rect2:
 	var body := _get_body_local_rect()
 	var attack_size := Vector2.ONE * GameConstants.CELL_SIZE
@@ -950,32 +1045,36 @@ func _on_attack_module_changed(_module_id: StringName) -> void:
 
 
 func _sync_attack_module_visual() -> void:
-	var module_definition = GameState.get_equipped_attack_module_definition()
-	var scene_path := ""
-	if module_definition != null:
-		scene_path = module_definition.visual_scene_path
-	if attack_module_visual != null and is_instance_valid(attack_module_visual) and scene_path == attack_module_visual_scene_path:
-		return
-	if attack_module_visual != null and is_instance_valid(attack_module_visual):
-		attack_module_visual.queue_free()
-	attack_module_visual = null
-	attack_module_visual_scene_path = scene_path
-	if scene_path.is_empty():
-		return
-	var visual_scene = load(scene_path)
-	if visual_scene == null or not (visual_scene is PackedScene):
-		push_warning("Attack module visual scene load failed: %s" % scene_path)
-		return
-	attack_module_visual = (visual_scene as PackedScene).instantiate() as Node2D
-	if attack_module_visual == null:
-		return
-	add_child(attack_module_visual)
-	attack_module_visual.z_index = 20
-	attack_module_visual.position = Vector2.RIGHT * ATTACK_MODULE_ORBIT_RADIUS
+	var alive_ids: Dictionary = {}
+	for module_entry in GameState.get_equipped_attack_module_entries():
+		var instance_id := String(module_entry.get("instance_id", ""))
+		if instance_id.is_empty():
+			continue
+		alive_ids[instance_id] = true
+		if attack_module_visuals.has(instance_id):
+			continue
+		var module_definition = GameState.get_attack_module_definition_from_entry(module_entry)
+		var scene_path := ""
+		if module_definition != null:
+			scene_path = module_definition.visual_scene_path
+		var visual := _instantiate_attack_module_visual(scene_path)
+		if visual == null:
+			continue
+		add_child(visual)
+		visual.z_index = 20
+		attack_module_visuals[instance_id] = visual
+	for raw_instance_id in attack_module_visuals.keys():
+		var instance_key := String(raw_instance_id)
+		if alive_ids.has(instance_key):
+			continue
+		var old_visual: Node2D = attack_module_visuals[instance_key]
+		if old_visual != null and is_instance_valid(old_visual):
+			old_visual.queue_free()
+		attack_module_visuals.erase(instance_key)
 
 
 func _update_attack_module_visual(delta: float) -> void:
-	if attack_module_visual == null or not is_instance_valid(attack_module_visual):
+	if attack_module_visuals.is_empty():
 		return
 	attack_module_orbit_angle = wrapf(
 		attack_module_orbit_angle + delta * ATTACK_MODULE_ORBIT_SPEED,
@@ -983,17 +1082,38 @@ func _update_attack_module_visual(delta: float) -> void:
 		TAU
 	)
 	attack_module_bob_time += delta * ATTACK_MODULE_BOB_SPEED
-	var orbit_offset := Vector2.RIGHT.rotated(attack_module_orbit_angle) * ATTACK_MODULE_ORBIT_RADIUS
-	orbit_offset.y += sin(attack_module_bob_time) * ATTACK_MODULE_BOB_AMPLITUDE
-	var strike_ratio := 0.0
-	if attack_module_strike_time_remaining > 0.0:
-		strike_ratio = attack_module_strike_time_remaining / ATTACK_MODULE_STRIKE_DURATION
-	var strike_offset := attack_module_strike_direction.normalized() * ATTACK_MODULE_STRIKE_DISTANCE * strike_ratio
-	attack_module_visual.position = orbit_offset + strike_offset
-	if attack_module_strike_time_remaining > 0.0:
-		attack_module_visual.rotation = attack_module_strike_direction.angle()
-	else:
-		attack_module_visual.rotation = orbit_offset.angle()
+	var entries := GameState.get_equipped_attack_module_entries()
+	var count: int = max(entries.size(), 1)
+	for index in range(entries.size()):
+		var entry: Dictionary = entries[index]
+		var instance_id := String(entry.get("instance_id", ""))
+		if not attack_module_visuals.has(instance_id):
+			continue
+		var visual: Node2D = attack_module_visuals[instance_id]
+		if visual == null or not is_instance_valid(visual):
+			continue
+		var angle := attack_module_orbit_angle + TAU * float(index) / float(count)
+		var orbit_offset := Vector2.RIGHT.rotated(angle) * ATTACK_MODULE_ORBIT_RADIUS
+		orbit_offset.y += sin(attack_module_bob_time + float(index)) * ATTACK_MODULE_BOB_AMPLITUDE
+		var strike_ratio := 0.0
+		if attack_module_strike_time_remaining > 0.0:
+			strike_ratio = attack_module_strike_time_remaining / ATTACK_MODULE_STRIKE_DURATION
+		var strike_offset := attack_module_strike_direction.normalized() * ATTACK_MODULE_STRIKE_DISTANCE * strike_ratio
+		visual.position = orbit_offset + strike_offset
+		if attack_module_strike_time_remaining > 0.0:
+			visual.rotation = attack_module_strike_direction.angle()
+		else:
+			visual.rotation = orbit_offset.angle()
+
+
+func _instantiate_attack_module_visual(scene_path: String) -> Node2D:
+	if scene_path.is_empty():
+		return null
+	var visual_scene = load(scene_path)
+	if visual_scene == null or not (visual_scene is PackedScene):
+		push_warning("Attack module visual scene load failed: %s" % scene_path)
+		return null
+	return (visual_scene as PackedScene).instantiate() as Node2D
 
 
 func _play_attack_module_strike(direction: Vector2) -> void:
