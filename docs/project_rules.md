@@ -18,12 +18,12 @@
 1. 핵심 구현 파일
 2. `docs/project_rules.md`
 3. `docs/gdd.md`
-4. `docs/game_structure_spec.md`
-5. `docs/gameplay_systems_spec.md`
-6. `docs/attack_module_system_spec.md`
-7. `docs/block_material_size_spawn_rule_spec_draft.md` 또는 후속 블록 시스템 문서
-8. `docs/base_state_spec.md`
-9. `docs/burial_protocol_run_hud_ui_improvement.md`
+4. `docs/02_systems_spec.md`
+5. `docs/03_data_and_state_spec.md`
+6. `docs/04_roadmap.md`
+
+기존의 세부 스펙 문서들은 위 통합 문서로 흡수한다.
+새 기능 문서를 추가하기보다, 우선 기존 통합 문서의 해당 섹션을 갱신한다.
 
 문서 수정 전 최소 확인 대상:
 
@@ -48,7 +48,34 @@
 
 ---
 
-## 2. 현재 프로젝트 기준
+## 2. 현재 docs 구조
+
+현재 docs는 아래 5개 문서를 기준으로 유지한다.
+
+```text
+docs/
+  project_rules.md
+  gdd.md
+  02_systems_spec.md
+  03_data_and_state_spec.md
+  04_roadmap.md
+```
+
+각 문서 역할:
+
+| 문서 | 역할 |
+|---|---|
+| `project_rules.md` | 작업 원칙, 문서 원칙, 반드시 지켜야 할 기준 |
+| `gdd.md` | 게임 전체 기획과 현재 구현 상태 요약 |
+| `02_systems_spec.md` | 실제 플레이 시스템 통합 스펙 |
+| `03_data_and_state_spec.md` | 데이터 소유권, 저장/런타임 상태, signal 구조 |
+| `04_roadmap.md` | TODO, 미구현, 다음 작업 우선순위 |
+
+문서를 새로 만들기 전에 먼저 위 5개 중 어디에 들어가야 하는지 판단한다.
+
+---
+
+## 3. 현재 프로젝트 기준
 
 - 엔진: Godot `4.6`
 - 언어: `GDScript`
@@ -78,9 +105,9 @@
 
 ---
 
-## 3. 데이터 소유권 원칙
+## 4. 데이터 소유권 원칙
 
-### 3-1. `GameConstants.gd`는 전역 상수와 정적 유틸만 가진다
+### 4-1. `GameConstants.gd`는 전역 상수와 정적 유틸만 가진다
 
 `GameConstants.gd`는 아래 범주의 상수와 유틸을 가진다.
 
@@ -93,7 +120,7 @@
 - 입력 바인딩
 - 레벨업 카드 정의
 
-### 3-2. 콘텐츠 데이터는 `.tres`와 데이터 스크립트가 소유한다
+### 4-2. 콘텐츠 데이터는 `.tres`와 데이터 스크립트가 소유한다
 
 콘텐츠 데이터는 코드 상수 딕셔너리로 흩뿌리지 않는다.
 현재 주요 진입점은 `scripts/autoload/GameData.gd`다.
@@ -104,7 +131,7 @@
 - 블록 스폰 해석: `scripts/data/BlockSpawnResolver.gd`
 - 상점 롤/랭크 해석: `scripts/data/ShopItemCatalog.gd`
 
-### 3-3. 블록 개념 모델
+### 4-3. 블록 개념 모델
 
 최신 기준 블록은 아래 구조를 따른다.
 
@@ -117,7 +144,7 @@
 문서에서는 가능하면 `material`, `size`, `type` 용어를 우선 사용한다.
 단, 기존 코드 호환용으로 `get_block_base_definition()` 같은 이름이 남아 있을 수 있으므로 문서에는 호환 레거시 명칭으로만 표시한다.
 
-### 3-4. 상점 아이템 모델
+### 4-4. 상점 아이템 모델
 
 상점 아이템은 현재 아래 3개 카테고리를 가진다.
 
@@ -130,9 +157,9 @@
 
 ---
 
-## 4. 상태 소유권 원칙
+## 5. 상태 소유권 원칙
 
-### 4-1. `GameState.gd`
+### 5-1. `GameState.gd`
 
 `GameState.gd`는 아래를 소유한다.
 
@@ -145,7 +172,7 @@
 - 최종 스탯 getter
 - HUD/메뉴용 signal
 
-### 4-2. `Main.gd`
+### 5-2. `Main.gd`
 
 전투 루프와 Day 전환 플래그는 `Main.gd`가 소유한다.
 
@@ -163,7 +190,7 @@
 
 즉, 런타임 공용 수치와 저장은 `GameState`, 씬 내부 진행 플래그는 `Main`이 맡는다.
 
-### 4-3. `Player.gd`
+### 5-3. `Player.gd`
 
 `Player.gd`는 아래처럼 플레이어 고유 런타임 상태를 가진다.
 
@@ -176,9 +203,9 @@
 
 ---
 
-## 5. 문서 작성 원칙
+## 6. 문서 작성 원칙
 
-### 5-1. 구현된 것과 미구현을 분리한다
+### 6-1. 구현된 것과 미구현을 분리한다
 
 문서에는 아래 세 층을 섞지 않는다.
 
@@ -190,7 +217,7 @@
 따라서 `상점 구매 placeholder`라고 쓰면 안 된다.
 다만 상점 UI 비주얼, 밸런스, 상품 구성은 계속 조정 대상으로 적을 수 있다.
 
-### 5-2. 수치가 고정이면 실제 상수명과 값을 적는다
+### 6-2. 수치가 고정이면 실제 상수명과 값을 적는다
 
 예:
 
@@ -203,24 +230,25 @@
 - 키오스크 유예 = `3.0초`
 - 키오스크 지연 투하 = `1.25초`
 
-### 5-3. 문서 변경 시 관련 문서를 함께 맞춘다
+### 6-3. 문서 변경 시 통합 문서를 함께 맞춘다
 
-아래 항목이 바뀌면 최소 2개 이상 문서를 같이 본다.
+아래 항목이 바뀌면 관련 통합 문서를 확인한다.
 
-- 입력 체계
-- Day/intermission/shop 흐름
-- HUD/ESC UI
-- 스탯/레벨업 카드
-- 데이터 구조
-- 블록 material/size/type 구조
-- 공격모듈 장착/합성 규칙
-- 상점 아이템 카테고리
+- 입력 체계: `02_systems_spec.md`
+- Day/intermission/shop 흐름: `02_systems_spec.md`
+- HUD/ESC UI: `02_systems_spec.md`
+- 스탯/레벨업 카드: `02_systems_spec.md`, `03_data_and_state_spec.md`
+- 데이터 구조: `03_data_and_state_spec.md`
+- 블록 material/size/type 구조: `02_systems_spec.md`, `03_data_and_state_spec.md`
+- 공격모듈 장착/합성 규칙: `02_systems_spec.md`, `03_data_and_state_spec.md`
+- 상점 아이템 카테고리: `02_systems_spec.md`, `03_data_and_state_spec.md`
+- TODO/후순위 작업: `04_roadmap.md`
 
 ---
 
-## 6. 현재 반드시 지켜야 하는 구현 방향
+## 7. 현재 반드시 지켜야 하는 구현 방향
 
-### 6-1. 현재 플레이 가능한 루프를 깨지 않는다
+### 7-1. 현재 플레이 가능한 루프를 깨지 않는다
 
 우선 보존 대상:
 
@@ -233,7 +261,7 @@
 - 상점 구매/Next Day 루프
 - HUD 가독성
 
-### 6-2. Stage 전환 기본 규칙
+### 7-2. Stage 전환 기본 규칙
 
 현재 기준 기본 Stage 전환은 아래와 같다.
 
@@ -247,7 +275,7 @@
 - 기본적으로 채굴 벽은 초기화하지 않는다
 - 벽 초기화는 특정 효과가 `queue_wall_reset_for_next_day()`를 호출할 때만 실행한다
 
-### 6-3. 모래 처리 원칙
+### 7-3. 모래 처리 원칙
 
 - 자연 물리 반응과 플레이어의 모래 밀림은 유지한다
 - intermission 잠금 이후 막는 것은 채굴 입력/채굴 결과다
@@ -256,7 +284,7 @@
 
 ---
 
-## 7. 현재 미구현 또는 제한된 영역
+## 8. 현재 미구현 또는 제한된 영역
 
 아래는 아직 완성 시스템으로 보지 않는다.
 
@@ -273,7 +301,7 @@
 
 ---
 
-## 8. 체크리스트
+## 9. 체크리스트
 
 게임플레이나 UI를 바꾼 뒤 문서를 갱신할 때 최소 확인 항목:
 
@@ -290,7 +318,7 @@
 
 ---
 
-## 9. 현재 개발 방향
+## 10. 현재 개발 방향
 
 현재 프로젝트는 대규모 재설계보다, 실행 가능한 코어 루프를 보존하면서 시스템을 하나씩 연결하는 방향을 우선한다.
 
