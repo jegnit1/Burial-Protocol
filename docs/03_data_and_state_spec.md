@@ -185,7 +185,264 @@ Type은 선택 affix/modifier다.
 
 ---
 
-## 7. 저장 상태
+## 7. Item Object Schema
+
+조건부 아이템, 보물상자 보상, 기능 모듈, 강화 모듈, 레벨업 카드가 늘어나기 전에 아이템 객체 스키마를 먼저 정의한다.
+
+원칙:
+
+```text
+아이템 = 기본 정보 + 조건 목록 + 효과 목록 + 적용 타이밍
+```
+
+아이템별로 코드를 하드코딩하지 않는다.
+새 아이템은 가능한 한 데이터 추가로 표현하고, 코드는 condition/effect/apply_timing 타입을 해석하는 공통 엔진을 확장한다.
+
+### 7-1. 기본 필드
+
+권장 기본 필드:
+
+- `item_id`
+- `name`
+- `rank`
+- `item_category`
+- `price_gold`
+- `shop_enabled`
+- `shop_spawn_weight`
+- `stackable`
+- `max_stack`
+- `effect_type`
+- `effect_values`
+- `conditions`
+- `effects`
+- `apply_timing`
+- `tags`
+- `icon_path`
+- `short_desc`
+- `desc`
+
+현재 단순 아이템은 `effect_type`과 `effect_values`만으로 표현할 수 있다.
+조건부 아이템은 `conditions`, `effects`, `apply_timing`을 함께 사용한다.
+
+### 7-2. 조건부 아이템 예시
+
+예시: 무게가 60% 이상일 때 공격력 증가
+
+```gdscript
+{
+    "item_id": "pressure_overdrive",
+    "name": "압력 과부하 장치",
+    "rank": "B",
+    "item_category": "enhance_module",
+    "effect_type": "conditional_stat_bonus",
+    "conditions": [
+        {
+            "type": "weight_ratio_at_least",
+            "value": 0.6
+        }
+    ],
+    "effects": [
+        {
+            "type": "attack_damage_percent",
+            "value": 0.25
+        }
+    ],
+    "apply_timing": "stat_query"
+}
+```
+
+예시: 모든 공격모듈이 근거리일 때 공격력 증가
+
+```gdscript
+{
+    "item_id": "melee_purity_core",
+    "name": "근접 순도 코어",
+    "rank": "A",
+    "item_category": "enhance_module",
+    "effect_type": "conditional_stat_bonus",
+    "conditions": [
+        {
+            "type": "all_attack_modules_type",
+            "module_type": "melee"
+        }
+    ],
+    "effects": [
+        {
+            "type": "attack_damage_percent",
+            "value": 0.30
+        }
+    ],
+    "apply_timing": "stat_query"
+}
+```
+
+예시: 블록 옆면 공격 시 데미지 증가
+
+```gdscript
+{
+    "item_id": "side_breaker",
+    "name": "측면 파쇄기",
+    "rank": "B",
+    "item_category": "enhance_module",
+    "effect_type": "conditional_damage_bonus",
+    "conditions": [
+        {
+            "type": "attack_hit_side",
+            "allowed_sides": ["left", "right"]
+        }
+    ],
+    "effects": [
+        {
+            "type": "damage_multiplier_on_hit",
+            "value": 1.25
+        }
+    ],
+    "apply_timing": "on_attack_hit"
+}
+```
+
+### 7-3. Condition 타입
+
+초기 지원 권장 condition 타입:
+
+상시 상태 조건:
+
+- `weight_ratio_at_least`
+- `weight_ratio_below`
+- `hp_ratio_at_least`
+- `hp_ratio_below`
+- `gold_at_least`
+- `current_day_at_least`
+- `all_attack_modules_type`
+- `equipped_attack_module_count_at_least`
+- `has_attack_module_type`
+
+공격 순간 조건:
+
+- `attack_module_type_is`
+- `attack_hit_side`
+- `player_is_airborne`
+- `target_block_size_at_least`
+- `is_critical_hit`
+
+이벤트 조건:
+
+- `destroyed_block_material_is`
+- `destroyed_block_type_is`
+- `sand_removed_at_least`
+- `shop_item_rank_is`
+
+처음부터 모든 condition을 구현하지 않는다.
+1차 구현은 상시 상태 조건만 지원하고, 공격 순간 조건과 이벤트 조건은 이후 단계로 확장한다.
+
+### 7-4. Effect 타입
+
+초기 지원 권장 effect 타입:
+
+스탯 효과:
+
+- `attack_damage_flat`
+- `attack_damage_percent`
+- `attack_speed_percent`
+- `attack_range_percent`
+- `crit_chance_flat`
+- `max_hp_flat`
+- `defense_flat`
+- `hp_regen_flat`
+- `move_speed_percent`
+- `jump_power_percent`
+- `mining_damage_flat`
+- `mining_speed_percent`
+- `mining_range_percent`
+- `luck_flat`
+- `interest_rate_flat`
+- `battery_recovery_flat`
+
+공격 순간 효과:
+
+- `damage_multiplier_on_hit`
+- `additional_flat_damage_on_hit`
+- `crit_chance_bonus_on_hit`
+
+이벤트 효과:
+
+- `gold_gain_flat`
+- `xp_gain_flat`
+- `sand_remove_count`
+- `queue_wall_reset_next_day`
+
+주의:
+
+- `sand_remove_count`, `queue_wall_reset_next_day` 같은 환경대응 효과는 레벨업 카드가 아니라 상점 아이템, 기능 모듈, 보물상자 보상, 특수 이벤트에서만 사용한다.
+
+### 7-5. Apply Timing
+
+조건부 효과는 언제 검사하느냐가 중요하다.
+
+권장 `apply_timing`:
+
+| apply_timing | 의미 | 예시 |
+|---|---|---|
+| `on_purchase` | 구매 즉시 적용 | 최대 체력 증가, 모듈 등록 |
+| `stat_query` | 최종 스탯 계산 시 검사 | 무게 60% 이상 공격력 증가 |
+| `on_attack_start` | 공격 시작 시 검사 | 근거리 공격만 강화 |
+| `on_attack_hit` | 공격이 블록에 적중한 순간 검사 | 옆면 공격 시 데미지 증가 |
+| `on_block_destroyed` | 블록 파괴 시 검사 | 골드 추가 획득 |
+| `on_sand_removed` | 모래 제거 시 검사 | 채굴 보너스 XP |
+| `on_day_started` | Day 시작 시 검사 | 시작 보호막, 임시 버프 |
+| `on_day_ended` | Day 종료 시 검사 | 이자 보너스, 벽 복구 예약 |
+| `on_player_damaged` | 플레이어 피격 시 검사 | 반격, 방어 버프 |
+
+### 7-6. 구현 순서 원칙
+
+조건부 아이템 구현 순서:
+
+```text
+1. 아이템 객체 스키마 확정
+2. condition 타입 목록 확정
+3. effect 타입 목록 확정
+4. apply_timing 목록 확정
+5. 기존 stat_bonus 아이템을 새 구조로 표현 가능한지 검증
+6. stat_query 기반 conditional_stat_bonus 구현
+7. on_attack_hit 기반 conditional_damage_bonus 구현
+8. 이벤트 기반 효과 구현
+```
+
+초기 구현 추천:
+
+```text
+1차:
+- stat_bonus
+- conditional_stat_bonus
+- weight_ratio_at_least
+- all_attack_modules_type
+
+2차:
+- on_attack_hit
+- attack_hit_side
+- damage_multiplier_on_hit
+
+3차:
+- on_block_destroyed
+- on_sand_removed
+- on_player_damaged
+```
+
+금지 방향:
+
+```gdscript
+if item_id == "pressure_overdrive":
+    ...
+if item_id == "side_breaker":
+    ...
+```
+
+아이템 ID별 분기 하드코딩은 피한다.
+새로운 효과가 필요하면 condition/effect/apply_timing 타입을 추가한다.
+
+---
+
+## 8. 저장 상태
 
 저장 주체: `scripts/autoload/GameState.gd`
 
@@ -221,7 +478,7 @@ Type은 선택 affix/modifier다.
 
 ---
 
-## 8. 현재 런 상태
+## 9. 현재 런 상태
 
 현재 런 상태는 주로 `GameState.gd`가 소유한다.
 
@@ -264,7 +521,7 @@ Type은 선택 affix/modifier다.
 
 ---
 
-## 9. 공격모듈 상태
+## 10. 공격모듈 상태
 
 `GameState.gd`는 공격모듈 관련 상태를 소유한다.
 
@@ -295,7 +552,7 @@ Type은 선택 affix/modifier다.
 
 ---
 
-## 10. 기능/강화 모듈 상태
+## 11. 기능/강화 모듈 상태
 
 현재 상점 아이템 시스템은 공격모듈 외에도 기능/강화 모듈 상태를 가진다.
 
@@ -312,9 +569,11 @@ Type은 선택 affix/modifier다.
 - 강화 모듈은 스탯 보너스 또는 스택으로 반영된다.
 - 현재 런 효과는 `current_run_effects`에 누적된다.
 
+향후 조건부 아이템과 이벤트형 아이템은 `current_run_effects`에 저장된 효과 목록을 condition/effect/apply_timing 엔진이 해석하는 방식으로 확장한다.
+
 ---
 
-## 11. 최종 스탯 getter
+## 12. 최종 스탯 getter
 
 `GameState.gd`는 UI와 로직이 직접 읽는 최종 스탯 getter를 제공한다.
 
@@ -360,9 +619,11 @@ Type은 선택 affix/modifier다.
 - `calculate_interest_payout()`
 - `get_luck()`
 
+조건부 `stat_query` 효과를 구현할 경우, 위 getter들은 공통 effect evaluator를 통해 조건을 만족하는 스탯 보너스를 함께 반영해야 한다.
+
 ---
 
-## 12. 캐릭터 / 난이도 상태
+## 13. 캐릭터 / 난이도 상태
 
 캐릭터:
 
@@ -386,7 +647,7 @@ Type은 선택 affix/modifier다.
 
 ---
 
-## 13. Signal 구조
+## 14. Signal 구조
 
 `GameState`가 제공하는 주요 signal:
 
@@ -412,7 +673,7 @@ Type은 선택 affix/modifier다.
 
 ---
 
-## 14. Player 고유 상태
+## 15. Player 고유 상태
 
 일부 상태는 `GameState`가 아니라 `Player.gd`가 직접 소유한다.
 
@@ -444,7 +705,7 @@ HUD는 필요한 값만 Player getter를 통해 읽는다.
 
 ---
 
-## 15. 스탯 패널 상태
+## 16. 스탯 패널 상태
 
 `PauseMenu.gd`는 `GameState.get_stat_panel_entries()`가 반환하는 배열을 사용한다.
 
@@ -469,7 +730,7 @@ HUD는 필요한 값만 Player getter를 통해 읽는다.
 
 ---
 
-## 16. 상태 소유권 주의사항
+## 17. 상태 소유권 주의사항
 
 - 블록/Day/상점 아이템 콘텐츠 데이터는 `GameState`가 소유하지 않는다.
 - intermission 진행 플래그는 `GameState`가 아니라 `Main.gd`가 소유한다.
@@ -478,10 +739,11 @@ HUD는 필요한 값만 Player getter를 통해 읽는다.
 - 공격모듈별 순간 쿨다운은 `Player.gd`가 소유한다.
 - 상점 아이템 롤 결과는 해당 intermission 동안 `Main.gd`가 `_current_shop_item_ids`로 들고 있다.
 - 구매 결과와 런 효과는 `GameState.gd`가 소유한다.
+- 아이템별 조건부 효과는 아이템 ID 분기가 아니라 condition/effect/apply_timing 해석으로 처리한다.
 
 ---
 
-## 17. 문서 갱신 체크리스트
+## 18. 문서 갱신 체크리스트
 
 데이터/상태 구조를 바꿀 때는 아래를 확인한다.
 
@@ -492,3 +754,4 @@ HUD는 필요한 값만 Player getter를 통해 읽는다.
 - 공격모듈 다중 장착 구조와 UI 표시가 일치하는가
 - `Player` 고유 상태를 저장 상태로 잘못 문서화하지 않았는가
 - 새 signal이 있다면 소비처와 함께 적었는가
+- 새 조건부 아이템이 아이템 ID 하드코딩 없이 condition/effect/apply_timing 구조로 표현되는가
