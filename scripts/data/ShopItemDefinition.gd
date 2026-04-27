@@ -15,12 +15,23 @@ class_name ShopItemDefinition
 @export var is_equippable := false
 @export var default_start_module := false
 @export var module_type: StringName = &""
-@export var attack_style: StringName = &"slash"
+@export var attack_style: StringName = &""
+@export var effect_style: StringName = &""
+@export var base_shape_units := Vector2.ZERO
+@export var range_growth_width_scale := 1.0
+@export var range_growth_height_scale := 0.1
+@export var hit_shape: StringName = &"rectangle"
+@export var range_units := 0.0
+@export var range_growth_scale := 1.0
 @export var range_width_u := 0.0
 @export var range_height_u := 0.0
 @export var damage_multiplier := 1.0
 @export var attack_speed_multiplier := 1.0
 @export var projectile_count := 1
+@export var spread_angle := 0.0
+@export var pierce_count := 0
+@export var is_hitscan := false
+@export var projectile_visual_size := Vector2.ZERO
 @export var projectile_spread_degrees := 0.0
 @export var projectile_pierce_count := 0
 @export var projectile_speed := 900.0
@@ -75,11 +86,24 @@ func to_dictionary() -> Dictionary:
 		"default_start_module": default_start_module,
 		"module_type": String(module_type),
 		"attack_style": String(attack_style),
+		"effect_style": String(effect_style),
+		"base_shape_units_x": base_shape_units.x,
+		"base_shape_units_y": base_shape_units.y,
+		"range_growth_width_scale": range_growth_width_scale,
+		"range_growth_height_scale": range_growth_height_scale,
+		"hit_shape": String(hit_shape),
+		"range_units": range_units,
+		"range_growth_scale": range_growth_scale,
 		"range_width_u": range_width_u,
 		"range_height_u": range_height_u,
 		"damage_multiplier": damage_multiplier,
 		"attack_speed_multiplier": attack_speed_multiplier,
 		"projectile_count": projectile_count,
+		"spread_angle": spread_angle,
+		"pierce_count": pierce_count,
+		"is_hitscan": is_hitscan,
+		"projectile_visual_size_x": projectile_visual_size.x,
+		"projectile_visual_size_y": projectile_visual_size.y,
 		"projectile_spread_degrees": projectile_spread_degrees,
 		"projectile_pierce_count": projectile_pierce_count,
 		"projectile_speed": projectile_speed,
@@ -118,22 +142,41 @@ func apply_dictionary(data: Dictionary) -> void:
 	is_equippable = bool(data.get("is_equippable", false))
 	default_start_module = bool(data.get("default_start_module", false))
 	module_type = StringName(String(data.get("module_type", "")))
-	attack_style = StringName(String(data.get("attack_style", "slash")))
-	range_width_u = float(data.get("range_width_u", 0.0))
+	attack_style = StringName(String(data.get("attack_style", "")))
+	effect_style = StringName(String(data.get("effect_style", "")))
+	base_shape_units = Vector2(
+		float(data.get("base_shape_units_x", data.get("range_width_u", 0.0))),
+		float(data.get("base_shape_units_y", data.get("range_height_u", 0.0)))
+	)
+	range_growth_width_scale = float(data.get("range_growth_width_scale", 1.0))
+	range_growth_height_scale = float(data.get("range_growth_height_scale", 0.1))
+	hit_shape = StringName(String(data.get("hit_shape", "rectangle")))
+	range_units = float(data.get("range_units", data.get("range_width_u", 0.0)))
+	range_growth_scale = float(data.get("range_growth_scale", 1.0))
+	range_width_u = float(data.get("range_width_u", range_units))
 	range_height_u = float(data.get("range_height_u", 0.0))
 	damage_multiplier = float(data.get("damage_multiplier", 1.0))
 	attack_speed_multiplier = float(data.get("attack_speed_multiplier", 1.0))
 	projectile_count = int(data.get("projectile_count", 1))
-	projectile_spread_degrees = float(data.get("projectile_spread_degrees", 0.0))
-	projectile_pierce_count = int(data.get("projectile_pierce_count", 0))
+	spread_angle = float(data.get("spread_angle", data.get("projectile_spread_degrees", 0.0)))
+	pierce_count = int(data.get("pierce_count", data.get("projectile_pierce_count", 0)))
+	is_hitscan = bool(data.get("is_hitscan", data.get("projectile_hit_scan", false)))
+	projectile_visual_size = Vector2(
+		float(data.get("projectile_visual_size_x", data.get("projectile_size_x", 0.0))),
+		float(data.get("projectile_visual_size_y", data.get("projectile_size_y", 0.0)))
+	)
+	projectile_spread_degrees = float(data.get("projectile_spread_degrees", spread_angle))
+	projectile_pierce_count = int(data.get("projectile_pierce_count", pierce_count))
 	projectile_speed = float(data.get("projectile_speed", 900.0))
 	projectile_lifetime = float(data.get("projectile_lifetime", 1.2))
 	projectile_max_distance = float(data.get("projectile_max_distance", 900.0))
 	projectile_size = Vector2(
-		float(data.get("projectile_size_x", 18.0)),
-		float(data.get("projectile_size_y", 6.0))
+		float(data.get("projectile_size_x", projectile_visual_size.x if projectile_visual_size.x > 0.0 else 18.0)),
+		float(data.get("projectile_size_y", projectile_visual_size.y if projectile_visual_size.y > 0.0 else 6.0))
 	)
-	projectile_hit_scan = bool(data.get("projectile_hit_scan", false))
+	if projectile_visual_size.x <= 0.0 or projectile_visual_size.y <= 0.0:
+		projectile_visual_size = projectile_size
+	projectile_hit_scan = bool(data.get("projectile_hit_scan", is_hitscan))
 	projectile_homing = bool(data.get("projectile_homing", false))
 	mechanic_drone_count = int(data.get("mechanic_drone_count", 1))
 	mechanic_targeting = StringName(String(data.get("mechanic_targeting", "nearest")))

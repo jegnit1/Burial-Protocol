@@ -14,6 +14,7 @@ var damage := 1
 var is_critical := false
 var pierce_count := 0
 var homing := false
+var effect_style: StringName = &"rifle_projectile"
 var blocks_root: Node2D
 
 var _elapsed := 0.0
@@ -42,6 +43,7 @@ func setup(config: Dictionary) -> void:
 	is_critical = bool(config.get("is_critical", false))
 	pierce_count = int(config.get("pierce_count", pierce_count))
 	homing = bool(config.get("homing", false))
+	effect_style = StringName(String(config.get("effect_style", effect_style)))
 	blocks_root = configured_blocks_root
 	rotation = direction.angle()
 	queue_redraw()
@@ -121,5 +123,19 @@ func _find_nearest_block() -> FallingBlock:
 
 func _draw() -> void:
 	var half := projectile_size * 0.5
-	draw_rect(Rect2(Vector2(-half.x, -half.y), projectile_size), DEFAULT_COLOR)
-	draw_rect(Rect2(Vector2(-half.x - 18.0, -half.y * 0.55), Vector2(18.0, projectile_size.y * 0.55)), DEFAULT_TRAIL_COLOR)
+	var color := _get_effect_color()
+	var trail_color := Color(color.r, color.g, color.b, maxf(color.a * 0.3, 0.2))
+	draw_rect(Rect2(Vector2(-half.x, -half.y), projectile_size), color)
+	draw_rect(Rect2(Vector2(-half.x - 18.0, -half.y * 0.55), Vector2(18.0, projectile_size.y * 0.55)), trail_color)
+
+
+func _get_effect_color() -> Color:
+	match String(effect_style):
+		"revolver_projectile":
+			return Color(1.0, 0.78, 0.42, 0.95)
+		"shotgun_spread":
+			return Color(1.0, 0.58, 0.34, 0.92)
+		"sniper_projectile":
+			return Color(0.72, 1.0, 0.84, 0.96)
+		_:
+			return DEFAULT_COLOR

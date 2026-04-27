@@ -74,6 +74,7 @@ func _build_snapshot() -> Dictionary:
 			"speed": GC.ATTACK_MODULE_GRADE_SPEED_MULTIPLIERS,
 			"range": GC.ATTACK_MODULE_GRADE_RANGE_MULTIPLIERS,
 		},
+		"attack_module_styles": _get_attack_module_style_snapshot(),
 		"stage_days": _get_stage_days(),
 		"day_hp_comparison": _get_day_hp_comparison(),
 		"boss_days": _get_boss_days(),
@@ -85,6 +86,58 @@ func _build_snapshot() -> Dictionary:
 		"level_up_rarity_chances_by_luck": _get_level_up_rarity_chances_by_luck(),
 		"level_up_card_rarity_effect_values": _get_level_up_card_rarity_effect_values(),
 		"level_up_choice_sample": _get_level_up_choice_sample(),
+	}
+
+
+func _get_attack_module_style_snapshot() -> Dictionary:
+	var rows: Array[Dictionary] = []
+	var by_style := {}
+	for raw_definition in _game_data.call("get_attack_module_definitions"):
+		var definition = raw_definition
+		if definition == null:
+			continue
+		var entry := {
+			"module_id": String(definition.module_id),
+			"grade": String(definition.rank),
+		}
+		var style_snapshot: Dictionary = _game_state.call("get_attack_module_style_snapshot", entry, 1.5)
+		var base_size: Dictionary = style_snapshot.get("current_shape_units", {})
+		var boosted_size: Dictionary = style_snapshot.get("bonus_shape_units", {})
+		var row := {
+			"module_id": String(definition.module_id),
+			"module_type": String(definition.module_type),
+			"attack_style": String(definition.attack_style),
+			"effect_style": String(definition.effect_style),
+			"base_shape_units": {
+				"x": _round_to(definition.base_shape_units.x, 3),
+				"y": _round_to(definition.base_shape_units.y, 3),
+			},
+			"range_growth_width_scale": _round_to(definition.range_growth_width_scale, 3),
+			"range_growth_height_scale": _round_to(definition.range_growth_height_scale, 3),
+			"range_units": _round_to(float(style_snapshot.get("range_units", 0.0)), 3),
+			"range_growth_scale": _round_to(float(style_snapshot.get("range_growth_scale", 0.0)), 3),
+			"projectile_count": int(style_snapshot.get("projectile_count", 0)),
+			"spread_angle": _round_to(float(style_snapshot.get("spread_angle", 0.0)), 3),
+			"pierce_count": int(style_snapshot.get("pierce_count", 0)),
+			"is_hitscan": bool(style_snapshot.get("is_hitscan", false)),
+			"projectile_visual_size": style_snapshot.get("projectile_visual_size", {}),
+			"shape_at_range_1_0": {
+				"x": _round_to(float(base_size.get("x", 0.0)), 3),
+				"y": _round_to(float(base_size.get("y", 0.0)), 3),
+			},
+			"shape_at_range_1_5": {
+				"x": _round_to(float(boosted_size.get("x", 0.0)), 3),
+				"y": _round_to(float(boosted_size.get("y", 0.0)), 3),
+			},
+		}
+		rows.append(row)
+		var style_key := String(definition.attack_style)
+		if style_key.is_empty():
+			style_key = "(none)"
+		by_style[style_key] = int(by_style.get(style_key, 0)) + 1
+	return {
+		"items": rows,
+		"by_style": by_style,
 	}
 
 

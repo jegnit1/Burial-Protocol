@@ -192,6 +192,8 @@ func _handle_attack_module_action(trigger: Dictionary, is_mechanic := false) -> 
 		)
 		return
 	var attack_shape_data := player.get_attack_shape_data_for_module(direction, module_entry)
+	if module_definition != null:
+		_spawn_melee_attack_effect(module_definition, attack_shape_data)
 	var attack_shape := RectangleShape2D.new()
 	attack_shape.size = attack_shape_data["size"]
 	var query := PhysicsShapeQueryParameters2D.new()
@@ -242,6 +244,70 @@ func _get_ranged_attack_distance(module_entry: Dictionary) -> float:
 	return maxf(GameState.get_attack_module_shape_size_pixels(module_entry).x, 1.0)
 
 
+func _get_ranged_attack_style(module_definition) -> String:
+	if module_definition == null:
+		return "rifle"
+	match String(module_definition.attack_style):
+		"", "single":
+			return "rifle"
+		"spread":
+			return "shotgun"
+		"pierce":
+			return "sniper"
+		_:
+			return String(module_definition.attack_style)
+
+
+func _get_ranged_effect_style(module_definition, attack_style: String) -> String:
+	if module_definition != null and module_definition.effect_style != StringName():
+		return String(module_definition.effect_style)
+	match attack_style:
+		"revolver":
+			return "revolver_projectile"
+		"shotgun":
+			return "shotgun_spread"
+		"sniper":
+			return "sniper_projectile"
+		"laser":
+			return "laser_beam"
+		_:
+			return "rifle_projectile"
+
+
+func _is_ranged_hitscan(module_definition, attack_style: String) -> bool:
+	return attack_style == "laser" or (module_definition != null and (module_definition.is_hitscan or module_definition.projectile_hit_scan))
+
+
+func _get_ranged_projectile_count(module_definition, attack_style: String) -> int:
+	if _is_ranged_hitscan(module_definition, attack_style):
+		return 0
+	if module_definition == null:
+		return 1
+	return max(module_definition.projectile_count, 1)
+
+
+func _get_ranged_spread_angle(module_definition) -> float:
+	if module_definition == null:
+		return 0.0
+	if module_definition.spread_angle > 0.0:
+		return module_definition.spread_angle
+	return module_definition.projectile_spread_degrees
+
+
+func _get_ranged_pierce_count(module_definition) -> int:
+	if module_definition == null:
+		return 0
+	return max(module_definition.pierce_count, module_definition.projectile_pierce_count)
+
+
+func _get_ranged_projectile_visual_size(module_definition) -> Vector2:
+	if module_definition == null:
+		return Vector2(18.0, 6.0)
+	if module_definition.projectile_visual_size.x > 0.0 and module_definition.projectile_visual_size.y > 0.0:
+		return module_definition.projectile_visual_size
+	return module_definition.projectile_size
+
+
 func _handle_ranged_attack_module_action(
 	module_entry: Dictionary,
 	module_definition,
@@ -255,19 +321,23 @@ func _handle_ranged_attack_module_action(
 	if fire_direction == Vector2.ZERO:
 		fire_direction = Vector2.RIGHT
 	var lane_offset := _get_ranged_lane_offset(fire_direction, lane_index, lane_count)
-	if module_definition.attack_style == &"laser" or module_definition.projectile_hit_scan:
+	var attack_style := _get_ranged_attack_style(module_definition)
+	if _is_ranged_hitscan(module_definition, attack_style):
 		_fire_laser_placeholder(module_entry, module_definition, fire_direction, lane_offset)
 		return
-	_fire_projectile_burst(module_entry, module_definition, fire_direction, lane_offset)
+	_fire_projectile_burst(module_entry, module_definition, fire_direction, lane_offset, attack_style)
 
 
-func _fire_projectile_burst(module_entry: Dictionary, module_definition, fire_direction: Vector2, lane_offset: Vector2) -> void:
+func _fire_projectile_burst(module_entry: Dictionary, module_definition, fire_direction: Vector2, lane_offset: Vector2, attack_style: String) -> void:
 	_ensure_projectiles_root()
-	var projectile_count: int = max(module_definition.projectile_count, 1)
-	var spread_degrees: float = module_definition.projectile_spread_degrees
+	var projectile_count := _get_ranged_projectile_count(module_definition, attack_style)
+	var spread_degrees := _get_ranged_spread_angle(module_definition)
 	var range_distance := _get_ranged_attack_distance(module_entry)
 	var projectile_speed: float = maxf(module_definition.projectile_speed, 1.0)
 	var projectile_lifetime: float = maxf(module_definition.projectile_lifetime, range_distance / projectile_speed + 0.05)
+	var effect_style := _get_ranged_effect_style(module_definition, attack_style)
+	var projectile_visual_size := _get_ranged_projectile_visual_size(module_definition)
+	var pierce_count := _get_ranged_pierce_count(module_definition)
 	var start_angle := -spread_degrees * 0.5
 	var angle_step := 0.0
 	if projectile_count > 1:
@@ -288,10 +358,11 @@ func _fire_projectile_burst(module_entry: Dictionary, module_definition, fire_di
 			"speed": projectile_speed,
 			"lifetime": projectile_lifetime,
 			"max_distance": range_distance,
-			"size": module_definition.projectile_size,
+			"size": projectile_visual_size,
+			"effect_style": effect_style,
 			"damage": damage,
 			"is_critical": is_critical,
-			"pierce_count": module_definition.projectile_pierce_count,
+			"pierce_count": pierce_count,
 			"homing": module_definition.projectile_homing,
 			"blocks_root": blocks_root,
 		})
@@ -331,21 +402,126 @@ func _fire_laser_placeholder(module_entry: Dictionary, module_definition, fire_d
 		hit_count += 1
 	_spawn_laser_line(
 		player.global_position + lane_offset,
-		player.global_position + fire_direction * range_distance + lane_offset
+		player.global_position + fire_direction * range_distance + lane_offset,
+		_get_ranged_effect_style(module_definition, "laser")
 	)
 	GameState.set_status_text("%s laser hit %d." % [GameState.get_attack_module_entry_label(module_entry), hit_count])
 
 
-func _spawn_laser_line(from_position: Vector2, to_position: Vector2) -> void:
+func _spawn_laser_line(from_position: Vector2, to_position: Vector2, effect_style: String = "laser_beam") -> void:
 	_ensure_projectiles_root()
 	var line := Line2D.new()
-	line.width = 5.0
+	line.width = 5.0 if effect_style == "laser_beam" else 3.0
 	line.default_color = Color(0.55, 0.92, 1.0, 0.8)
 	line.points = PackedVector2Array([from_position, to_position])
 	_projectiles_root.add_child(line)
 	var tween := create_tween()
 	tween.tween_property(line, "modulate:a", 0.0, 0.12)
 	tween.finished.connect(line.queue_free)
+
+
+func _spawn_melee_attack_effect(module_definition, attack_shape_data: Dictionary) -> void:
+	if module_definition == null or module_definition.module_type != &"melee":
+		return
+	_ensure_projectiles_root()
+	var effect_style := String(module_definition.effect_style)
+	if effect_style.is_empty():
+		effect_style = _get_default_melee_effect_style(String(module_definition.attack_style))
+	var center: Vector2 = attack_shape_data["center"]
+	var size: Vector2 = attack_shape_data["size"]
+	var rotation := float(attack_shape_data["rotation"])
+	match effect_style:
+		"short_stab":
+			_spawn_melee_line_effect(center, size, rotation, Color(0.9, 1.0, 0.82, 0.88), 3.0, 0.08)
+		"long_pierce":
+			_spawn_melee_line_effect(center, size, rotation, Color(0.62, 0.9, 1.0, 0.86), 4.0, 0.1)
+		"big_cleave":
+			_spawn_melee_polygon_effect(center, size, rotation, Color(1.0, 0.58, 0.24, 0.26), Color(1.0, 0.75, 0.42, 0.9), 0.14)
+		"blunt_smash":
+			_spawn_melee_polygon_effect(center, size, rotation, Color(0.95, 0.9, 0.64, 0.24), Color(1.0, 0.93, 0.56, 0.88), 0.12)
+		_:
+			_spawn_melee_arc_effect(center, size, rotation, Color(1.0, 0.48, 0.34, 0.88), 0.12)
+
+
+func _spawn_melee_line_effect(center: Vector2, size: Vector2, rotation: float, color: Color, width: float, duration: float) -> void:
+	var forward := Vector2.RIGHT.rotated(rotation)
+	var line := Line2D.new()
+	line.width = width
+	line.default_color = color
+	line.points = PackedVector2Array([
+		center - forward * size.x * 0.5,
+		center + forward * size.x * 0.5,
+	])
+	line.z_index = 38
+	_projectiles_root.add_child(line)
+	_fade_and_free(line, duration)
+
+
+func _spawn_melee_arc_effect(center: Vector2, size: Vector2, rotation: float, color: Color, duration: float) -> void:
+	var forward := Vector2.RIGHT.rotated(rotation)
+	var side := forward.orthogonal()
+	var line := Line2D.new()
+	line.width = 4.0
+	line.default_color = color
+	line.points = PackedVector2Array([
+		center - forward * size.x * 0.46 - side * size.y * 0.32,
+		center - forward * size.x * 0.1 + side * size.y * 0.38,
+		center + forward * size.x * 0.46 + side * size.y * 0.18,
+	])
+	line.z_index = 38
+	_projectiles_root.add_child(line)
+	_fade_and_free(line, duration)
+
+
+func _spawn_melee_polygon_effect(center: Vector2, size: Vector2, rotation: float, fill_color: Color, outline_color: Color, duration: float) -> void:
+	var polygon := Polygon2D.new()
+	polygon.color = fill_color
+	polygon.polygon = _get_rotated_box_points(center, size, rotation)
+	polygon.z_index = 37
+	_projectiles_root.add_child(polygon)
+	var outline := Line2D.new()
+	outline.width = 3.0
+	outline.default_color = outline_color
+	var outline_points := _get_rotated_box_points(center, size, rotation)
+	outline_points.append(outline_points[0])
+	outline.points = outline_points
+	outline.z_index = 38
+	_projectiles_root.add_child(outline)
+	_fade_and_free(polygon, duration)
+	_fade_and_free(outline, duration)
+
+
+func _get_rotated_box_points(center: Vector2, size: Vector2, rotation: float) -> PackedVector2Array:
+	var forward := Vector2.RIGHT.rotated(rotation)
+	var side := forward.orthogonal()
+	var half_forward := forward * size.x * 0.5
+	var half_side := side * size.y * 0.5
+	return PackedVector2Array([
+		center - half_forward - half_side,
+		center + half_forward - half_side,
+		center + half_forward + half_side,
+		center - half_forward + half_side,
+	])
+
+
+func _fade_and_free(node: CanvasItem, duration: float) -> void:
+	var tween := create_tween()
+	tween.tween_property(node, "modulate:a", 0.0, duration)
+	tween.finished.connect(node.queue_free)
+
+
+func _get_default_melee_effect_style(attack_style: String) -> String:
+	match attack_style:
+		"stab":
+			return "short_stab"
+		"pierce":
+			return "long_pierce"
+		"cleave":
+			return "big_cleave"
+		"smash":
+			return "blunt_smash"
+		_:
+			return "slash_arc"
 
 
 func _handle_mechanic_attack_module_action(module_entry: Dictionary) -> void:
