@@ -8,7 +8,7 @@
 ## 0. 목적
 
 이 문서는 현재 구현 상태를 기준으로 앞으로 해야 할 작업을 정리한다.
-구현된 시스템 설명은 `01_gdd.md`, `02_systems_spec.md`, `03_data_and_state_spec.md`에 두고, 이 문서에는 TODO와 우선순위만 둔다.
+구현된 시스템 설명은 `01_gdd.md`, `02_systems_spec.md`, `03_data_and_state_spec.md`에 두고, 이 문서에는 완료/진행/보류/TODO와 우선순위만 둔다.
 
 밸런스 수치 공식은 `05_balance_formula.md`를 기준으로 한다.
 아이템 데이터 구조와 조건부 효과 스키마는 `03_data_and_state_spec.md`의 `Item Object Schema`를 기준으로 한다.
@@ -26,6 +26,8 @@
 - 낙하 블록 스폰
 - 보스 Day 스폰
 - 블록 파괴/분해
+- StageTable의 Day별 `block_hp_multiplier` 런타임 HP 반영
+- Day 10/20/30 보스 resolve 정합성
 - 모래 생성과 모래 시뮬레이션
 - 중량 한도 기반 실패
 - 좌우 벽 채굴
@@ -39,158 +41,246 @@
 - 상점 아이템 5개 롤
 - attack_module/function_module/enhance_module 구매
 - 공격모듈 즉시 장착, 중복 장착, 합성
+- 아이템 객체 스키마의 `conditions/effects/apply_timing` 병행 수용
+- `stat_query` 기반 조건부 스탯 보너스 1차 구현
+- 조건부 상점 아이템 테스트 2종 검증
 - XP와 레벨업 카드
+- 레벨업 카드 15종 풀
+- 레벨업 카드 Normal/Silver/Gold/Platinum 희귀도
+- Luck 기반 레벨업 희귀도 보정
+- 레벨업 희귀도별 UI 색상/테두리/라벨 표시
 - 런타임 스탯 증가
 - HUD와 ESC 스탯 패널
 - 저장 파일과 최고 기록 저장
+- 밸런스 스냅샷/회귀 검증 스크립트 일부
 
 ---
 
-## 2. 다음 작업 순서
+## 2. 완료된 최근 작업
+
+아래 항목은 최근 로드맵 작업으로 완료된 상태다.
+
+### 2-1. 아이템 객체 스키마 1차 기반
+
+완료:
+
+- `ShopItemDefinition`에 `conditions`, `effects`, `apply_timing` 필드 추가
+- 기존 아이템에 새 필드가 없어도 안전하게 기본값 처리
+- 기존 `effect_values`를 `effects = [{ type, value }]` 형태로 병행 변환
+- `conditional_stat_bonus + stat_query` 평가 helper 추가
+- `attack_damage_flat`, `attack_damage_percent`를 공격력 getter에 연결
+- `attack_hit_side` 같은 공격 순간 조건은 TODO로 유지
+
+검증:
+
+- 기존 `stat_bonus` 아이템 정상
+- 기존 공격모듈 구매/장착/합성 정상
+- 조건부 테스트 아이템 2종 정상
+
+### 2-2. 조건부 아이템 테스트
+
+추가/검증 완료:
+
+- `melee_purity_core`
+  - 모든 공격모듈이 melee일 때 공격력 percent 증가
+- `module_focus_circuit`
+  - 장착 공격모듈 수가 일정 이상일 때 공격력 flat 증가
+
+검증 완료:
+
+- 조건 만족 시 공격력 증가
+- 조건 불만족 시 공격력 증가 없음
+- 기존 상점/공격모듈 회귀 통과
+
+### 2-3. 밸런스 스냅샷 스크립트
+
+완료:
+
+- `scripts/tests/balance_snapshot.gd` 추가/확장
+- 기본 스탯, StageTable, BlockCatalog, ShopItemCatalog, 레벨업 카드 출력
+- Day 1/10/20/30 기준 HP 비교
+- 보스 HP/처치 시간 비교
+- 상점 아이템 랭크별 문서 기준 비교
+- 레벨업 희귀도 확률/효과값 출력
+
+용도:
+
+- 실제 수치 변경 전후 비교
+- 회귀 확인
+- Codex 작업 결과 검증
+
+### 2-4. StageTable HP 배율 적용
+
+완료:
+
+- `StageTable.tres`의 Day별 `block_hp_multiplier`를 실제 블록 HP 계산에 연결
+- 최종 HP 공식에 `day_hp_multiplier` 반영
+- 비정상 값 fallback `1.0` 처리
+- `BlockResolvedDefinition`, `BlockData`, `balance_snapshot.gd`에 Day 배율 정보 반영
+
+현재 기본 wood 1x1 normal 기준:
+
+| Day | 실제 HP |
+|---:|---:|
+| 1 | 10 |
+| 10 | 15 |
+| 20 | 20 |
+| 30 | 25 |
+
+### 2-5. 보스 Day 정합성 수정
+
+완료:
+
+- Day 10 보스가 `steel`의 `min_stage = 14` 제한 때문에 resolve 실패하던 문제 수정
+- Day 10 보스 material을 `steel -> marble`로 최소 데이터 수정
+- Day 10/20/30 보스 resolve 정상 확인
+
+현재 보스 HP:
+
+| Day | Boss Definition | HP |
+|---:|---|---:|
+| 10 | marble / size_2x1 / boss | 174 |
+| 20 | steel / size_2x1 / boss | 585 |
+| 30 | steel / size_2x1 / boss | 750 |
+
+보스 보상 구조는 아직 별도 설계하지 않는다.
+
+### 2-6. 레벨업 카드 Normal 기준 정리
+
+완료:
+
+- 기존 레벨업 카드 수치를 `05_balance_formula.md`의 Normal 기준에 맞춰 정리
+- 공격력, 공격속도, 최대 HP, 이동속도, 채굴속도, 공격범위, 치명타 확률, 점프력, 채굴범위 조정
+- 방어력, HP 재생, 채굴 데미지는 기존 수치 유지
+
+### 2-7. 누락 레벨업 카드 추가
+
+완료:
+
+- `battery_recovery_up`
+- `luck_up`
+- `interest_up`
+
+현재 레벨업 카드 풀은 15종이다.
+
+### 2-8. 레벨업 카드 희귀도 시스템
+
+완료:
+
+- Normal / Silver / Gold / Platinum 희귀도 구현
+- 카드 슬롯별 독립 희귀도 roll
+- 같은 카드 + 같은 희귀도 중복 방지
+- 같은 카드라도 희귀도가 다르면 허용
+- Luck 기반 확률 보정
+- 희귀도별 효과값 배율 적용
+
+기본 확률:
+
+| Rarity | Chance | Multiplier |
+|---|---:|---:|
+| Normal | 70% | 1.0 |
+| Silver | 22% | 1.6 |
+| Gold | 7% | 2.5 |
+| Platinum | 1% | 4.0 |
+
+### 2-9. 레벨업 희귀도 UI 피드백
+
+완료:
+
+- 카드 상단 희귀도 라벨 추가
+- Normal/Silver/Gold/Platinum별 배경/테두리/라벨 색상 적용
+- Gold/Platinum은 더 눈에 띄는 두꺼운 테두리와 라벨 사용
+- `rarity_id` 없는 카드 데이터는 Normal fallback
+- 사운드 피드백은 에셋 없음으로 TODO 유지
+
+### 2-10. 상점 아이템 밸런스 진단
+
+완료:
+
+- `ShopItemCatalog.tres`의 enhance/stat_bonus/conditional_stat_bonus 수치를 문서 기준과 비교
+- 전체 76개 비교 항목 중 20개 near, 41개 high, 11개 low, 4개 no_doc_target로 분류
+- 실제 상점 아이템 수치는 아직 수정하지 않음
+
+발견된 주요 과잉:
+
+- `interest_rate_percent` 계열
+- 고랭크 최대 HP
+- 고랭크 치명타 확률
+- 고랭크 행운
+- 이동속도/점프력 계열
+
+상점 아이템 나머지 수치 조정은 필요할 때 별도 판단한다.
+
+---
+
+## 3. 현재 보류 중인 항목
+
+아래 항목은 의도적으로 당장 처리하지 않는다.
+
+### 3-1. 상점 아이템 세부 수치 조정
+
+보류 사유:
+
+- 진단 리포트는 완료되었으나, 실제 수치 조정은 플레이 감각과 직접 연결된다.
+- 필요할 때 항목별로 별도 판단한다.
+
+우선 보류 대상:
+
+- 이자율 계열 하향
+- 이동속도/점프력 계열 조정
+- 최대 HP/치명타/행운 고랭크 조정
+- 채굴속도 계열 상향
+- `max_weight_flat`, `attack_damage_percent` 기준 예산 추가
+
+### 3-2. 보스 보상 구조
+
+보류 사유:
+
+- 보스 HP/정합성은 확인되었으나, 보스 보상은 추후 별도 설계한다.
+- 현재 보스 보상은 낮지만 당장 수정하지 않는다.
+
+### 3-3. 고급 조건부 아이템
+
+보류 사유:
+
+- `stat_query` 기반 조건부 아이템은 1차 검증 완료.
+- `weight_ratio_at_least`는 GameState 단독으로 현재 모래 무게를 알 수 없어 context 설계가 필요하다.
+- `attack_hit_side`는 공격 판정 context 설계가 필요하다.
+
+후순위 조건:
+
+- `weight_ratio_at_least`
+- `attack_hit_side`
+- `on_attack_hit`
+- `on_block_destroyed`
+- `on_sand_removed`
+- `on_player_damaged`
+
+---
+
+## 4. 다음 작업 순서
 
 현재 권장 순서는 아래를 따른다.
 
 ```text
-1. 문서 구조 마무리 및 기준 문서 정합성 확인
-2. 아이템 객체 스키마 / condition / effect / apply_timing 확정
-3. 밸런스 공식 구현/데이터 반영
-4. 상점 아이템 데이터 점검
-5. 공격모듈 기본 장비/수치 정리
-6. 블록 material/size/type 밸런스 정리
-7. Day별 블록 HP/스폰/모래 압박 테스트
-8. 채굴 확장: 보물상자/크립 시스템 설계
-9. HUD/상점 UI 한글화 및 가독성 개선
-10. 아트 적용 기준 확정
+1. 공격모듈 기본 장비/수치 정리
+2. 블록 material/size/type 스펙 정리 및 데이터 구조 점검
+3. 블록 size spawn weight / 난이도 / Stage 조건 설계
+4. Google Sheets import/export 데이터 파이프라인 정리
+5. Day별 블록 HP/스폰/모래 압박 테스트
+6. 채굴 확장: 보물상자/크립 시스템 설계
+7. HUD/상점 UI 한글화 및 가독성 개선
+8. 모래 렌더링 고도화
+9. 아트 적용 기준 확정
 ```
 
-이 순서의 핵심은 `조건부 아이템 구현`보다 `아이템 객체 스키마 확정`을 먼저 둔다는 점이다.
-
-이유:
-
-- 조건부 아이템을 아이템 ID별 하드코딩으로 구현하면 유지보수가 빠르게 무너진다.
-- `conditions`, `effects`, `apply_timing`을 먼저 정의해야 신규 아이템을 데이터 추가로 확장할 수 있다.
-- 블록 HP/보상/모래량을 먼저 고도화하면 기준 DPS와 성장 공식이 없어 수치가 흔들린다.
-- `05_balance_formula.md`의 Day HP, 아이템 랭크, 레벨업 희귀도 기준을 먼저 반영해야 이후 블록/상점/공격모듈 데이터가 같은 기준으로 정렬된다.
-- 상점, 공격모듈, 블록은 서로 연결된 밸런스 축이므로 독립적으로 튜닝하지 않는다.
-- 채굴 확장 보상도 D~S 등급 보상 아이템 체계로 맞춰야 하므로, 기본 밸런스 공식과 상점/모듈 수치 정리 이후 설계한다.
+현재는 밸런스 기반과 레벨업 시스템이 어느 정도 정리되었으므로, 다음 큰 축은 `공격모듈 정리`와 `블록 시스템 정리`다.
 
 ---
 
-## 3. 최우선 작업
+## 5. 최우선 작업
 
-### 3-1. 문서 구조 마무리 및 정합성 확인
-
-목표:
-
-- Codex가 읽을 기준 문서를 6개로 고정한다.
-- 남은 구형 문서가 기준 문서처럼 사용되지 않게 한다.
-- 새 기능 문서는 무분별하게 추가하지 않고 기존 기준 문서에 반영한다.
-
-기준 문서:
-
-```text
-docs/
-  00_project_rules.md
-  01_gdd.md
-  02_systems_spec.md
-  03_data_and_state_spec.md
-  04_roadmap.md
-  05_balance_formula.md
-```
-
-작업:
-
-- `00_project_rules.md`의 문서 목록이 실제 docs 구조와 일치하는지 확인
-- `04_roadmap.md`의 순서가 현재 개발 방향과 맞는지 유지
-- `05_balance_formula.md`를 밸런스 관련 최상위 기준으로 사용
-- 구형 문서가 남아 있다면 archive 이동 또는 삭제
-
-### 3-2. 아이템 객체 스키마 / condition / effect / apply_timing 확정
-
-목표:
-
-- 조건부 아이템과 이벤트형 아이템을 구현하기 전에 공통 데이터 구조를 확정한다.
-- 아이템별 하드코딩이 아니라 데이터 기반 효과 해석 구조로 확장한다.
-
-작업:
-
-- `item_id`, `rank`, `item_category`, `effect_type`, `effect_values`, `conditions`, `effects`, `apply_timing` 필드 확정
-- 기존 `stat_bonus` 아이템이 새 구조로 표현 가능한지 검증
-- 상시 조건부 효과인 `conditional_stat_bonus` 구조 정의
-- 공격 순간 효과인 `conditional_damage_bonus` 구조 정의
-- 이벤트형 효과의 기본 apply timing 목록 정의
-- 조건부 아이템 ID별 하드코딩 금지 원칙 확정
-
-초기 condition 후보:
-
-- `weight_ratio_at_least`
-- `all_attack_modules_type`
-- `hp_ratio_below`
-- `current_day_at_least`
-- `attack_module_type_is`
-- `attack_hit_side`
-
-초기 effect 후보:
-
-- `attack_damage_flat`
-- `attack_damage_percent`
-- `attack_speed_percent`
-- `damage_multiplier_on_hit`
-- `gold_gain_flat`
-- `xp_gain_flat`
-- `sand_remove_count`
-
-완료 기준:
-
-- `무게 60% 이상일 때 공격력 증가` 아이템이 데이터로 표현 가능해야 한다.
-- `모든 공격모듈이 근거리일 때 공격력 증가` 아이템이 데이터로 표현 가능해야 한다.
-- `블록 옆면 공격 시 데미지 증가` 아이템이 데이터로 표현 가능해야 한다. 단, 실제 hit_side 계산 구현은 후순위로 둘 수 있다.
-
-### 3-3. 밸런스 공식 구현/데이터 반영
-
-목표:
-
-- 감으로 튜닝하지 않고 공식 기반으로 수치를 통일한다.
-- 상점, 레벨업, 공격모듈, 블록이 서로 다른 기준으로 성장하지 않게 한다.
-
-우선 반영 대상:
-
-- Day별 블록 HP 증가 공식 검토
-- `StageTable.tres`의 Day별 HP 배율과 `05_balance_formula.md` 비교
-- 상점 아이템 D/C/B/A/S 랭크별 증가량 점검
-- 레벨업 카드 Normal/Silver/Gold/Platinum 희귀도 구현 여부 점검
-- 행운이 상점 랭크와 레벨업 희귀도에 주는 영향 정리
-- 기본 DPS와 Day별 요구 처리력 비교
-
-완료 기준:
-
-- Day 1, 10, 20, 30 기준 블록 HP/플레이어 DPS가 비교 가능해야 한다.
-- 레벨업 카드와 상점 아이템이 같은 공식 계열로 정리되어야 한다.
-- Platinum 레벨업 카드가 S랭크 상점 아이템보다 강하지 않아야 한다.
-
-### 3-4. 상점 아이템 데이터 점검
-
-목표:
-
-- `ShopItemCatalog.tres`의 아이템 목록을 `05_balance_formula.md` 기준으로 정리한다.
-- attack/function/enhance 카테고리의 역할을 명확히 한다.
-
-작업:
-
-- 상점 아이템 가격 점검
-- D/C/B/A/S 랭크별 스탯 증가치 반영
-- 랭크별 출현 weight 점검
-- 구매 조건 점검
-- 기능 모듈과 강화 모듈 역할 분리
-- 조건부 아이템 후보를 새 item schema로 표현
-- 구매 실패 사유 UI 표시 개선 준비
-
-주의:
-
-- 상점 아이템은 레벨업 카드보다 평균 기대값이 높아도 된다.
-- 단, 상점 아이템이 전부 스탯 증가만 제공하면 선택지가 단조로워지므로 function/enhance 역할을 분리한다.
-
-### 3-5. 공격모듈 기본 장비/수치 정리
+### 5-1. 공격모듈 기본 장비/수치 정리
 
 목표:
 
@@ -199,10 +289,14 @@ docs/
 
 작업:
 
-- 기본 시작 모듈을 캐릭터 데이터 또는 명시된 시작 장비 규칙으로 이전
-- melee/ranged/mechanic 모듈별 기본 DPS 비교
-- 공격모듈 등급 D/C/B/A/S 배율 확인
-- 중복 장착/합성 규칙 테스트
+- 현재 공격모듈 목록 정리
+- 각 모듈의 melee/ranged/mechanic 타입 확인
+- damage multiplier / attack speed multiplier / range / shape 확인
+- 등급 D/C/B/A/S 배율 적용 후 예상 DPS 비교
+- 현재 시작 모듈 지급 위치 확인
+- 기본 시작 모듈을 캐릭터 데이터로 이전할지 검토
+- melee/ranged/mechanic 간 밸런스 차이 확인
+- 모듈 합성 시 DPS 상승폭 확인
 - 투사체/레이저/메카닉 피드백 강화
 - 오라형 공격모듈 세부 동작 확정 여부 결정
 
@@ -210,30 +304,84 @@ docs/
 
 - mechanic 모듈은 플레이어 공격력 보너스 영향을 받지 않는 예외를 유지한다.
 - ranged/melee는 플레이어 공격력/공속/범위 성장과 연결된다.
+- 먼저 비교표/진단을 만들고, 실제 수치 변경은 별도로 판단한다.
 
-### 3-6. 블록 material/size/type 밸런스 정리
+### 5-2. 블록 material/size/type 스펙 정리 및 데이터 구조 점검
 
 목표:
 
-- 블록 시스템을 `Material x Size + optional Type` 기준으로 정리한다.
-- 블록의 HP/보상/모래량/출현 시점을 공식과 연결한다.
+- 블록 시스템을 `Material x Size + optional Type` 기준으로 완전히 정리한다.
+- Material은 재질만 정의하고, Size는 별도 랜덤 축으로 분리한다.
+- 블록 size의 스폰 확률/최소 등장 조건을 난이도와 Stage에 따라 제어할 수 있게 한다.
+- Google Sheets에서 작성/import/export 가능한 구조를 설계한다.
 
-작업:
+핵심 원칙:
 
-- material/size/type 데이터 구조 점검
-- 크기별 출현 구간 밸런스 조정
-- 재질별 HP/보상/모래량 배율 조정
-- type별 특수 결과 구현 여부 점검
-- 보스 블록 데이터 정리
-- Day별 블록 후보 weight 점검
+- 블록 베이스/base/material에는 사이즈가 포함되면 안 된다.
+- Material은 재질을 정의한다.
+- Material은 HP 배율, 보상 배율, 색상, 스폰 확률, 등장 제한 등을 가진다.
+- Size는 Material과 별개로 랜덤 선택된다.
+- Type은 optional modifier/affix로 유지한다.
 
-주의:
+HP 원칙:
 
-- 블록 고도화는 밸런스 공식 반영 이후 진행한다.
-- 블록 HP만 올리면 게임이 답답해지고, 모래량만 올리면 중량 실패가 과도해진다.
-- HP/보상/모래량은 함께 조정한다.
+```text
+final_hp =
+  BLOCK_HP_PER_UNIT
+  x material_hp_multiplier
+  x size_area_multiplier
+  x difficulty_hp_multiplier
+  x day_hp_multiplier
+  x type_hp_multiplier
+```
 
-### 3-7. Day별 블록 HP/스폰/모래 압박 테스트
+Size 기본 HP 배율:
+
+```text
+1U x 1U = 1x
+2U x 1U = 2x
+1U x 2U = 2x
+2U x 2U = 4x
+```
+
+즉, size는 기본적으로 `width_u * height_u` 면적만큼 HP 요구치를 늘린다.
+
+가로/세로 size의 게임플레이 의미:
+
+- 가로 size 증가는 플레이어의 회피 공간을 직접 제한한다.
+- 가로 size 증가는 공격스탯 요구치와 회피 요구치를 동시에 올린다.
+- 세로 size 증가는 주로 공격스탯 요구치를 올린다.
+- 세로 size는 공간 압박이 없지는 않지만, 가로 size만큼 즉각적인 회피 공간 제한을 만들지는 않는다.
+
+Size 스폰 정책:
+
+- size별 등장 확률은 난이도와 Stage에 따라 달라져야 한다.
+- 높은 난이도일수록 큰 블록이 등장할 확률이 높아진다.
+- 높은 Stage일수록 큰 블록이 등장할 확률이 높아진다.
+- size별 최소 난이도와 최소 Stage를 설정할 수 있어야 한다.
+
+예시 제한:
+
+- Normal 저Stage에서 가로 4U 블록은 등장하면 안 된다.
+- 가로세로 합 8U 수준의 대형 블록은 Hard 이상부터 등장해야 한다.
+
+데이터/툴링 요구:
+
+- Material / Size / Type / Size Spawn Rule은 Google Spreadsheet에서 관리 가능해야 한다.
+- TSV/CSV import/export를 지원해야 한다.
+- Godot `.tres` 데이터와 spreadsheet source가 서로 동기화 가능해야 한다.
+- 데이터 파이프라인은 `data_tsv` 또는 별도 pipeline 로그와 함께 검증 가능해야 한다.
+
+점검 작업:
+
+- 현재 BlockCatalog의 material/size/type 분리 상태 확인
+- 기존 코드에 size가 base/material에 섞여 있는지 확인
+- size별 HP/보상/모래량/등장 제한 확인
+- size spawn weight가 난이도/Stage별로 분리 가능한지 확인
+- BlockSpawnResolver가 material 선택과 size 선택을 독립적으로 수행하는지 확인
+- Google Sheets import/export에서 size spawn rule을 표현할 수 있는지 확인
+
+### 5-3. Day별 블록 HP/스폰/모래 압박 테스트
 
 목표:
 
@@ -257,8 +405,10 @@ docs/
 - 상점 구매 후 다음 Day 체감 변화
 - 공격모듈 빌드와 채굴 빌드의 차이
 - 보스 Day 압박감
+- 가로로 큰 블록이 회피 공간을 과도하게 막는지
+- 세로로 큰 블록이 공격스탯 요구만 과도하게 올리는지
 
-### 3-8. 채굴 확장: 보물상자/크립 시스템 설계
+### 5-4. 채굴 확장: 보물상자/크립 시스템 설계
 
 목표:
 
@@ -293,15 +443,14 @@ docs/
 
 주의:
 
-- 채굴 확장은 밸런스 공식, 상점 아이템, 공격모듈, 블록 밸런스가 어느 정도 정리된 뒤 진행한다.
 - 보물상자는 채굴 중 블록 처리를 포기하는 리스크에 대한 저점을 보장해야 한다.
 - 크립은 불합리한 억까가 아니라 경고 후 대응 가능한 리스크로 설계한다.
 
 ---
 
-## 4. 근시일 내 작업
+## 6. 근시일 내 작업
 
-### 4-1. HUD / UI
+### 6-1. HUD / UI
 
 - HUD 문자열 한글화
 - 상점 UI 가독성 개선
@@ -309,10 +458,10 @@ docs/
 - 스킬 슬롯 2, 3번 활용 방향 결정
 - 세로 센서 HUD 위험도 표시 추가 검토
 - 중량 경고 연출 강화
-- 레벨업 카드 희귀도 시각 표현 추가
 - 보물상자 보상 팝업 UI/랜덤 연출 방향 검토
+- 레벨업 희귀도 UI 색상/줄바꿈 실제 화면 확인
 
-### 4-2. 플레이어 감각
+### 6-2. 플레이어 감각
 
 - 1U, 플레이어 크기, 카메라 배율 최종 점검
 - 벽타기 상단 제한 플레이 감각 확인
@@ -320,18 +469,28 @@ docs/
 - 채굴 범위와 리듬 튜닝
 - 공격모듈별 공격속도 체감 점검
 
-### 4-3. 모래 / 중량
+### 6-3. 모래 / 중량
 
 - 모래 총량 증가 속도 밸런스 확인
 - 중량 실패까지 걸리는 평균 시간 측정
 - Day별 모래 압박 곡선 조정
 - 벽 복구 아이템 도입 여부 결정
+- 모래 렌더링 고도화
+
+모래 렌더링 우선 방향:
+
+- 물리 셀 크기는 우선 유지한다.
+- 셀 좌표 기반 deterministic noise를 적용한다.
+- 셀 하나를 여러 grain pixel처럼 보이게 렌더링하는 방안을 검토한다.
+- 외곽 셀에 파편/먼지 픽셀을 추가한다.
+- 표면 하이라이트와 내부 음영을 분리한다.
+- 내부 셀은 단순 렌더링하고 외곽/표면 셀 위주로 디테일을 준다.
 
 ---
 
-## 5. 중기 작업
+## 7. 중기 작업
 
-### 5-1. 아트 적용
+### 7-1. 아트 적용
 
 - 플레이어 최종 도트 스프라이트 적용
 - run/idle 애니메이션 개선
@@ -344,7 +503,7 @@ docs/
 - 보물상자 등급별 이미지와 빛나는 벽블록 이펙트 정리
 - 크립 계열 비주얼 방향 정리
 
-### 5-2. 콘텐츠 확장
+### 7-2. 콘텐츠 확장
 
 - 공격모듈 종류 확장
 - 기능 모듈 확장
@@ -356,7 +515,7 @@ docs/
 - 크립 종류/효과 확장
 - 보스 Day 패턴 강화
 
-### 5-3. 메타 시스템
+### 7-3. 메타 시스템
 
 - 영구 재화 사용처 확정
 - 성장 트리 설계
@@ -366,7 +525,7 @@ docs/
 
 ---
 
-## 6. 후순위 작업
+## 8. 후순위 작업
 
 - 설정 메뉴 실기능
 - 사운드 옵션
@@ -379,9 +538,9 @@ docs/
 
 ---
 
-## 7. 현재 제한/TODO 목록
+## 9. 현재 제한/TODO 목록
 
-아래 항목은 문서에서 반드시 제한 또는 TODO로 표기한다.
+아래 항목은 아직 완성 시스템이 아니거나 추가 확인이 필요하다.
 
 - 설정 메뉴 실기능 미완성
 - 메타 성장 실효과 제한적
@@ -391,21 +550,25 @@ docs/
 - 오라형 공격모듈 세부 동작 미확정
 - 상점 UI 최종 비주얼/한글화 미완성
 - 공격모듈과 상점 아이템 최종 밸런스 미확정
-- 아이템 객체 스키마 / condition / effect / apply_timing 엔진 미구현
-- 조건부 아이템 미구현
-- 레벨업 카드 희귀도 미구현
+- 상점 아이템 세부 수치 조정 보류
+- 고급 조건부 아이템 context 미구현
+- `weight_ratio_at_least` context 미구현
+- `attack_hit_side` context 미구현
 - 채굴 확장용 보물상자/크립 시스템 미구현
 - 보물상자 등급별 D~S 보상 테이블 미정
 - 크립 종류/효과/등장 조건 미정
+- 블록 size spawn rule / 난이도 / Stage별 weight 미정
+- Google Sheets import/export 데이터 파이프라인 정리 필요
+- 보스 보상 구조 미정
 - 최종 아트 미적용
 
 ---
 
-## 8. 개발 판단 원칙
+## 10. 개발 판단 원칙
 
-### 8-1. 아이템 객체 스키마 선행 원칙
+### 10-1. 아이템 객체 스키마 선행 원칙
 
-조건부 아이템은 실제 구현 전에 아이템 객체 스키마를 먼저 정의한다.
+조건부 아이템은 아이템 객체 스키마를 먼저 정의하고, 데이터 기반으로 표현한다.
 
 권장 순서:
 
@@ -426,28 +589,28 @@ docs/
 
 새 아이템은 가능한 한 데이터로 정의하고, 코드는 조건/효과/적용 타이밍 해석기를 확장한다.
 
-### 8-2. 밸런스 개선과 블록 고도화 순서
+### 10-2. 밸런스 개선과 블록 고도화 순서
 
 권장 순서:
 
 ```text
-아이템 객체 스키마 확정
-→ 밸런스 공식 확정/반영
-→ 상점 아이템 수치 정리
-→ 공격모듈 수치 정리
-→ 블록 material/size/type 밸런스 정리
+공격모듈 수치 정리
+→ 블록 material/size/type 스펙 정리
+→ size spawn rule / spreadsheet pipeline 정리
 → Day별 실전 테스트
 → 채굴 확장 보상/리스크 시스템 설계
 ```
 
-블록 고도화를 먼저 하지 않는 이유:
+블록 고도화에서 중요한 점:
 
-- 블록 HP, 보상, 모래량은 플레이어 성장 공식과 맞물린다.
-- 기준 DPS 없이 블록만 늘리면 게임이 답답해질 수 있다.
-- 상점/레벨업 성장량 없이 블록 난이도만 올리면 후반이 불합리해진다.
-- 채굴 확장 보상도 D~S 보상 아이템 체계와 연결되므로 선행 밸런스 기준이 필요하다.
+- Material과 Size는 반드시 분리한다.
+- Size는 HP와 회피 공간 압박의 핵심 축이다.
+- 가로 size는 회피 난이도에 직접 영향을 준다.
+- 세로 size는 공격스탯 요구치를 주로 올린다.
+- size별 spawn weight는 난이도와 Stage에 따라 달라져야 한다.
+- Google Sheets 기반 데이터 관리가 가능해야 한다.
 
-### 8-3. 환경대응 카드 원칙
+### 10-3. 환경대응 카드 원칙
 
 레벨업 카드는 플레이어 본체 성장 중심으로 유지한다.
 
@@ -464,21 +627,21 @@ docs/
 
 ---
 
-## 9. 다음 Codex 작업 추천
+## 11. 다음 Codex 작업 추천
 
 다음 Codex 작업은 아래 순서가 좋다.
 
 ```text
-1. docs/03_data_and_state_spec.md의 Item Object Schema 기준으로 현재 ShopItemCatalog 구조 차이점 조사
-2. 기존 stat_bonus 아이템을 새 condition/effect/apply_timing 구조로 표현 가능한지 검증
-3. docs/05_balance_formula.md 기준으로 현재 상수/데이터 차이점 조사
-4. 레벨업 카드 희귀도 구조 설계 및 구현 계획 작성
-5. ShopItemCatalog.tres 아이템 수치가 rank_power 기준과 맞는지 점검
-6. StageTable.tres의 Day별 HP/스폰 배율이 공식과 맞는지 점검
-7. 공격모듈별 실제 DPS 비교표 작성
-8. 블록 material/size/type별 HP/보상/모래량 비교표 작성
+1. 공격모듈별 실제 DPS 비교표 작성
+2. 현재 시작 모듈 지급 위치와 캐릭터 데이터 이전 필요성 조사
+3. BlockCatalog의 Material/Size/Type 분리 상태 조사
+4. size가 material/base에 섞여 있는 코드/데이터가 있는지 확인
+5. size별 HP/보상/모래량/등장 제한 비교표 작성
+6. size spawn rule을 난이도/Stage별로 표현하는 데이터 구조 초안 작성
+7. Google Sheets/TSV import-export 파이프라인 요구사항 정리
+8. Day별 블록 HP/스폰/모래 압박 계측
 9. 채굴 확장용 보물상자/크립 데이터 구조 초안 작성
 10. 보물상자 보상 항목을 D~S 등급 보상 아이템 체계로 설계
 ```
 
-이 작업이 끝난 뒤 실제 수치 조정 커밋을 진행한다.
+이 작업들은 우선 조사/비교표/데이터 구조 초안 중심으로 진행하고, 실제 수치 변경은 별도 판단 후 진행한다.
