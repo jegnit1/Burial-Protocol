@@ -13,6 +13,7 @@ signal run_items_changed()
 
 const SAVE_FILE_PATH := "user://profile.save"
 const SAVE_VERSION := 1
+const ATTACK_MODULE_STYLE_RESOLVER := preload("res://scripts/data/AttackModuleStyleResolver.gd")
 
 const DEFAULT_CURRENCIES := {
 	"gear": 0,
@@ -428,7 +429,7 @@ func _get_attack_module_shape_size_units_with_range_multiplier(module_entry: Dic
 	)
 	var module_type := _get_attack_module_type(module_entry)
 	if module_type == &"melee":
-		var base_shape_units := _get_attack_module_base_shape_units(module_definition)
+		var base_shape_units := ATTACK_MODULE_STYLE_RESOLVER.get_base_shape_units(module_definition)
 		var range_bonus := maxf(stat_range_multiplier * grade_multiplier - 1.0, 0.0)
 		return Vector2(
 			base_shape_units.x + range_bonus * maxf(module_definition.range_growth_width_scale, 0.0),
@@ -438,7 +439,7 @@ func _get_attack_module_shape_size_units_with_range_multiplier(module_entry: Dic
 		var range_bonus := maxf(stat_range_multiplier * grade_multiplier - 1.0, 0.0)
 		var range_scale := 1.0 + range_bonus * maxf(module_definition.range_growth_scale, 0.0)
 		return Vector2(
-			_get_ranged_attack_module_range_units(module_definition) * range_scale,
+			ATTACK_MODULE_STYLE_RESOLVER.get_ranged_range_units(module_definition) * range_scale,
 			maxf(module_definition.range_height_u, 0.0)
 		)
 	var final_range_multiplier := 1.0 if module_type == &"mechanic" else stat_range_multiplier
@@ -452,25 +453,26 @@ func get_attack_module_style_snapshot(module_entry: Dictionary, bonus_range_mult
 	var current_size := get_attack_module_shape_size_units(module_entry)
 	var bonus_stat_range_multiplier := get_attack_range_multiplier() * maxf(bonus_range_multiplier, 0.0)
 	var bonus_size := _get_attack_module_shape_size_units_with_range_multiplier(module_entry, bonus_stat_range_multiplier)
-	var base_shape_units := _get_attack_module_base_shape_units(module_definition)
+	var base_shape_units := ATTACK_MODULE_STYLE_RESOLVER.get_base_shape_units(module_definition)
+	var projectile_visual_size := ATTACK_MODULE_STYLE_RESOLVER.get_ranged_projectile_visual_size(module_definition)
 	return {
 		"module_id": String(module_definition.module_id),
 		"module_type": String(module_definition.module_type),
-		"attack_style": String(_get_attack_module_attack_style(module_definition)),
-		"effect_style": String(_get_attack_module_effect_style(module_definition)),
+		"attack_style": String(ATTACK_MODULE_STYLE_RESOLVER.get_attack_style(module_definition)),
+		"effect_style": String(ATTACK_MODULE_STYLE_RESOLVER.get_effect_style(module_definition)),
 		"hit_shape": String(module_definition.hit_shape),
 		"base_shape_units": {"x": base_shape_units.x, "y": base_shape_units.y},
 		"range_growth_width_scale": module_definition.range_growth_width_scale,
 		"range_growth_height_scale": module_definition.range_growth_height_scale,
-		"range_units": _get_ranged_attack_module_range_units(module_definition),
+		"range_units": ATTACK_MODULE_STYLE_RESOLVER.get_ranged_range_units(module_definition),
 		"range_growth_scale": module_definition.range_growth_scale,
 		"projectile_count": module_definition.projectile_count,
 		"spread_angle": module_definition.spread_angle,
 		"pierce_count": module_definition.pierce_count,
 		"is_hitscan": module_definition.is_hitscan,
 		"projectile_visual_size": {
-			"x": _get_ranged_attack_module_projectile_visual_size(module_definition).x,
-			"y": _get_ranged_attack_module_projectile_visual_size(module_definition).y,
+			"x": projectile_visual_size.x,
+			"y": projectile_visual_size.y,
 		},
 		"current_shape_units": {"x": current_size.x, "y": current_size.y},
 		"bonus_shape_units": {"x": bonus_size.x, "y": bonus_size.y},
@@ -1138,135 +1140,6 @@ func _get_attack_module_type(module_entry: Dictionary) -> StringName:
 	if module_definition == null:
 		return &"melee"
 	return module_definition.module_type
-
-
-func _get_attack_module_base_shape_units(module_definition) -> Vector2:
-	if module_definition == null:
-		return Vector2.ONE
-	if module_definition.base_shape_units.x > 0.0 and module_definition.base_shape_units.y > 0.0:
-		return module_definition.base_shape_units
-	var style_defaults := _get_melee_attack_style_defaults(String(module_definition.attack_style))
-	if module_definition.module_type == &"melee" and not style_defaults.is_empty():
-		return Vector2(
-			float(style_defaults.get("base_shape_units_x", 1.0)),
-			float(style_defaults.get("base_shape_units_y", 1.0))
-		)
-	if module_definition.module_type == &"ranged":
-		return Vector2(_get_ranged_attack_module_range_units(module_definition), module_definition.range_height_u)
-	return Vector2(module_definition.range_width_u, module_definition.range_height_u)
-
-
-func _get_attack_module_attack_style(module_definition) -> StringName:
-	if module_definition == null:
-		return &""
-	if module_definition.attack_style != StringName():
-		if module_definition.module_type == &"ranged":
-			return StringName(_normalize_ranged_attack_style_alias(String(module_definition.attack_style)))
-		return module_definition.attack_style
-	if module_definition.module_type == &"melee":
-		return &"slash"
-	if module_definition.module_type == &"ranged":
-		return &"rifle"
-	return &""
-
-
-func _get_attack_module_effect_style(module_definition) -> StringName:
-	if module_definition == null:
-		return &""
-	if module_definition.effect_style != StringName():
-		return module_definition.effect_style
-	var style_defaults := {}
-	if module_definition.module_type == &"ranged":
-		style_defaults = _get_ranged_attack_style_defaults(String(_get_attack_module_attack_style(module_definition)))
-	else:
-		style_defaults = _get_melee_attack_style_defaults(String(_get_attack_module_attack_style(module_definition)))
-	return StringName(String(style_defaults.get("effect_style", "")))
-
-
-func _get_ranged_attack_module_range_units(module_definition) -> float:
-	if module_definition == null:
-		return 0.0
-	if module_definition.range_units > 0.0:
-		return module_definition.range_units
-	return module_definition.range_width_u
-
-
-func _get_ranged_attack_module_projectile_visual_size(module_definition) -> Vector2:
-	if module_definition == null:
-		return Vector2.ZERO
-	if module_definition.projectile_visual_size.x > 0.0 and module_definition.projectile_visual_size.y > 0.0:
-		return module_definition.projectile_visual_size
-	return module_definition.projectile_size
-
-
-func _normalize_ranged_attack_style_alias(attack_style: String) -> String:
-	match attack_style:
-		"", "single":
-			return "rifle"
-		"spread":
-			return "shotgun"
-		"pierce":
-			return "sniper"
-		_:
-			return attack_style
-
-
-func _get_ranged_attack_style_defaults(attack_style: String) -> Dictionary:
-	match _normalize_ranged_attack_style_alias(attack_style):
-		"revolver":
-			return {"effect_style": "revolver_projectile"}
-		"shotgun":
-			return {"effect_style": "shotgun_spread"}
-		"sniper":
-			return {"effect_style": "sniper_projectile"}
-		"laser":
-			return {"effect_style": "laser_beam"}
-		_:
-			return {"effect_style": "rifle_projectile"}
-
-
-func _get_melee_attack_style_defaults(attack_style: String) -> Dictionary:
-	match attack_style:
-		"stab":
-			return {
-				"effect_style": "short_stab",
-				"base_shape_units_x": 0.5,
-				"base_shape_units_y": 0.5,
-				"range_growth_width_scale": 1.0,
-				"range_growth_height_scale": 0.0,
-			}
-		"pierce":
-			return {
-				"effect_style": "long_pierce",
-				"base_shape_units_x": 2.5,
-				"base_shape_units_y": 0.5,
-				"range_growth_width_scale": 1.0,
-				"range_growth_height_scale": 0.0,
-			}
-		"cleave":
-			return {
-				"effect_style": "big_cleave",
-				"base_shape_units_x": 1.5,
-				"base_shape_units_y": 1.0,
-				"range_growth_width_scale": 1.0,
-				"range_growth_height_scale": 0.2,
-			}
-		"smash":
-			return {
-				"effect_style": "blunt_smash",
-				"base_shape_units_x": 1.0,
-				"base_shape_units_y": 1.0,
-				"range_growth_width_scale": 1.0,
-				"range_growth_height_scale": 0.1,
-			}
-		_:
-			return {
-				"effect_style": "slash_arc",
-				"base_shape_units_x": 1.0,
-				"base_shape_units_y": 1.0,
-				"range_growth_width_scale": 1.0,
-				"range_growth_height_scale": 0.1,
-			}
 
 
 func _has_equipped_attack_module(module_id: StringName) -> bool:

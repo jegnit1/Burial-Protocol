@@ -3,6 +3,7 @@ class_name ShopItemCatalog
 
 const RESOURCE_CATALOG_PATH := "res://data/items/ShopItemCatalog.tres"
 const DRAFT_PATH := "res://scripts/data/ShopItemCatalogDraft.gd"
+const ATTACK_MODULE_STYLE_RESOLVER := preload("res://scripts/data/AttackModuleStyleResolver.gd")
 const CATEGORY_ATTACK_MODULE: StringName = &"attack_module"
 const CATEGORY_FUNCTION_MODULE: StringName = &"function_module"
 const CATEGORY_ENHANCE_MODULE: StringName = &"enhance_module"
@@ -62,7 +63,7 @@ func has_item(item_id: StringName) -> bool:
 
 func normalize_item_definition(item: Dictionary) -> Dictionary:
 	var normalized := item.duplicate(true)
-	_normalize_attack_module_style_fields(normalized)
+	ATTACK_MODULE_STYLE_RESOLVER.normalize_item_dictionary(normalized)
 	var effect_type := String(normalized.get("effect_type", "none"))
 	var effect_values: Dictionary = {}
 	if normalized.get("effect_values", {}) is Dictionary:
@@ -84,180 +85,6 @@ func normalize_item_definition(item: Dictionary) -> Dictionary:
 	)
 	normalized["tags"] = Array(normalized.get("tags", []))
 	return normalized
-
-
-func _normalize_attack_module_style_fields(item: Dictionary) -> void:
-	if String(item.get("item_category", "")) != "attack_module":
-		return
-	var module_type := String(item.get("module_type", ""))
-	var attack_style := String(item.get("attack_style", ""))
-	if attack_style.is_empty():
-		attack_style = "slash" if module_type == "melee" else ""
-	if module_type == "ranged":
-		attack_style = _normalize_ranged_attack_style_alias(attack_style)
-	item["attack_style"] = attack_style
-	var style_defaults := _get_attack_style_defaults(module_type, attack_style)
-	item["effect_style"] = String(item.get("effect_style", style_defaults.get("effect_style", "")))
-	item["hit_shape"] = String(item.get("hit_shape", style_defaults.get("hit_shape", "rectangle")))
-	item["base_shape_units_x"] = float(item.get(
-		"base_shape_units_x",
-		style_defaults.get("base_shape_units_x", item.get("range_width_u", 0.0))
-	))
-	item["base_shape_units_y"] = float(item.get(
-		"base_shape_units_y",
-		style_defaults.get("base_shape_units_y", item.get("range_height_u", 0.0))
-	))
-	item["range_growth_width_scale"] = float(item.get(
-		"range_growth_width_scale",
-		style_defaults.get("range_growth_width_scale", 1.0)
-	))
-	item["range_growth_height_scale"] = float(item.get(
-		"range_growth_height_scale",
-		style_defaults.get("range_growth_height_scale", 0.0)
-	))
-	if module_type == "ranged":
-		_normalize_ranged_attack_module_fields(item, style_defaults)
-
-
-func _get_attack_style_defaults(module_type: String, attack_style: String) -> Dictionary:
-	if module_type == "ranged":
-		return _get_ranged_attack_style_defaults(attack_style)
-	if module_type != "melee":
-		return {}
-	match attack_style:
-		"stab":
-			return {
-				"effect_style": "short_stab",
-				"base_shape_units_x": 0.5,
-				"base_shape_units_y": 0.5,
-				"range_growth_width_scale": 1.0,
-				"range_growth_height_scale": 0.0,
-				"hit_shape": "rectangle",
-			}
-		"pierce":
-			return {
-				"effect_style": "long_pierce",
-				"base_shape_units_x": 2.5,
-				"base_shape_units_y": 0.5,
-				"range_growth_width_scale": 1.0,
-				"range_growth_height_scale": 0.0,
-				"hit_shape": "rectangle",
-			}
-		"cleave":
-			return {
-				"effect_style": "big_cleave",
-				"base_shape_units_x": 1.5,
-				"base_shape_units_y": 1.0,
-				"range_growth_width_scale": 1.0,
-				"range_growth_height_scale": 0.2,
-				"hit_shape": "rectangle",
-			}
-		"smash":
-			return {
-				"effect_style": "blunt_smash",
-				"base_shape_units_x": 1.0,
-				"base_shape_units_y": 1.0,
-				"range_growth_width_scale": 1.0,
-				"range_growth_height_scale": 0.1,
-				"hit_shape": "rectangle",
-			}
-		_:
-			return {
-				"effect_style": "slash_arc",
-				"base_shape_units_x": 1.0,
-				"base_shape_units_y": 1.0,
-				"range_growth_width_scale": 1.0,
-				"range_growth_height_scale": 0.1,
-				"hit_shape": "rectangle",
-			}
-
-
-func _normalize_ranged_attack_style_alias(attack_style: String) -> String:
-	match attack_style:
-		"", "single":
-			return "rifle"
-		"spread":
-			return "shotgun"
-		"pierce":
-			return "sniper"
-		_:
-			return attack_style
-
-
-func _normalize_ranged_attack_module_fields(item: Dictionary, style_defaults: Dictionary) -> void:
-	item["range_units"] = float(item.get("range_units", item.get("range_width_u", 0.0)))
-	item["range_growth_scale"] = float(item.get("range_growth_scale", style_defaults.get("range_growth_scale", 1.0)))
-	item["projectile_count"] = int(item.get("projectile_count", style_defaults.get("projectile_count", 1)))
-	item["spread_angle"] = float(item.get("spread_angle", item.get("projectile_spread_degrees", style_defaults.get("spread_angle", 0.0))))
-	item["pierce_count"] = int(item.get("pierce_count", item.get("projectile_pierce_count", style_defaults.get("pierce_count", 0))))
-	item["is_hitscan"] = bool(item.get("is_hitscan", item.get("projectile_hit_scan", style_defaults.get("is_hitscan", false))))
-	item["projectile_visual_size_x"] = float(item.get("projectile_visual_size_x", item.get("projectile_size_x", style_defaults.get("projectile_visual_size_x", 18.0))))
-	item["projectile_visual_size_y"] = float(item.get("projectile_visual_size_y", item.get("projectile_size_y", style_defaults.get("projectile_visual_size_y", 6.0))))
-	item["range_width_u"] = float(item.get("range_width_u", item["range_units"]))
-	item["projectile_spread_degrees"] = float(item.get("projectile_spread_degrees", item["spread_angle"]))
-	item["projectile_pierce_count"] = int(item.get("projectile_pierce_count", item["pierce_count"]))
-	item["projectile_hit_scan"] = bool(item.get("projectile_hit_scan", item["is_hitscan"]))
-	item["projectile_size_x"] = float(item.get("projectile_size_x", item["projectile_visual_size_x"]))
-	item["projectile_size_y"] = float(item.get("projectile_size_y", item["projectile_visual_size_y"]))
-
-
-func _get_ranged_attack_style_defaults(attack_style: String) -> Dictionary:
-	match _normalize_ranged_attack_style_alias(attack_style):
-		"revolver":
-			return {
-				"effect_style": "revolver_projectile",
-				"range_growth_scale": 1.0,
-				"projectile_count": 1,
-				"spread_angle": 0.0,
-				"pierce_count": 0,
-				"is_hitscan": false,
-				"projectile_visual_size_x": 16.0,
-				"projectile_visual_size_y": 6.0,
-			}
-		"shotgun":
-			return {
-				"effect_style": "shotgun_spread",
-				"range_growth_scale": 1.0,
-				"projectile_count": 3,
-				"spread_angle": 26.0,
-				"pierce_count": 0,
-				"is_hitscan": false,
-				"projectile_visual_size_x": 14.0,
-				"projectile_visual_size_y": 5.0,
-			}
-		"sniper":
-			return {
-				"effect_style": "sniper_projectile",
-				"range_growth_scale": 1.0,
-				"projectile_count": 1,
-				"spread_angle": 0.0,
-				"pierce_count": 1,
-				"is_hitscan": false,
-				"projectile_visual_size_x": 20.0,
-				"projectile_visual_size_y": 5.0,
-			}
-		"laser":
-			return {
-				"effect_style": "laser_beam",
-				"range_growth_scale": 1.0,
-				"projectile_count": 0,
-				"spread_angle": 0.0,
-				"pierce_count": 0,
-				"is_hitscan": true,
-				"projectile_visual_size_x": 8.0,
-				"projectile_visual_size_y": 4.0,
-			}
-		_:
-			return {
-				"effect_style": "rifle_projectile",
-				"range_growth_scale": 1.0,
-				"projectile_count": 1,
-				"spread_angle": 0.0,
-				"pierce_count": 0,
-				"is_hitscan": false,
-				"projectile_visual_size_x": 18.0,
-				"projectile_visual_size_y": 6.0,
-			}
 
 
 func roll_shop_item_ids(

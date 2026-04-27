@@ -6,6 +6,7 @@ const DAY_KIOSK_SCRIPT := preload("res://scenes/world/DayKiosk.gd")
 const DAY_SHOP_UI_SCRIPT := preload("res://scenes/ui/DayShopUI.gd")
 const PAUSE_MENU_SCRIPT := preload("res://scenes/ui/PauseMenu.gd")
 const ATTACK_MODULE_PROJECTILE_SCRIPT := preload("res://scenes/projectiles/AttackModuleProjectile.gd")
+const ATTACK_MODULE_STYLE_RESOLVER := preload("res://scripts/data/AttackModuleStyleResolver.gd")
 const CAMERA_PLAYER_Y_OFFSET := 110.0
 const RANGED_PROJECTILE_LANE_GAP_UNITS := 0.26
 
@@ -244,70 +245,6 @@ func _get_ranged_attack_distance(module_entry: Dictionary) -> float:
 	return maxf(GameState.get_attack_module_shape_size_pixels(module_entry).x, 1.0)
 
 
-func _get_ranged_attack_style(module_definition) -> String:
-	if module_definition == null:
-		return "rifle"
-	match String(module_definition.attack_style):
-		"", "single":
-			return "rifle"
-		"spread":
-			return "shotgun"
-		"pierce":
-			return "sniper"
-		_:
-			return String(module_definition.attack_style)
-
-
-func _get_ranged_effect_style(module_definition, attack_style: String) -> String:
-	if module_definition != null and module_definition.effect_style != StringName():
-		return String(module_definition.effect_style)
-	match attack_style:
-		"revolver":
-			return "revolver_projectile"
-		"shotgun":
-			return "shotgun_spread"
-		"sniper":
-			return "sniper_projectile"
-		"laser":
-			return "laser_beam"
-		_:
-			return "rifle_projectile"
-
-
-func _is_ranged_hitscan(module_definition, attack_style: String) -> bool:
-	return attack_style == "laser" or (module_definition != null and (module_definition.is_hitscan or module_definition.projectile_hit_scan))
-
-
-func _get_ranged_projectile_count(module_definition, attack_style: String) -> int:
-	if _is_ranged_hitscan(module_definition, attack_style):
-		return 0
-	if module_definition == null:
-		return 1
-	return max(module_definition.projectile_count, 1)
-
-
-func _get_ranged_spread_angle(module_definition) -> float:
-	if module_definition == null:
-		return 0.0
-	if module_definition.spread_angle > 0.0:
-		return module_definition.spread_angle
-	return module_definition.projectile_spread_degrees
-
-
-func _get_ranged_pierce_count(module_definition) -> int:
-	if module_definition == null:
-		return 0
-	return max(module_definition.pierce_count, module_definition.projectile_pierce_count)
-
-
-func _get_ranged_projectile_visual_size(module_definition) -> Vector2:
-	if module_definition == null:
-		return Vector2(18.0, 6.0)
-	if module_definition.projectile_visual_size.x > 0.0 and module_definition.projectile_visual_size.y > 0.0:
-		return module_definition.projectile_visual_size
-	return module_definition.projectile_size
-
-
 func _handle_ranged_attack_module_action(
 	module_entry: Dictionary,
 	module_definition,
@@ -321,8 +258,8 @@ func _handle_ranged_attack_module_action(
 	if fire_direction == Vector2.ZERO:
 		fire_direction = Vector2.RIGHT
 	var lane_offset := _get_ranged_lane_offset(fire_direction, lane_index, lane_count)
-	var attack_style := _get_ranged_attack_style(module_definition)
-	if _is_ranged_hitscan(module_definition, attack_style):
+	var attack_style := String(ATTACK_MODULE_STYLE_RESOLVER.get_attack_style(module_definition))
+	if ATTACK_MODULE_STYLE_RESOLVER.is_ranged_hitscan(module_definition, attack_style):
 		_fire_laser_placeholder(module_entry, module_definition, fire_direction, lane_offset)
 		return
 	_fire_projectile_burst(module_entry, module_definition, fire_direction, lane_offset, attack_style)
@@ -330,14 +267,14 @@ func _handle_ranged_attack_module_action(
 
 func _fire_projectile_burst(module_entry: Dictionary, module_definition, fire_direction: Vector2, lane_offset: Vector2, attack_style: String) -> void:
 	_ensure_projectiles_root()
-	var projectile_count := _get_ranged_projectile_count(module_definition, attack_style)
-	var spread_degrees := _get_ranged_spread_angle(module_definition)
+	var projectile_count := ATTACK_MODULE_STYLE_RESOLVER.get_ranged_projectile_count(module_definition, attack_style)
+	var spread_degrees := ATTACK_MODULE_STYLE_RESOLVER.get_ranged_spread_angle(module_definition)
 	var range_distance := _get_ranged_attack_distance(module_entry)
 	var projectile_speed: float = maxf(module_definition.projectile_speed, 1.0)
 	var projectile_lifetime: float = maxf(module_definition.projectile_lifetime, range_distance / projectile_speed + 0.05)
-	var effect_style := _get_ranged_effect_style(module_definition, attack_style)
-	var projectile_visual_size := _get_ranged_projectile_visual_size(module_definition)
-	var pierce_count := _get_ranged_pierce_count(module_definition)
+	var effect_style := String(ATTACK_MODULE_STYLE_RESOLVER.get_effect_style(module_definition))
+	var projectile_visual_size := ATTACK_MODULE_STYLE_RESOLVER.get_ranged_projectile_visual_size(module_definition)
+	var pierce_count := ATTACK_MODULE_STYLE_RESOLVER.get_ranged_pierce_count(module_definition)
 	var start_angle := -spread_degrees * 0.5
 	var angle_step := 0.0
 	if projectile_count > 1:
@@ -403,7 +340,7 @@ func _fire_laser_placeholder(module_entry: Dictionary, module_definition, fire_d
 	_spawn_laser_line(
 		player.global_position + lane_offset,
 		player.global_position + fire_direction * range_distance + lane_offset,
-		_get_ranged_effect_style(module_definition, "laser")
+		String(ATTACK_MODULE_STYLE_RESOLVER.get_effect_style(module_definition))
 	)
 	GameState.set_status_text("%s laser hit %d." % [GameState.get_attack_module_entry_label(module_entry), hit_count])
 
@@ -424,9 +361,7 @@ func _spawn_melee_attack_effect(module_definition, attack_shape_data: Dictionary
 	if module_definition == null or module_definition.module_type != &"melee":
 		return
 	_ensure_projectiles_root()
-	var effect_style := String(module_definition.effect_style)
-	if effect_style.is_empty():
-		effect_style = _get_default_melee_effect_style(String(module_definition.attack_style))
+	var effect_style := String(ATTACK_MODULE_STYLE_RESOLVER.get_effect_style(module_definition))
 	var center: Vector2 = attack_shape_data["center"]
 	var size: Vector2 = attack_shape_data["size"]
 	var rotation := float(attack_shape_data["rotation"])
@@ -508,20 +443,6 @@ func _fade_and_free(node: CanvasItem, duration: float) -> void:
 	var tween := create_tween()
 	tween.tween_property(node, "modulate:a", 0.0, duration)
 	tween.finished.connect(node.queue_free)
-
-
-func _get_default_melee_effect_style(attack_style: String) -> String:
-	match attack_style:
-		"stab":
-			return "short_stab"
-		"pierce":
-			return "long_pierce"
-		"cleave":
-			return "big_cleave"
-		"smash":
-			return "blunt_smash"
-		_:
-			return "slash_arc"
 
 
 func _handle_mechanic_attack_module_action(module_entry: Dictionary) -> void:

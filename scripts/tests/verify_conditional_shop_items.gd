@@ -37,6 +37,7 @@ func _run_checks() -> void:
 	_check_melee_style_shape_growth()
 	_check_ranged_attack_module_style_fields()
 	_check_ranged_range_growth_only()
+	_check_apply_dictionary_style_resolver_defaults()
 	_check_existing_stat_bonus_purchase()
 	_check_melee_purity_core_condition()
 	_check_module_focus_circuit_condition()
@@ -192,6 +193,89 @@ func _check_ranged_range_growth_only() -> void:
 	_expect(int(snapshots.get("pierce_module", {}).get("pierce_count", 0)) == 2, "sniper pierce_count should stay style-defined")
 	_expect(bool(snapshots.get("laser_module", {}).get("is_hitscan", false)), "laser should stay hitscan")
 	_record("ranged_range_growth_only", snapshots)
+
+
+func _check_apply_dictionary_style_resolver_defaults() -> void:
+	var melee := ShopItemDefinition.new()
+	melee.apply_dictionary({
+		"item_id": "imported_stab",
+		"item_category": "attack_module",
+		"module_type": "melee",
+		"attack_style": "stab",
+	})
+	_expect(String(melee.attack_style) == "stab", "apply_dictionary melee attack_style should stay explicit")
+	_expect(String(melee.effect_style) == "short_stab", "apply_dictionary melee effect_style should use resolver default")
+	_expect(_is_vector_near(melee.base_shape_units, Vector2(0.5, 0.5)), "apply_dictionary melee base_shape_units should use resolver default")
+	_expect(is_equal_approx(melee.range_growth_width_scale, 1.0), "apply_dictionary melee width growth should use resolver default")
+	_expect(is_equal_approx(melee.range_growth_height_scale, 0.0), "apply_dictionary melee height growth should use resolver default")
+
+	var ranged := ShopItemDefinition.new()
+	ranged.apply_dictionary({
+		"item_id": "imported_spread",
+		"item_category": "attack_module",
+		"module_type": "ranged",
+		"attack_style": "spread",
+		"range_width_u": 4.0,
+		"range_height_u": 0.7,
+	})
+	_expect(String(ranged.attack_style) == "shotgun", "apply_dictionary ranged alias should normalize through resolver")
+	_expect(String(ranged.effect_style) == "shotgun_spread", "apply_dictionary ranged effect_style should use resolver default")
+	_expect(is_equal_approx(ranged.range_units, 4.0), "apply_dictionary ranged range_units should fall back from range_width_u")
+	_expect(ranged.projectile_count == 3, "apply_dictionary shotgun projectile_count should use resolver default")
+	_expect(is_equal_approx(ranged.spread_angle, 26.0), "apply_dictionary shotgun spread_angle should use resolver default")
+	_expect(ranged.pierce_count == 0, "apply_dictionary shotgun pierce_count should use resolver default")
+	_expect(not ranged.is_hitscan, "apply_dictionary shotgun should not become hitscan")
+	_expect(_is_vector_near(ranged.projectile_visual_size, Vector2(14.0, 5.0)), "apply_dictionary shotgun visual size should use resolver default")
+
+	var explicit := ShopItemDefinition.new()
+	explicit.apply_dictionary({
+		"item_id": "imported_explicit",
+		"item_category": "attack_module",
+		"module_type": "ranged",
+		"attack_style": "rifle",
+		"effect_style": "custom_projectile",
+		"range_units": 9.0,
+		"projectile_count": 5,
+		"spread_angle": 33.0,
+		"pierce_count": 4,
+		"is_hitscan": true,
+		"projectile_visual_size_x": 22.0,
+		"projectile_visual_size_y": 9.0,
+	})
+	_expect(String(explicit.effect_style) == "custom_projectile", "apply_dictionary explicit effect_style should win over resolver")
+	_expect(is_equal_approx(explicit.range_units, 9.0), "apply_dictionary explicit range_units should win over resolver")
+	_expect(explicit.projectile_count == 5, "apply_dictionary explicit projectile_count should win over resolver")
+	_expect(is_equal_approx(explicit.spread_angle, 33.0), "apply_dictionary explicit spread_angle should win over resolver")
+	_expect(explicit.pierce_count == 4, "apply_dictionary explicit pierce_count should win over resolver")
+	_expect(explicit.is_hitscan, "apply_dictionary explicit is_hitscan should win over resolver")
+	_expect(_is_vector_near(explicit.projectile_visual_size, Vector2(22.0, 9.0)), "apply_dictionary explicit projectile_visual_size should win over resolver")
+	_record("apply_dictionary_style_resolver_defaults", {
+		"melee": {
+			"attack_style": String(melee.attack_style),
+			"effect_style": String(melee.effect_style),
+			"base_shape_units": {"x": melee.base_shape_units.x, "y": melee.base_shape_units.y},
+			"range_growth": {"width": melee.range_growth_width_scale, "height": melee.range_growth_height_scale},
+		},
+		"ranged": {
+			"attack_style": String(ranged.attack_style),
+			"effect_style": String(ranged.effect_style),
+			"range_units": ranged.range_units,
+			"projectile_count": ranged.projectile_count,
+			"spread_angle": ranged.spread_angle,
+			"pierce_count": ranged.pierce_count,
+			"is_hitscan": ranged.is_hitscan,
+			"projectile_visual_size": {"x": ranged.projectile_visual_size.x, "y": ranged.projectile_visual_size.y},
+		},
+		"explicit": {
+			"effect_style": String(explicit.effect_style),
+			"range_units": explicit.range_units,
+			"projectile_count": explicit.projectile_count,
+			"spread_angle": explicit.spread_angle,
+			"pierce_count": explicit.pierce_count,
+			"is_hitscan": explicit.is_hitscan,
+			"projectile_visual_size": {"x": explicit.projectile_visual_size.x, "y": explicit.projectile_visual_size.y},
+		},
+	})
 
 
 func _check_existing_stat_bonus_purchase() -> void:

@@ -1,6 +1,8 @@
 extends Resource
 class_name ShopItemDefinition
 
+const ATTACK_MODULE_STYLE_RESOLVER := preload("res://scripts/data/AttackModuleStyleResolver.gd")
+
 # 상점/런 콘텐츠용 공통 아이템 정의 리소스다.
 @export var item_id: StringName
 @export var name := ""
@@ -142,41 +144,45 @@ func apply_dictionary(data: Dictionary) -> void:
 	is_equippable = bool(data.get("is_equippable", false))
 	default_start_module = bool(data.get("default_start_module", false))
 	module_type = StringName(String(data.get("module_type", "")))
-	attack_style = StringName(String(data.get("attack_style", "")))
-	effect_style = StringName(String(data.get("effect_style", "")))
+	var style_data := data.duplicate(true)
+	style_data["item_category"] = String(item_category)
+	style_data["module_type"] = String(module_type)
+	ATTACK_MODULE_STYLE_RESOLVER.normalize_item_dictionary(style_data)
+	attack_style = StringName(String(style_data.get("attack_style", "")))
+	effect_style = StringName(String(style_data.get("effect_style", "")))
 	base_shape_units = Vector2(
-		float(data.get("base_shape_units_x", data.get("range_width_u", 0.0))),
-		float(data.get("base_shape_units_y", data.get("range_height_u", 0.0)))
+		float(style_data.get("base_shape_units_x", style_data.get("range_width_u", 0.0))),
+		float(style_data.get("base_shape_units_y", style_data.get("range_height_u", 0.0)))
 	)
-	range_growth_width_scale = float(data.get("range_growth_width_scale", 1.0))
-	range_growth_height_scale = float(data.get("range_growth_height_scale", 0.1))
-	hit_shape = StringName(String(data.get("hit_shape", "rectangle")))
-	range_units = float(data.get("range_units", data.get("range_width_u", 0.0)))
-	range_growth_scale = float(data.get("range_growth_scale", 1.0))
-	range_width_u = float(data.get("range_width_u", range_units))
-	range_height_u = float(data.get("range_height_u", 0.0))
+	range_growth_width_scale = float(style_data.get("range_growth_width_scale", 1.0))
+	range_growth_height_scale = float(style_data.get("range_growth_height_scale", 0.1))
+	hit_shape = StringName(String(style_data.get("hit_shape", "rectangle")))
+	range_units = float(style_data.get("range_units", style_data.get("range_width_u", 0.0)))
+	range_growth_scale = float(style_data.get("range_growth_scale", 1.0))
+	range_width_u = float(style_data.get("range_width_u", range_units))
+	range_height_u = float(style_data.get("range_height_u", 0.0))
 	damage_multiplier = float(data.get("damage_multiplier", 1.0))
 	attack_speed_multiplier = float(data.get("attack_speed_multiplier", 1.0))
-	projectile_count = int(data.get("projectile_count", 1))
-	spread_angle = float(data.get("spread_angle", data.get("projectile_spread_degrees", 0.0)))
-	pierce_count = int(data.get("pierce_count", data.get("projectile_pierce_count", 0)))
-	is_hitscan = bool(data.get("is_hitscan", data.get("projectile_hit_scan", false)))
+	projectile_count = int(style_data.get("projectile_count", 1))
+	spread_angle = float(style_data.get("spread_angle", style_data.get("projectile_spread_degrees", 0.0)))
+	pierce_count = int(style_data.get("pierce_count", style_data.get("projectile_pierce_count", 0)))
+	is_hitscan = bool(style_data.get("is_hitscan", style_data.get("projectile_hit_scan", false)))
 	projectile_visual_size = Vector2(
-		float(data.get("projectile_visual_size_x", data.get("projectile_size_x", 0.0))),
-		float(data.get("projectile_visual_size_y", data.get("projectile_size_y", 0.0)))
+		float(style_data.get("projectile_visual_size_x", style_data.get("projectile_size_x", 0.0))),
+		float(style_data.get("projectile_visual_size_y", style_data.get("projectile_size_y", 0.0)))
 	)
-	projectile_spread_degrees = float(data.get("projectile_spread_degrees", spread_angle))
-	projectile_pierce_count = int(data.get("projectile_pierce_count", pierce_count))
+	projectile_spread_degrees = float(style_data.get("projectile_spread_degrees", spread_angle))
+	projectile_pierce_count = int(style_data.get("projectile_pierce_count", pierce_count))
 	projectile_speed = float(data.get("projectile_speed", 900.0))
 	projectile_lifetime = float(data.get("projectile_lifetime", 1.2))
 	projectile_max_distance = float(data.get("projectile_max_distance", 900.0))
 	projectile_size = Vector2(
-		float(data.get("projectile_size_x", projectile_visual_size.x if projectile_visual_size.x > 0.0 else 18.0)),
-		float(data.get("projectile_size_y", projectile_visual_size.y if projectile_visual_size.y > 0.0 else 6.0))
+		float(style_data.get("projectile_size_x", projectile_visual_size.x if projectile_visual_size.x > 0.0 else 18.0)),
+		float(style_data.get("projectile_size_y", projectile_visual_size.y if projectile_visual_size.y > 0.0 else 6.0))
 	)
 	if projectile_visual_size.x <= 0.0 or projectile_visual_size.y <= 0.0:
 		projectile_visual_size = projectile_size
-	projectile_hit_scan = bool(data.get("projectile_hit_scan", is_hitscan))
+	projectile_hit_scan = bool(style_data.get("projectile_hit_scan", is_hitscan))
 	projectile_homing = bool(data.get("projectile_homing", false))
 	mechanic_drone_count = int(data.get("mechanic_drone_count", 1))
 	mechanic_targeting = StringName(String(data.get("mechanic_targeting", "nearest")))
