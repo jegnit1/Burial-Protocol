@@ -106,7 +106,7 @@ static func from_resolved_definition(resolved_definition) -> BlockData:
 
 	data.unit_hp = float(resolved_definition.base_unit_hp)
 	data.area_units = maxi(int(data.size_cells.x * data.size_cells.y), 1)
-	data.day_hp_multiplier = 1.0
+	data.day_hp_multiplier = float(resolved_definition.day_hp_multiplier)
 	data.difficulty_hp_multiplier = float(resolved_definition.difficulty_hp_multiplier)
 	data.spawn_weight = float(resolved_definition.final_spawn_weight)
 	data.special_result_type = resolved_definition.special_result_type
@@ -135,7 +135,7 @@ func get_block_base_debug_text() -> String:
 	var type_label := "none"
 	if has_block_type():
 		type_label = String(block_type)
-	return "%s | HP %d | 1U %.2f | Size %s (%dU) | Material x%.3f | Type(%s) x%.3f | Diff x%.3f" % [
+	return "%s | HP %d | 1U %.2f | Size %s (%dU) | Material x%.3f | Type(%s) x%.3f | Diff x%.3f | Day x%.3f" % [
 		display_name,
 		health,
 		unit_hp,
@@ -145,4 +145,5 @@ func get_block_base_debug_text() -> String:
 		type_label,
 		block_type_hp_multiplier,
 		difficulty_hp_multiplier,
+		day_hp_multiplier,
 	]

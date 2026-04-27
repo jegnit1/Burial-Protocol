@@ -33,7 +33,7 @@ func get_all_items() -> Array[Dictionary]:
 	var items: Array[Dictionary] = []
 	for raw_item in _get_source_items():
 		var item: Dictionary = raw_item
-		items.append(item.duplicate(true))
+		items.append(normalize_item_definition(item))
 	return items
 
 
@@ -51,13 +51,38 @@ func get_items_by_category(category: StringName) -> Array[Dictionary]:
 	var items: Array[Dictionary] = []
 	for raw_item in _items_by_category[category]:
 		var item: Dictionary = raw_item
-		items.append(item.duplicate(true))
+		items.append(normalize_item_definition(item))
 	return items
 
 
 func has_item(item_id: StringName) -> bool:
 	_rebuild_cache()
 	return _items_by_id.has(item_id)
+
+
+func normalize_item_definition(item: Dictionary) -> Dictionary:
+	var normalized := item.duplicate(true)
+	var effect_type := String(normalized.get("effect_type", "none"))
+	var effect_values: Dictionary = {}
+	if normalized.get("effect_values", {}) is Dictionary:
+		effect_values = (normalized.get("effect_values", {}) as Dictionary).duplicate(true)
+	normalized["effect_type"] = effect_type
+	normalized["effect_values"] = effect_values
+	normalized["conditions"] = _normalize_dictionary_array(normalized.get("conditions", []))
+	var effects := _normalize_dictionary_array(normalized.get("effects", []))
+	if effects.is_empty() and not effect_values.is_empty():
+		for raw_key in effect_values.keys():
+			effects.append({
+				"type": String(raw_key),
+				"value": effect_values[raw_key],
+			})
+	normalized["effects"] = effects
+	normalized["apply_timing"] = _get_default_apply_timing(
+		String(normalized.get("apply_timing", "")),
+		effect_type
+	)
+	normalized["tags"] = Array(normalized.get("tags", []))
+	return normalized
 
 
 func roll_shop_item_ids(
@@ -173,7 +198,7 @@ func _rebuild_cache() -> void:
 		var item_id := StringName(String(item.get("item_id", "")))
 		if item_id == StringName():
 			continue
-		var normalized_item := item.duplicate(true)
+		var normalized_item := normalize_item_definition(item)
 		_items_by_id[item_id] = normalized_item
 		var category := StringName(String(normalized_item.get("item_category", "")))
 		if not _items_by_category.has(category):
@@ -204,3 +229,23 @@ func _get_catalog_source():
 		return _catalog_source
 	_catalog_source = load(DRAFT_PATH)
 	return _catalog_source
+
+
+func _normalize_dictionary_array(raw_value: Variant) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	if not raw_value is Array:
+		return result
+	for raw_entry in raw_value:
+		if not raw_entry is Dictionary:
+			continue
+		var entry: Dictionary = raw_entry
+		result.append(entry.duplicate(true))
+	return result
+
+
+func _get_default_apply_timing(raw_timing: String, effect_type: String) -> String:
+	if not raw_timing.is_empty():
+		return raw_timing
+	if effect_type == "conditional_stat_bonus":
+		return "stat_query"
+	return "on_purchase"

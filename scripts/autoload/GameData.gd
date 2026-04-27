@@ -61,13 +61,15 @@ func resolve_random_block_definition(
 	type_definition = null
 ):
 	var difficulty_definition := GameConstants.get_difficulty_definition(str(difficulty_id))
+	var day_hp_multiplier := get_block_hp_multiplier(stage_number)
 	return _block_spawn_resolver.resolve_random_block(
 		BLOCK_CATALOG,
 		rng,
 		difficulty_id,
 		stage_number,
 		difficulty_definition,
-		type_definition
+		type_definition,
+		day_hp_multiplier
 	)
 
 
@@ -79,6 +81,7 @@ func resolve_specific_block_definition(
 	type_definition = null
 ):
 	var difficulty_definition := GameConstants.get_difficulty_definition(str(difficulty_id))
+	var day_hp_multiplier := get_block_hp_multiplier(stage_number)
 	return _block_spawn_resolver.resolve_specific_block(
 		BLOCK_CATALOG,
 		material_id,
@@ -86,7 +89,8 @@ func resolve_specific_block_definition(
 		difficulty_id,
 		stage_number,
 		difficulty_definition,
-		type_definition
+		type_definition,
+		day_hp_multiplier
 	)
 
 

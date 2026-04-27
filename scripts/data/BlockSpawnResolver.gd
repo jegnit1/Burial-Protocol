@@ -10,7 +10,8 @@ func resolve_random_block(
 	difficulty_id: StringName,
 	stage_number: int,
 	difficulty_definition: Dictionary,
-	type_definition = null
+	type_definition = null,
+	day_hp_multiplier := 1.0
 ):
 	var candidates = catalog.get_spawn_candidates(difficulty_id, stage_number)
 	if candidates.is_empty():
@@ -21,14 +22,14 @@ func resolve_random_block(
 		var candidate: Dictionary = raw_candidate
 		total_weight += float(candidate.get("weight", 0.0))
 	if total_weight <= 0.0:
-		return _build_resolved_definition(candidates[0], difficulty_definition, type_definition)
+		return _build_resolved_definition(candidates[0], difficulty_definition, type_definition, day_hp_multiplier)
 	var roll := rng.randf_range(0.0, total_weight)
 	for raw_candidate in candidates:
 		var candidate: Dictionary = raw_candidate
 		roll -= float(candidate.get("weight", 0.0))
 		if roll <= 0.0:
-			return _build_resolved_definition(candidate, difficulty_definition, type_definition)
-	return _build_resolved_definition(candidates[candidates.size() - 1], difficulty_definition, type_definition)
+			return _build_resolved_definition(candidate, difficulty_definition, type_definition, day_hp_multiplier)
+	return _build_resolved_definition(candidates[candidates.size() - 1], difficulty_definition, type_definition, day_hp_multiplier)
 
 
 func resolve_specific_block(
@@ -38,7 +39,8 @@ func resolve_specific_block(
 	difficulty_id: StringName,
 	stage_number: int,
 	difficulty_definition: Dictionary,
-	type_definition = null
+	type_definition = null,
+	day_hp_multiplier := 1.0
 ):
 	var material_definition = catalog.get_block_material_definition(material_id)
 	var size_definition = catalog.get_block_size_definition(size_id)
@@ -58,10 +60,10 @@ func resolve_specific_block(
 		"size": size_definition,
 		"weight": catalog.get_spawn_weight_for_candidate(material_definition, size_definition, difficulty_id, stage_number),
 	}
-	return _build_resolved_definition(candidate, difficulty_definition, type_definition)
+	return _build_resolved_definition(candidate, difficulty_definition, type_definition, day_hp_multiplier)
 
 
-func _build_resolved_definition(candidate: Dictionary, difficulty_definition: Dictionary, type_definition):
+func _build_resolved_definition(candidate: Dictionary, difficulty_definition: Dictionary, type_definition, day_hp_multiplier := 1.0):
 	var material_definition = candidate.get("material")
 	var size_definition = candidate.get("size")
 	var resolved := BLOCK_RESOLVED_DEFINITION_SCRIPT.new()
@@ -87,7 +89,10 @@ func _build_resolved_definition(candidate: Dictionary, difficulty_definition: Di
 	var difficulty_hp_multiplier := 1.0
 	if difficulty_definition != null:
 		difficulty_hp_multiplier = float(difficulty_definition.get("block_hp_multiplier", 1.0))
-	var final_hp := GameConstants.BLOCK_HP_PER_UNIT * size_hp_multiplier * material_hp_multiplier * difficulty_hp_multiplier * type_hp_multiplier
+	var safe_day_hp_multiplier := float(day_hp_multiplier)
+	if safe_day_hp_multiplier <= 0.0:
+		safe_day_hp_multiplier = 1.0
+	var final_hp := GameConstants.BLOCK_HP_PER_UNIT * size_hp_multiplier * material_hp_multiplier * difficulty_hp_multiplier * type_hp_multiplier * safe_day_hp_multiplier
 	var final_reward := GameConstants.BLOCK_REWARD_PER_UNIT * size_reward_multiplier * material_reward_multiplier * type_reward_multiplier
 	var final_sand_units := GameConstants.BLOCK_SAND_UNITS_PER_UNIT * size_reward_multiplier * type_sand_units_multiplier
 	resolved.material_id = material_definition.material_id
@@ -108,6 +113,7 @@ func _build_resolved_definition(candidate: Dictionary, difficulty_definition: Di
 	resolved.material_hp_multiplier = material_hp_multiplier
 	resolved.material_reward_multiplier = material_reward_multiplier
 	resolved.difficulty_hp_multiplier = difficulty_hp_multiplier
+	resolved.day_hp_multiplier = safe_day_hp_multiplier
 	resolved.material_spawn_weight = float(material_definition.base_spawn_weight)
 	resolved.size_spawn_weight = float(size_definition.base_spawn_weight)
 	resolved.final_spawn_weight = float(candidate.get("weight", 1.0))

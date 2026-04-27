@@ -35,6 +35,9 @@ class_name ShopItemDefinition
 @export_file("*.tscn") var world_visual_scene_path := ""
 @export var effect_type: StringName = &"none"
 @export var effect_values: Dictionary = {}
+@export var conditions: Array[Dictionary] = []
+@export var effects: Array[Dictionary] = []
+@export var apply_timing: StringName = &"on_purchase"
 @export var tags: PackedStringArray = PackedStringArray()
 @export var short_desc := ""
 @export_multiline var desc := ""
@@ -92,6 +95,9 @@ func to_dictionary() -> Dictionary:
 		"world_visual_scene_path": world_visual_scene_path,
 		"effect_type": String(effect_type),
 		"effect_values": effect_values.duplicate(true),
+		"conditions": conditions.duplicate(true),
+		"effects": effects.duplicate(true),
+		"apply_timing": String(apply_timing),
 		"tags": Array(tags),
 		"short_desc": short_desc,
 		"desc": desc,
@@ -135,6 +141,21 @@ func apply_dictionary(data: Dictionary) -> void:
 	world_visual_scene_path = String(data.get("world_visual_scene_path", ""))
 	effect_type = StringName(String(data.get("effect_type", "none")))
 	effect_values = (data.get("effect_values", {}) as Dictionary).duplicate(true)
+	conditions = _to_dictionary_array(data.get("conditions", []))
+	effects = _to_dictionary_array(data.get("effects", []))
+	apply_timing = StringName(String(data.get("apply_timing", "on_purchase")))
 	tags = PackedStringArray(Array(data.get("tags", [])))
 	short_desc = String(data.get("short_desc", ""))
 	desc = String(data.get("desc", ""))
+
+
+func _to_dictionary_array(raw_value: Variant) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	if not raw_value is Array:
+		return result
+	for raw_entry in raw_value:
+		if not raw_entry is Dictionary:
+			continue
+		var entry: Dictionary = raw_entry
+		result.append(entry.duplicate(true))
+	return result

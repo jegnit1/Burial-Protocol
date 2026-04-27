@@ -295,7 +295,10 @@ func get_attacks_per_second() -> float:
 
 
 func get_base_attack_damage() -> int:
-	return GameConstants.PLAYER_ATTACK_DAMAGE + run_bonus_attack_damage
+	var base_damage := GameConstants.PLAYER_ATTACK_DAMAGE + run_bonus_attack_damage
+	var conditional_flat := get_stat_query_effect_value("attack_damage_flat")
+	var conditional_percent := get_stat_query_effect_value("attack_damage_percent")
+	return maxi(int(round((float(base_damage) + conditional_flat) * (1.0 + conditional_percent))), 1)
 
 
 func get_attack_module_damage(module_entry: Dictionary) -> int:
@@ -508,6 +511,21 @@ func get_current_run_effect_entries(effect_type: StringName = StringName()) -> A
 		var entry: Dictionary = raw_entry
 		entries.append(entry.duplicate(true))
 	return entries
+
+
+func get_stat_query_effect_value(effect_key: String, context: Dictionary = {}) -> float:
+	var total := 0.0
+	for raw_entry in get_current_run_effect_entries(&"conditional_stat_bonus"):
+		var entry: Dictionary = raw_entry
+		if String(entry.get("apply_timing", "")) != "stat_query":
+			continue
+		if not _are_item_conditions_met(_get_condition_entries(entry), context):
+			continue
+		for effect in _get_effect_entries(entry):
+			if String(effect.get("type", "")) != effect_key:
+				continue
+			total += float(effect.get("value", 0.0))
+	return total
 
 
 func get_day_shop_snapshot(item_ids: PackedStringArray) -> Dictionary:
@@ -1194,11 +1212,16 @@ func _register_runtime_effect_entry(definition: Dictionary) -> void:
 		"item_id": String(definition.get("item_id", "")),
 		"effect_type": String(effect_type),
 		"effect_values": (definition.get("effect_values", {}) as Dictionary).duplicate(true),
+		"conditions": _get_condition_entries(definition),
+		"effects": _get_effect_entries(definition),
+		"apply_timing": _get_item_apply_timing(definition),
 	})
 
 
 func _apply_shop_effect_values(definition: Dictionary) -> void:
 	if String(definition.get("effect_type", "")) != "stat_bonus":
+		return
+	if _get_item_apply_timing(definition) != "on_purchase":
 		return
 	var effect_values: Dictionary = definition.get("effect_values", {})
 	for raw_key in effect_values.keys():
@@ -1251,6 +1274,121 @@ func _apply_stat_bonus_effect(effect_key: String, effect_value: Variant) -> void
 			run_bonus_battery_recovery += float(effect_value)
 
 
+func _get_item_apply_timing(definition: Dictionary) -> String:
+	var raw_timing := String(definition.get("apply_timing", ""))
+	if not raw_timing.is_empty():
+		return raw_timing
+	if String(definition.get("effect_type", "")) == "conditional_stat_bonus":
+		return "stat_query"
+	return "on_purchase"
+
+
+func _get_condition_entries(source: Dictionary) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var raw_conditions = source.get("conditions", [])
+	if not raw_conditions is Array:
+		return result
+	for raw_condition in raw_conditions:
+		if not raw_condition is Dictionary:
+			continue
+		var condition: Dictionary = raw_condition
+		result.append(condition.duplicate(true))
+	return result
+
+
+func _get_effect_entries(source: Dictionary) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var raw_effects = source.get("effects", [])
+	if raw_effects is Array:
+		for raw_effect in raw_effects:
+			if not raw_effect is Dictionary:
+				continue
+			var effect: Dictionary = raw_effect
+			result.append(effect.duplicate(true))
+	if not result.is_empty():
+		return result
+	var raw_values = source.get("effect_values", {})
+	if not raw_values is Dictionary:
+		return result
+	var effect_values: Dictionary = raw_values
+	for raw_key in effect_values.keys():
+		result.append({
+			"type": String(raw_key),
+			"value": effect_values[raw_key],
+		})
+	return result
+
+
+func _are_item_conditions_met(conditions: Array[Dictionary], context: Dictionary = {}) -> bool:
+	for condition in conditions:
+		if not _is_item_condition_met(condition, context):
+			return false
+	return true
+
+
+func _is_item_condition_met(condition: Dictionary, context: Dictionary = {}) -> bool:
+	match String(condition.get("type", "")):
+		"weight_ratio_at_least":
+			return _get_condition_weight_ratio(context) >= float(condition.get("value", 0.0))
+		"weight_ratio_below":
+			return _get_condition_weight_ratio(context) < float(condition.get("value", 0.0))
+		"hp_ratio_at_least":
+			return _get_hp_ratio() >= float(condition.get("value", 0.0))
+		"hp_ratio_below":
+			return _get_hp_ratio() < float(condition.get("value", 0.0))
+		"gold_at_least":
+			return gold >= int(condition.get("value", 0))
+		"current_day_at_least":
+			return current_day >= int(condition.get("value", 1))
+		"all_attack_modules_type":
+			return _are_all_equipped_attack_modules_type(StringName(String(condition.get("module_type", ""))))
+		"equipped_attack_module_count_at_least":
+			return equipped_attack_modules.size() >= int(condition.get("value", 0))
+		"has_attack_module_type":
+			return _has_equipped_attack_module_type(StringName(String(condition.get("module_type", ""))))
+		"attack_module_type_is", "attack_hit_side", "player_is_airborne", "target_block_size_at_least", "is_critical_hit":
+			# TODO: attack-timing conditions need on_attack_start/on_attack_hit context.
+			return false
+		_:
+			return false
+
+
+func _get_condition_weight_ratio(context: Dictionary) -> float:
+	if context.has("weight_ratio"):
+		return float(context.get("weight_ratio", 0.0))
+	if not context.has("current_weight_sand_cells"):
+		return 0.0
+	var limit := float(context.get("weight_limit_sand_cells", get_weight_limit_sand_cells()))
+	if limit <= 0.0:
+		return 0.0
+	return float(context.get("current_weight_sand_cells", 0.0)) / limit
+
+
+func _get_hp_ratio() -> float:
+	var max_health := get_player_max_health()
+	if max_health <= 0:
+		return 0.0
+	return float(player_health) / float(max_health)
+
+
+func _are_all_equipped_attack_modules_type(module_type: StringName) -> bool:
+	if module_type == StringName() or equipped_attack_modules.is_empty():
+		return false
+	for entry in equipped_attack_modules:
+		if _get_attack_module_type(entry) != module_type:
+			return false
+	return true
+
+
+func _has_equipped_attack_module_type(module_type: StringName) -> bool:
+	if module_type == StringName():
+		return false
+	for entry in equipped_attack_modules:
+		if _get_attack_module_type(entry) == module_type:
+			return true
+	return false
+
+
 # ---- 경험치 및 레벨업 ----
 
 func add_xp(amount: int) -> void:
@@ -1261,37 +1399,216 @@ func add_xp(amount: int) -> void:
 	if player_current_xp >= player_next_level_xp:
 		level_up_ready.emit()
 
-func apply_level_up_card(card_id: String) -> void:
+func get_level_up_card_pool() -> Array[Dictionary]:
+	var cards: Array[Dictionary] = []
+	for raw_key in GameConstants.LEVEL_UP_CARDS.keys():
+		var card: Dictionary = GameConstants.LEVEL_UP_CARDS[raw_key]
+		cards.append(card.duplicate(true))
+	for raw_card in GameConstants.EXTRA_LEVEL_UP_CARDS:
+		var card: Dictionary = raw_card
+		cards.append(card.duplicate(true))
+	return cards
+
+
+func get_level_up_card_definition(card_id: String) -> Dictionary:
+	for card in get_level_up_card_pool():
+		if String(card.get("id", "")) == card_id:
+			return card
+	return {}
+
+
+func get_level_up_card_rarity_definition(rarity_id: String) -> Dictionary:
+	for raw_rarity in GameConstants.LEVEL_UP_CARD_RARITIES:
+		var rarity: Dictionary = raw_rarity
+		if String(rarity.get("id", "")) == rarity_id:
+			return rarity
+	return GameConstants.LEVEL_UP_CARD_RARITIES[0]
+
+
+func get_level_up_card_rarity_multiplier(rarity_id: String) -> float:
+	var rarity := get_level_up_card_rarity_definition(rarity_id)
+	return float(rarity.get("multiplier", 1.0))
+
+
+func get_level_up_rarity_chances(luck_value: Variant = null) -> Dictionary:
+	var luck_amount := get_luck()
+	if luck_value != null:
+		luck_amount = float(luck_value)
+	var raw_chances: Array[Dictionary] = []
+	var total := 0.0
+	for raw_rarity in GameConstants.LEVEL_UP_CARD_RARITIES:
+		var rarity: Dictionary = raw_rarity
+		var chance := float(rarity.get("base_chance", 0.0)) + luck_amount * float(rarity.get("luck_chance_delta", 0.0))
+		chance = clampf(chance, float(rarity.get("min_chance", 0.0)), float(rarity.get("max_chance", 1.0)))
+		raw_chances.append({
+			"id": String(rarity.get("id", "")),
+			"chance": chance,
+		})
+		total += chance
+	var normalized := {}
+	if total <= 0.0:
+		var fallback := 1.0 / maxf(float(raw_chances.size()), 1.0)
+		for entry in raw_chances:
+			normalized[String(entry.get("id", ""))] = fallback
+		return normalized
+	for entry in raw_chances:
+		normalized[String(entry.get("id", ""))] = float(entry.get("chance", 0.0)) / total
+	return normalized
+
+
+func roll_level_up_card_rarity(luck_value: Variant = null) -> String:
+	var chances := get_level_up_rarity_chances(luck_value)
+	var roll := randf()
+	var cumulative := 0.0
+	var fallback := "normal"
+	for raw_rarity in GameConstants.LEVEL_UP_CARD_RARITIES:
+		var rarity: Dictionary = raw_rarity
+		var rarity_id := String(rarity.get("id", "normal"))
+		fallback = rarity_id
+		cumulative += float(chances.get(rarity_id, 0.0))
+		if roll <= cumulative:
+			return rarity_id
+	return fallback
+
+
+func generate_level_up_card_choices(count: int = 3) -> Array[Dictionary]:
+	var pool := get_level_up_card_pool()
+	var choices: Array[Dictionary] = []
+	var used := {}
+	if pool.is_empty() or count <= 0:
+		return choices
+	var attempts := 0
+	while choices.size() < count and attempts < 200:
+		attempts += 1
+		var rarity_id := roll_level_up_card_rarity()
+		var card: Dictionary = pool[randi() % pool.size()]
+		var card_id := String(card.get("id", ""))
+		var choice_key := "%s:%s" % [card_id, rarity_id]
+		if used.has(choice_key):
+			continue
+		used[choice_key] = true
+		choices.append(_build_level_up_card_choice(card_id, rarity_id))
+	if choices.size() >= count:
+		return choices
+	for raw_rarity in GameConstants.LEVEL_UP_CARD_RARITIES:
+		var rarity: Dictionary = raw_rarity
+		var rarity_id := String(rarity.get("id", "normal"))
+		for card in pool:
+			if choices.size() >= count:
+				return choices
+			var card_id := String(card.get("id", ""))
+			var choice_key := "%s:%s" % [card_id, rarity_id]
+			if used.has(choice_key):
+				continue
+			used[choice_key] = true
+			choices.append(_build_level_up_card_choice(card_id, rarity_id))
+	return choices
+
+
+func get_level_up_card_effect_description(card_id: String, rarity_id: String = "normal") -> String:
+	var multiplier := get_level_up_card_rarity_multiplier(rarity_id)
 	match card_id:
 		"atk_up":
-			run_bonus_attack_damage += 2
+			return "Attack +%d" % _scale_level_up_int(1, multiplier)
 		"atk_spd_up":
-			run_attack_speed_mult *= 0.90 # 10% 쿨다운 감소
+			return "Attack speed +%s" % _format_level_up_percent(_scale_level_up_percent(0.03, multiplier))
 		"hp_up":
-			run_bonus_max_hp += 1
-			player_health += 1 # 현재 체력도 증가 (단 1회 적용)
+			var hp_gain := _scale_level_up_int(5, multiplier)
+			return "Max HP +%d, heal +%d" % [hp_gain, hp_gain]
+		"spd_up":
+			return "Move speed +%s" % _format_level_up_percent(_scale_level_up_percent(0.03, multiplier))
+		"mine_dmg_up":
+			return "Mining damage +%d" % _scale_level_up_int(1, multiplier)
+		"mine_spd_up":
+			return "Mining speed +%s" % _format_level_up_percent(_scale_level_up_percent(0.04, multiplier))
+		"battery_recovery_up":
+			return "Battery recovery +%d/sec" % _scale_level_up_int(1, multiplier)
+		"luck_up":
+			return "Luck +%d" % _scale_level_up_int(1, multiplier)
+		"interest_up":
+			return "Interest +%sp" % _format_level_up_percent(_scale_level_up_percent(0.02, multiplier))
+		"atk_range_up":
+			return "Attack range +%s" % _format_level_up_percent(_scale_level_up_percent(0.05, multiplier))
+		"crit_chance_up":
+			return "Crit chance +%sp" % _format_level_up_percent(_scale_level_up_percent(0.02, multiplier))
+		"def_up":
+			return "Defense +%d" % _scale_level_up_int(1, multiplier)
+		"hp_regen_up":
+			return "HP regen +%d" % _scale_level_up_int(1, multiplier)
+		"jump_up":
+			return "Jump power +%s" % _format_level_up_percent(_scale_level_up_percent(0.03, multiplier))
+		"mine_range_up":
+			return "Mining range +%s" % _format_level_up_percent(_scale_level_up_percent(0.05, multiplier))
+		_:
+			return ""
+
+
+func _build_level_up_card_choice(card_id: String, rarity_id: String) -> Dictionary:
+	var card := get_level_up_card_definition(card_id)
+	var rarity := get_level_up_card_rarity_definition(rarity_id)
+	var rarity_title := String(rarity.get("title", "Normal"))
+	return {
+		"id": card_id,
+		"card_id": card_id,
+		"rarity_id": String(rarity.get("id", "normal")),
+		"rarity_title": rarity_title,
+		"rarity_multiplier": float(rarity.get("multiplier", 1.0)),
+		"title": "%s [%s]" % [String(card.get("title", card_id)), rarity_title],
+		"desc": "%s\n%s" % [rarity_title, get_level_up_card_effect_description(card_id, rarity_id)],
+	}
+
+
+func _scale_level_up_int(base_value: int, multiplier: float) -> int:
+	return maxi(roundi(float(base_value) * multiplier), 1)
+
+
+func _scale_level_up_percent(base_value: float, multiplier: float) -> float:
+	return float(roundi(base_value * multiplier * 100.0)) / 100.0
+
+
+func _format_level_up_percent(value: float) -> String:
+	return "%d%%" % int(round(value * 100.0))
+
+
+func apply_level_up_card(card_id: String, rarity_id: String = "normal") -> void:
+	var rarity_multiplier := get_level_up_card_rarity_multiplier(rarity_id)
+	match card_id:
+		"atk_up":
+			run_bonus_attack_damage += _scale_level_up_int(1, rarity_multiplier)
+		"atk_spd_up":
+			run_attack_speed_mult /= 1.0 + _scale_level_up_percent(0.03, rarity_multiplier)
+		"hp_up":
+			var hp_gain := _scale_level_up_int(5, rarity_multiplier)
+			run_bonus_max_hp += hp_gain
+			player_health = mini(player_health + hp_gain, get_player_max_health())
 			health_changed.emit(player_health, GameConstants.PLAYER_MAX_HEALTH + run_bonus_max_hp)
 		"spd_up":
-			run_bonus_move_speed += 40.0
+			run_move_speed_mult *= 1.0 + _scale_level_up_percent(0.03, rarity_multiplier)
 		"mine_dmg_up":
-			run_bonus_mining_damage += 1
+			run_bonus_mining_damage += _scale_level_up_int(1, rarity_multiplier)
 		"mine_spd_up":
-			run_mining_speed_mult *= 0.90 # 10% 채굴 쿨다운 감소
+			run_mining_speed_mult /= 1.0 + _scale_level_up_percent(0.04, rarity_multiplier)
+		"battery_recovery_up":
+			run_bonus_battery_recovery += float(_scale_level_up_int(1, rarity_multiplier))
+		"luck_up":
+			run_bonus_luck += float(_scale_level_up_int(1, rarity_multiplier))
+		"interest_up":
+			run_bonus_interest_rate += _scale_level_up_percent(0.02, rarity_multiplier)
 			
 	# 경험치 차감 및 레벨 증가
 	match card_id:
 		"atk_range_up":
-			run_attack_range_mult *= 1.10
+			run_attack_range_mult *= 1.0 + _scale_level_up_percent(0.05, rarity_multiplier)
 		"crit_chance_up":
-			run_bonus_crit_chance += 0.03
+			run_bonus_crit_chance += _scale_level_up_percent(0.02, rarity_multiplier)
 		"def_up":
-			run_bonus_defense += 1
+			run_bonus_defense += _scale_level_up_int(1, rarity_multiplier)
 		"hp_regen_up":
-			run_bonus_hp_regen += 1.0
+			run_bonus_hp_regen += float(_scale_level_up_int(1, rarity_multiplier))
 		"jump_up":
-			run_bonus_jump_power += 40.0
+			run_jump_power_mult *= 1.0 + _scale_level_up_percent(0.03, rarity_multiplier)
 		"mine_range_up":
-			run_mining_range_mult *= 1.10
+			run_mining_range_mult *= 1.0 + _scale_level_up_percent(0.05, rarity_multiplier)
 	player_current_xp -= player_next_level_xp
 	if player_current_xp < 0:
 		player_current_xp = 0

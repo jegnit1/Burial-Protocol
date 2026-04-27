@@ -1557,11 +1557,11 @@ max_stack = 99
 icon_path = "res://assets/ui/items/enhance_modules/coin_pouch.png"
 effect_type = &"stat_bonus"
 effect_values = {
-"interest_rate_percent": 0.1
+"interest_rate_percent": 0.01
 }
 tags = PackedStringArray("stat", "interest")
-short_desc = "이자 +10%"
-desc = "이자율을 10% 증가시킨다."
+short_desc = "이자 +1%p"
+desc = "이자율을 1%p 증가시킨다."
 
 [sub_resource type="Resource" id="Resource_v57lr"]
 script = ExtResource("1_eikcl")
@@ -1574,11 +1574,11 @@ max_stack = 99
 icon_path = "res://assets/ui/items/enhance_modules/piggy_bank.png"
 effect_type = &"stat_bonus"
 effect_values = {
-"interest_rate_percent": 0.2
+"interest_rate_percent": 0.02
 }
 tags = PackedStringArray("stat", "interest")
-short_desc = "이자 +20%"
-desc = "이자율을 20% 증가시킨다."
+short_desc = "이자 +2%p"
+desc = "이자율을 2%p 증가시킨다."
 
 [sub_resource type="Resource" id="Resource_f55g3"]
 script = ExtResource("1_eikcl")
@@ -1591,11 +1591,11 @@ max_stack = 99
 icon_path = "res://assets/ui/items/enhance_modules/compound_interest_module.png"
 effect_type = &"stat_bonus"
 effect_values = {
-"interest_rate_percent": 0.3
+"interest_rate_percent": 0.03
 }
 tags = PackedStringArray("stat", "interest")
-short_desc = "이자 +30%"
-desc = "이자율을 30% 증가시킨다."
+short_desc = "이자 +3%p"
+desc = "이자율을 3%p 증가시킨다."
 
 [sub_resource type="Resource" id="Resource_s1q7t"]
 script = ExtResource("1_eikcl")
@@ -1608,11 +1608,11 @@ max_stack = 99
 icon_path = "res://assets/ui/items/enhance_modules/asset_management_firmware.png"
 effect_type = &"stat_bonus"
 effect_values = {
-"interest_rate_percent": 0.5
+"interest_rate_percent": 0.06
 }
 tags = PackedStringArray("stat", "interest")
-short_desc = "이자 +50%"
-desc = "이자율을 50% 증가시킨다."
+short_desc = "이자 +6%p"
+desc = "이자율을 6%p 증가시킨다."
 
 [sub_resource type="Resource" id="Resource_twt3g"]
 script = ExtResource("1_eikcl")
@@ -1625,11 +1625,11 @@ max_stack = 99
 icon_path = "res://assets/ui/items/enhance_modules/investment_algorithm_chip.png"
 effect_type = &"stat_bonus"
 effect_values = {
-"interest_rate_percent": 0.8
+"interest_rate_percent": 0.09
 }
 tags = PackedStringArray("stat", "interest")
-short_desc = "이자 +80%"
-desc = "이자율을 80% 증가시킨다."
+short_desc = "이자 +9%p"
+desc = "이자율을 9%p 증가시킨다."
 
 [sub_resource type="Resource" id="Resource_op3mr"]
 script = ExtResource("1_eikcl")
@@ -1682,6 +1682,56 @@ tags = PackedStringArray("stat", "battery_recovery")
 short_desc = "배터리 회복속도 +5"
 desc = "배터리 회복 속도를 5 증가시킨다."
 
+[sub_resource type="Resource" id="Resource_mpurc"]
+script = ExtResource("1_eikcl")
+item_id = &"melee_purity_core"
+name = "근접 순도 코어"
+item_category = &"enhance_module"
+rank = "A"
+price_gold = 320
+shop_spawn_weight = 0.25
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/melee_purity_core.png"
+effect_type = &"conditional_stat_bonus"
+conditions = Array[Dictionary]([{
+"module_type": "melee",
+"type": "all_attack_modules_type"
+}])
+effects = Array[Dictionary]([{
+"type": "attack_damage_percent",
+"value": 0.2
+}])
+apply_timing = &"stat_query"
+tags = PackedStringArray("stat", "conditional", "attack_damage", "melee")
+short_desc = "모든 공격모듈이 근접이면 공격력 +20%"
+desc = "장착한 공격모듈이 모두 melee 타입일 때 최종 공격력을 20% 증가시킨다."
+
+[sub_resource type="Resource" id="Resource_mfocus"]
+script = ExtResource("1_eikcl")
+item_id = &"module_focus_circuit"
+name = "모듈 집중 회로"
+item_category = &"enhance_module"
+rank = "B"
+price_gold = 240
+shop_spawn_weight = 0.3
+stackable = true
+max_stack = 99
+icon_path = "res://assets/ui/items/enhance_modules/module_focus_circuit.png"
+effect_type = &"conditional_stat_bonus"
+conditions = Array[Dictionary]([{
+"type": "equipped_attack_module_count_at_least",
+"value": 3
+}])
+effects = Array[Dictionary]([{
+"type": "attack_damage_flat",
+"value": 2
+}])
+apply_timing = &"stat_query"
+tags = PackedStringArray("stat", "conditional", "attack_damage", "attack_module_count")
+short_desc = "공격모듈 3개 이상 장착 시 공격력 +2"
+desc = "장착한 공격모듈이 3개 이상일 때 최종 공격력을 2 증가시킨다."
+
 [resource]
 script = ExtResource("2_010nu")
-items = Array[Resource]([SubResource("Resource_eikcl"), SubResource("Resource_010nu"), SubResource("Resource_sax2b"), SubResource("Resource_qx6ce"), SubResource("Resource_r61lr"), SubResource("Resource_q3pi3"), SubResource("Resource_sfxbr"), SubResource("Resource_sr35s"), SubResource("Resource_2m00x"), SubResource("Resource_fwr7e"), SubResource("Resource_24o0h"), SubResource("Resource_1i621"), SubResource("Resource_52h7w"), SubResource("Resource_g2xfx"), SubResource("Resource_6sumg"), SubResource("Resource_ner1i"), SubResource("Resource_ifuhn"), SubResource("Resource_wfepa"), SubResource("Resource_lqn15"), SubResource("Resource_caub1"), SubResource("Resource_ck13a"), SubResource("Resource_dfgn1"), SubResource("Resource_cvj2l"), SubResource("Resource_3yajc"), SubResource("Resource_urbi2"), SubResource("Resource_hi1ak"), SubResource("Resource_hpalw"), SubResource("Resource_vnb2v"), SubResource("Resource_c4qly"), SubResource("Resource_bdset"), SubResource("Resource_3kjki"), SubResource("Resource_26e71"), SubResource("Resource_0vob6"), SubResource("Resource_vr4of"), SubResource("Resource_68lw0"), SubResource("Resource_r6dc0"), SubResource("Resource_qgss1"), SubResource("Resource_ghypo"), SubResource("Resource_lbe4v"), SubResource("Resource_5u7iw"), SubResource("Resource_7h7qm"), SubResource("Resource_ilaat"), SubResource("Resource_ko7vj"), SubResource("Resource_em1ck"), SubResource("Resource_hkn42"), SubResource("Resource_4yy3m"), SubResource("Resource_oylcm"), SubResource("Resource_r1x8l"), SubResource("Resource_mi7qc"), SubResource("Resource_ok2b0"), SubResource("Resource_xvfw6"), SubResource("Resource_jhoii"), SubResource("Resource_7jw7h"), SubResource("Resource_gvcms"), SubResource("Resource_4stsp"), SubResource("Resource_oo13g"), SubResource("Resource_4q4rv"), SubResource("Resource_8k56i"), SubResource("Resource_qxnhu"), SubResource("Resource_n7w0o"), SubResource("Resource_ehkcc"), SubResource("Resource_22sj6"), SubResource("Resource_2q51h"), SubResource("Resource_i5c7a"), SubResource("Resource_8d0yx"), SubResource("Resource_uryk4"), SubResource("Resource_vr6vo"), SubResource("Resource_r186l"), SubResource("Resource_1xqo7"), SubResource("Resource_rqfe3"), SubResource("Resource_ow312"), SubResource("Resource_6tc8r"), SubResource("Resource_4m2hx"), SubResource("Resource_kvmb5"), SubResource("Resource_01irc"), SubResource("Resource_wj45g"), SubResource("Resource_hm7mf"), SubResource("Resource_3jn15"), SubResource("Resource_qcn1n"), SubResource("Resource_eyes3"), SubResource("Resource_cho2x"), SubResource("Resource_ch3pu"), SubResource("Resource_8cnss"), SubResource("Resource_wyu0p"), SubResource("Resource_ky4ve"), SubResource("Resource_ekspe"), SubResource("Resource_rmwf7"), SubResource("Resource_bwhd4"), SubResource("Resource_h1nko"), SubResource("Resource_0hk8n"), SubResource("Resource_148f2"), SubResource("Resource_cs5wd"), SubResource("Resource_v57lr"), SubResource("Resource_f55g3"), SubResource("Resource_s1q7t"), SubResource("Resource_twt3g"), SubResource("Resource_op3mr"), SubResource("Resource_7fhvs"), SubResource("Resource_2pyuf")])
+items = Array[Resource]([SubResource("Resource_eikcl"), SubResource("Resource_010nu"), SubResource("Resource_sax2b"), SubResource("Resource_qx6ce"), SubResource("Resource_r61lr"), SubResource("Resource_q3pi3"), SubResource("Resource_sfxbr"), SubResource("Resource_sr35s"), SubResource("Resource_2m00x"), SubResource("Resource_fwr7e"), SubResource("Resource_24o0h"), SubResource("Resource_1i621"), SubResource("Resource_52h7w"), SubResource("Resource_g2xfx"), SubResource("Resource_6sumg"), SubResource("Resource_ner1i"), SubResource("Resource_ifuhn"), SubResource("Resource_wfepa"), SubResource("Resource_lqn15"), SubResource("Resource_caub1"), SubResource("Resource_ck13a"), SubResource("Resource_dfgn1"), SubResource("Resource_cvj2l"), SubResource("Resource_3yajc"), SubResource("Resource_urbi2"), SubResource("Resource_hi1ak"), SubResource("Resource_hpalw"), SubResource("Resource_vnb2v"), SubResource("Resource_c4qly"), SubResource("Resource_bdset"), SubResource("Resource_3kjki"), SubResource("Resource_26e71"), SubResource("Resource_0vob6"), SubResource("Resource_vr4of"), SubResource("Resource_68lw0"), SubResource("Resource_r6dc0"), SubResource("Resource_qgss1"), SubResource("Resource_ghypo"), SubResource("Resource_lbe4v"), SubResource("Resource_5u7iw"), SubResource("Resource_7h7qm"), SubResource("Resource_ilaat"), SubResource("Resource_ko7vj"), SubResource("Resource_em1ck"), SubResource("Resource_hkn42"), SubResource("Resource_4yy3m"), SubResource("Resource_oylcm"), SubResource("Resource_r1x8l"), SubResource("Resource_mi7qc"), SubResource("Resource_ok2b0"), SubResource("Resource_xvfw6"), SubResource("Resource_jhoii"), SubResource("Resource_7jw7h"), SubResource("Resource_gvcms"), SubResource("Resource_4stsp"), SubResource("Resource_oo13g"), SubResource("Resource_4q4rv"), SubResource("Resource_8k56i"), SubResource("Resource_qxnhu"), SubResource("Resource_n7w0o"), SubResource("Resource_ehkcc"), SubResource("Resource_22sj6"), SubResource("Resource_2q51h"), SubResource("Resource_i5c7a"), SubResource("Resource_8d0yx"), SubResource("Resource_uryk4"), SubResource("Resource_vr6vo"), SubResource("Resource_r186l"), SubResource("Resource_1xqo7"), SubResource("Resource_rqfe3"), SubResource("Resource_ow312"), SubResource("Resource_6tc8r"), SubResource("Resource_4m2hx"), SubResource("Resource_kvmb5"), SubResource("Resource_01irc"), SubResource("Resource_wj45g"), SubResource("Resource_hm7mf"), SubResource("Resource_3jn15"), SubResource("Resource_qcn1n"), SubResource("Resource_eyes3"), SubResource("Resource_cho2x"), SubResource("Resource_ch3pu"), SubResource("Resource_8cnss"), SubResource("Resource_wyu0p"), SubResource("Resource_ky4ve"), SubResource("Resource_ekspe"), SubResource("Resource_rmwf7"), SubResource("Resource_bwhd4"), SubResource("Resource_h1nko"), SubResource("Resource_0hk8n"), SubResource("Resource_148f2"), SubResource("Resource_cs5wd"), SubResource("Resource_v57lr"), SubResource("Resource_f55g3"), SubResource("Resource_s1q7t"), SubResource("Resource_twt3g"), SubResource("Resource_op3mr"), SubResource("Resource_7fhvs"), SubResource("Resource_2pyuf"), SubResource("Resource_mpurc"), SubResource("Resource_mfocus")])

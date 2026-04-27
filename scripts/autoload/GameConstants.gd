@@ -520,32 +520,32 @@ const LEVEL_UP_CARDS := {
 	"atk_up": {
 		"id": "atk_up",
 		"title": "공격력 증가",
-		"desc": "기본 공격력이 소폭 상승합니다.",
+		"desc": "공격력이 1 증가합니다.",
 	},
 	"atk_spd_up": {
 		"id": "atk_spd_up",
 		"title": "공격속도 증가",
-		"desc": "공격 쿨다운이 빨라집니다.",
+		"desc": "공격속도가 3% 증가합니다.",
 	},
 	"hp_up": {
 		"id": "hp_up",
 		"title": "최대 체력 증가",
-		"desc": "최대 체력이 1 증가하고 즉시 회복됩니다.",
+		"desc": "최대 체력이 5 증가하고 즉시 회복됩니다.",
 	},
 	"spd_up": {
 		"id": "spd_up",
 		"title": "이동속도 증가",
-		"desc": "플레이어의 기본 이동속도가 상승합니다.",
+		"desc": "이동속도가 3% 증가합니다.",
 	},
 	"mine_dmg_up": {
 		"id": "mine_dmg_up",
 		"title": "채굴 데미지 증가",
-		"desc": "안전하게 채굴하는 충격량이 상승합니다.",
+		"desc": "채굴 데미지가 1 증가합니다.",
 	},
 	"mine_spd_up": {
 		"id": "mine_spd_up",
 		"title": "채굴 속도 증가",
-		"desc": "채굴 쿨다운이 빨라집니다.",
+		"desc": "채굴속도가 4% 증가합니다.",
 	}
 }
 
@@ -553,12 +553,12 @@ const EXTRA_LEVEL_UP_CARDS := [
 	{
 		"id": "atk_range_up",
 		"title": "공격범위 증가",
-		"desc": "공격 판정 범위가 넓어집니다.",
+		"desc": "공격범위가 5% 증가합니다.",
 	},
 	{
 		"id": "crit_chance_up",
 		"title": "치명타 확률 증가",
-		"desc": "치명타 발생 확률이 상승합니다.",
+		"desc": "치명타 확률이 2%p 증가합니다.",
 	},
 	{
 		"id": "def_up",
@@ -568,17 +568,71 @@ const EXTRA_LEVEL_UP_CARDS := [
 	{
 		"id": "hp_regen_up",
 		"title": "HP 재생 증가",
-		"desc": "체력 재생 스탯이 상승합니다.",
+		"desc": "HP 재생이 1 증가합니다.",
 	},
 	{
 		"id": "jump_up",
 		"title": "점프력 증가",
-		"desc": "더 높게 점프할 수 있습니다.",
+		"desc": "점프력이 3% 증가합니다.",
+	},
+	{
+		"id": "battery_recovery_up",
+		"title": "배터리 회복 증가",
+		"desc": "배터리 회복이 초당 1 증가합니다.",
 	},
 	{
 		"id": "mine_range_up",
 		"title": "채굴범위 증가",
-		"desc": "채굴 판정 범위가 넓어집니다.",
+		"desc": "채굴범위가 5% 증가합니다.",
+	},
+	{
+		"id": "luck_up",
+		"title": "행운 증가",
+		"desc": "행운이 1 증가합니다.",
+	},
+	{
+		"id": "interest_up",
+		"title": "이자율 증가",
+		"desc": "이자율이 2%p 증가합니다.",
+	},
+]
+
+const LEVEL_UP_CARD_RARITIES := [
+	{
+		"id": "normal",
+		"title": "Normal",
+		"base_chance": 0.70,
+		"luck_chance_delta": -0.01,
+		"min_chance": 0.35,
+		"max_chance": 1.0,
+		"multiplier": 1.0,
+	},
+	{
+		"id": "silver",
+		"title": "Silver",
+		"base_chance": 0.22,
+		"luck_chance_delta": 0.005,
+		"min_chance": 0.0,
+		"max_chance": 0.40,
+		"multiplier": 1.6,
+	},
+	{
+		"id": "gold",
+		"title": "Gold",
+		"base_chance": 0.07,
+		"luck_chance_delta": 0.0035,
+		"min_chance": 0.0,
+		"max_chance": 0.20,
+		"multiplier": 2.5,
+	},
+	{
+		"id": "platinum",
+		"title": "Platinum",
+		"base_chance": 0.01,
+		"luck_chance_delta": 0.0015,
+		"min_chance": 0.0,
+		"max_chance": 0.08,
+		"multiplier": 4.0,
 	},
 ]
 
