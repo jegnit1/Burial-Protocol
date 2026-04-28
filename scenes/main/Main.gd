@@ -482,7 +482,7 @@ func _handle_mining_action(direction: Vector2) -> void:
 	var sand_removed := int(sand_result["removed_count"])
 	if sand_hits > 0:
 		if sand_removed > 0:
-			GameState.add_xp(GameConstants.get_sand_xp(sand_removed))
+			GameState.add_sand_removed_xp(sand_removed)
 		GameState.set_status_text(Locale.ltr("status_mine_sand") % [sand_hits, sand_removed])
 		return
 	var wall_result: Dictionary = world_grid.try_mine_in_shape(mining_shape_data, final_mining_damage)
@@ -609,6 +609,8 @@ func _enter_intermission() -> void:
 	_kiosk_spawn_delay_remaining = -1.0
 	_current_shop_item_ids = PackedStringArray()
 	_has_shop_inventory_for_intermission = false
+	GameState.reset_shop_reroll_count()
+	GameState.reset_shop_locks()
 	_day_time_remaining = 0.0
 	GameState.day_time_remaining = 0.0
 	spawn_timer.stop()
@@ -677,6 +679,8 @@ func _open_day_shop() -> void:
 	if _shop_ui_open or _is_next_day_transitioning:
 		return
 	if not _has_shop_inventory_for_intermission:
+		GameState.reset_shop_reroll_count()
+		GameState.reset_shop_locks()
 		_current_shop_item_ids = GameData.roll_shop_item_ids(
 			rng,
 			GameConstants.DAY_SHOP_ITEM_COUNT,
@@ -691,6 +695,8 @@ func _open_day_shop() -> void:
 	_day_shop_ui.closed.connect(_on_day_shop_closed)
 	if _day_shop_ui.has_signal("item_purchased"):
 		_day_shop_ui.item_purchased.connect(_on_day_shop_item_purchased)
+	if _day_shop_ui.has_signal("reroll_requested"):
+		_day_shop_ui.reroll_requested.connect(_on_day_shop_reroll_requested)
 	_shop_ui_open = true
 	_update_day_kiosk_prompt()
 	GameState.set_status_text("상점 화면이 열렸습니다. Next Day 버튼으로 다음 날을 시작할 수 있습니다.")
@@ -737,6 +743,82 @@ func _on_day_shop_item_purchased(item_id: StringName) -> void:
 	_current_shop_item_ids = remaining_ids
 
 
+func _on_day_shop_reroll_requested() -> void:
+	if not _is_intermission or not _shop_ui_open or _is_next_day_transitioning:
+		return
+	var result := GameState.try_purchase_shop_reroll()
+	if not bool(result.get("ok", false)):
+		var reason := String(result.get("reason", "failed"))
+		if reason == "insufficient_gold":
+			GameState.set_status_text("Not enough gold to reroll.")
+		else:
+			GameState.set_status_text("Failed to reroll shop.")
+		if _day_shop_ui != null and is_instance_valid(_day_shop_ui) and _day_shop_ui.has_method("set_shop_item_ids"):
+			_day_shop_ui.call("set_shop_item_ids", _current_shop_item_ids)
+		return
+	_current_shop_item_ids = _reroll_shop_item_ids_preserving_locks()
+	_has_shop_inventory_for_intermission = true
+	if _day_shop_ui != null and is_instance_valid(_day_shop_ui) and _day_shop_ui.has_method("set_shop_item_ids"):
+		_day_shop_ui.call("set_shop_item_ids", _current_shop_item_ids)
+	GameState.set_status_text("Shop rerolled for %dG." % int(result.get("cost", 0)))
+
+
+func _reroll_shop_item_ids_preserving_locks() -> PackedStringArray:
+	var previous_ids := _current_shop_item_ids.duplicate()
+	var locked_slots := GameState.get_current_shop_locked_slots()
+	var used_ids: Dictionary = {}
+	var result_ids := PackedStringArray()
+	var replacement_count := 0
+	for slot_index in range(GameConstants.DAY_SHOP_ITEM_COUNT):
+		var keep_locked := bool(locked_slots.get(slot_index, false)) and slot_index < previous_ids.size()
+		if keep_locked:
+			var locked_item_id := String(previous_ids[slot_index])
+			result_ids.append(locked_item_id)
+			used_ids[locked_item_id] = true
+		else:
+			result_ids.append("")
+			replacement_count += 1
+	var replacements := _roll_shop_item_replacements(replacement_count, used_ids)
+	var replacement_index := 0
+	for slot_index in range(result_ids.size()):
+		if not String(result_ids[slot_index]).is_empty():
+			continue
+		if replacement_index >= replacements.size():
+			break
+		result_ids[slot_index] = replacements[replacement_index]
+		replacement_index += 1
+	var compact_ids := PackedStringArray()
+	for raw_item_id in result_ids:
+		var item_id := String(raw_item_id)
+		if item_id.is_empty():
+			continue
+		compact_ids.append(item_id)
+	return compact_ids
+
+
+func _roll_shop_item_replacements(count: int, used_ids: Dictionary) -> PackedStringArray:
+	var replacements := PackedStringArray()
+	if count <= 0:
+		return replacements
+	var attempts := 0
+	while replacements.size() < count and attempts < 10:
+		attempts += 1
+		var rolled_ids := GameData.roll_shop_item_ids(
+			rng,
+			GameConstants.DAY_SHOP_ITEM_COUNT,
+			GameState.get_shop_roll_context()
+		)
+		for raw_item_id in rolled_ids:
+			var item_id := String(raw_item_id)
+			if used_ids.has(item_id):
+				continue
+			replacements.append(item_id)
+			used_ids[item_id] = true
+			if replacements.size() >= count:
+				break
+	return replacements
+
+
 func _request_next_day_transition() -> void:
 	if _is_next_day_transitioning:
 		return
@@ -746,6 +828,7 @@ func _request_next_day_transition() -> void:
 func _start_next_day_transition() -> void:
 	_is_next_day_transitioning = true
 	_close_day_shop()
+	GameState.reset_shop_locks()
 	_despawn_day_kiosk()
 	await _play_fade(1.0, GameConstants.DAY_TRANSITION_FADE_DURATION)
 	_apply_next_day_interest()

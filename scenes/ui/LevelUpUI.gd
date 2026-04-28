@@ -27,13 +27,13 @@ func _ready() -> void:
 	vbox.add_child(title)
 
 	var card_container := HBoxContainer.new()
-	card_container.add_theme_constant_override("separation", 32)
+	card_container.add_theme_constant_override("separation", 20)
 	card_container.alignment = BoxContainer.ALIGNMENT_CENTER
 	vbox.add_child(card_container)
 
-	var cards := GameState.generate_level_up_card_choices(3)
+	var cards := GameState.generate_level_up_card_choices(5)
 
-	for i in range(min(3, cards.size())):
+	for i in range(min(5, cards.size())):
 		var card_data: Dictionary = cards[i]
 		var btn := _create_card_button(card_data)
 		btn.pressed.connect(_on_card_selected.bind(String(card_data["id"]), String(card_data.get("rarity_id", "normal"))))
@@ -47,7 +47,7 @@ func _input(event: InputEvent) -> void:
 
 func _create_card_button(data: Dictionary) -> Button:
 	var btn := Button.new()
-	btn.custom_minimum_size = Vector2(240, 320)
+	btn.custom_minimum_size = Vector2(200, 300)
 	var rarity_id := _get_card_rarity_id(data)
 	var rarity_style := _get_rarity_style(rarity_id)
 
@@ -97,7 +97,7 @@ func _create_card_button(data: Dictionary) -> Button:
 	container.add_child(title_label)
 
 	var spacer := Control.new()
-	spacer.custom_minimum_size = Vector2(0, 24)
+	spacer.custom_minimum_size = Vector2(0, 16)
 	container.add_child(spacer)
 
 	var desc_label := Label.new()

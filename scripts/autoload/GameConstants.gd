@@ -107,7 +107,7 @@ const PLAYER_ATTACK_RANGE := PLAYER_ATTACK_RANGE_WIDTH
 const PLAYER_ATTACK_RANGE_HEIGHT := float(CELL_SIZE)
 const PLAYER_ATTACK_THICKNESS := PLAYER_ATTACK_RANGE_HEIGHT
 # 연속 공격 사이의 최소 간격.
-const PLAYER_ATTACK_COOLDOWN := 0.25
+const PLAYER_ATTACK_COOLDOWN := 0.30
 # 공격 입력을 미리 저장해두는 버퍼 시간.
 const PLAYER_ATTACK_BUFFER_TIME := 0.12
 # 공격 미리보기/피격 비주얼이 유지되는 시간.
@@ -183,11 +183,23 @@ const DAY_KIOSK_DEPLOY_DELAY := 1.25
 const DAY_KIOSK_FALL_SPEED := 780.0
 const DAY_TRANSITION_FADE_DURATION := 0.35
 const DAY_SHOP_ITEM_COUNT := 5
+const SHOP_REROLL_BASE_COST := 50
+const SHOP_REROLL_COST_INCREMENT := 25
+# 상점 아이템 랭크별 기본 가격. price_gold가 0이면 이 값을 fallback으로 사용한다.
+const SHOP_ITEM_RANK_FALLBACK_PRICES := {
+	"D": 15,
+	"C": 30,
+	"B": 60,
+	"A": 120,
+	"S": 240,
+}
 # 1U당 블록 체력
 const BLOCK_HP_PER_UNIT := 10.0
 # 1U당 블록 보상
 const BLOCK_REWARD_PER_UNIT := 5.0
 const BLOCK_SAND_UNITS_PER_UNIT := 36.0
+const BLOCK_DESTROY_XP_PER_UNIT := 18
+const SAND_REMOVED_CELLS_PER_XP := 4
 # 블록이 화면 바깥 위쪽에서 진입하도록 하는 생성 Y 오프셋.
 const BLOCK_SPAWN_Y_OFFSET := 16.0
 
@@ -517,15 +529,15 @@ func get_difficulty_rank(difficulty_id: String) -> int:
 
 # 카드 풀 기본 정의 (추후 밸런스 변경 가능)
 const LEVEL_UP_CARDS := {
-	"atk_up": {
-		"id": "atk_up",
-		"title": "공격력 증가",
-		"desc": "공격력이 1 증가합니다.",
+	"damage_up": {
+		"id": "damage_up",
+		"title": "데미지 증가",
+		"desc": "모든 최종 피해가 1% 증가합니다.",
 	},
 	"atk_spd_up": {
 		"id": "atk_spd_up",
 		"title": "공격속도 증가",
-		"desc": "공격속도가 3% 증가합니다.",
+		"desc": "공격속도가 2% 증가합니다.",
 	},
 	"hp_up": {
 		"id": "hp_up",
@@ -595,6 +607,16 @@ const EXTRA_LEVEL_UP_CARDS := [
 		"title": "이자율 증가",
 		"desc": "이자율이 2%p 증가합니다.",
 	},
+	{
+		"id": "melee_atk_up",
+		"title": "근거리 공격력 증가",
+		"desc": "근거리 공격력이 1 증가합니다.",
+	},
+	{
+		"id": "ranged_atk_up",
+		"title": "원거리 공격력 증가",
+		"desc": "원거리 공격력이 1 증가합니다.",
+	},
 ]
 
 const LEVEL_UP_CARD_RARITIES := [
@@ -637,7 +659,13 @@ const LEVEL_UP_CARD_RARITIES := [
 ]
 
 func get_block_xp(width_cells: int, height_cells: int) -> int:
-	return width_cells * height_cells * 2
+	return maxi(width_cells * height_cells, 1) * BLOCK_DESTROY_XP_PER_UNIT
 
 func get_sand_xp(sand_count: int) -> int:
-	return sand_count * 1
+	if sand_count <= 0:
+		return 0
+	return int(floori(float(sand_count) / float(SAND_REMOVED_CELLS_PER_XP)))
+
+
+static func get_shop_reroll_cost(current_reroll_count: int) -> int:
+	return SHOP_REROLL_BASE_COST + maxi(current_reroll_count, 0) * SHOP_REROLL_COST_INCREMENT

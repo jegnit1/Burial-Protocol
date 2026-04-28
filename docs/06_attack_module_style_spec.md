@@ -118,6 +118,7 @@ module_type
 attack_style
 effect_style
 rank
+module_base_damage
 damage_multiplier
 attack_speed_multiplier
 range_multiplier
@@ -128,6 +129,23 @@ projectile_options
 hitscan_options
 mechanic_options
 ```
+
+`module_base_damage` is the primary damage field.
+For attack modules, `rank` is also the equipped module `grade`.
+Purchasing or auto-granting an attack module equips it at its data `rank`.
+Rank/grade is not multiplied in the final damage formula.
+Rank/grade only selects or derives the fixed module base damage for that grade.
+`damage_multiplier` is kept as legacy data and as a fallback source when `module_base_damage` is missing.
+Fallback conversion:
+
+```text
+D-grade module_base_damage = round(10 x damage_multiplier)
+grade module_base_damage = round(D-grade module_base_damage x legacy grade damage factor)
+```
+
+Final damage uses grade module base damage, type-specific flat attack bonuses, and global damage percent.
+The only final damage multiplier is `global_damage_multiplier = 1 + damage_percent`.
+`damage_multiplier` is not multiplied in the final damage formula when `module_base_damage` is available.
 
 ### 2-1. melee용 주요 필드
 

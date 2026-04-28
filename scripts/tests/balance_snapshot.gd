@@ -2,6 +2,14 @@ extends SceneTree
 
 const GC = preload("res://scripts/autoload/GameConstants.gd")
 const BOSS_DPS_SAMPLES := [40, 60, 100, 150, 200]
+# 1차 너프 기준값 (변경 전 하드코딩 참조용)
+const NERF_V1_REFERENCE := {
+	"description": "2026-04-28 1차 공격속도 너프 기준값",
+	"attack_cooldown_before": 0.25,
+	"attack_cooldown_after": 0.30,
+	"level_card_normal_pct_before": 0.03,
+	"level_card_normal_pct_after": 0.02,
+}
 const SHOP_RANK_POWERS := {
 	"D": 1.0,
 	"C": 1.8,
@@ -10,7 +18,7 @@ const SHOP_RANK_POWERS := {
 	"S": 9.0,
 }
 const SHOP_STAT_BASE_TARGETS := {
-	"attack_damage_flat": {"label": "attack_damage", "base_value": 1.0, "unit": "flat", "level_card_id": "atk_up"},
+	"damage_percent": {"label": "damage", "base_value": 0.01, "unit": "percent", "level_card_id": "damage_up"},
 	"attack_speed_percent": {"label": "attack_speed", "base_value": 0.03, "unit": "percent", "level_card_id": "atk_spd_up"},
 	"attack_range_percent": {"label": "attack_range", "base_value": 0.05, "unit": "percent", "level_card_id": "atk_range_up"},
 	"max_hp_flat": {"label": "max_health", "base_value": 5.0, "unit": "flat", "level_card_id": "hp_up"},
@@ -27,8 +35,8 @@ const SHOP_STAT_BASE_TARGETS := {
 	"battery_recovery_flat": {"label": "battery_recovery", "base_value": 0.5, "unit": "flat_per_second", "level_card_id": "battery_recovery_up"},
 }
 const LEVEL_UP_NORMAL_TARGETS := {
-	"atk_up": {"stat": "attack_damage", "value": 1.0, "unit": "flat"},
-	"atk_spd_up": {"stat": "attack_speed", "value": 0.03, "unit": "percent"},
+	"damage_up": {"stat": "damage", "value": 0.01, "unit": "percent"},
+	"atk_spd_up": {"stat": "attack_speed", "value": 0.02, "unit": "percent"},
 	"atk_range_up": {"stat": "attack_range", "value": 0.05, "unit": "percent"},
 	"crit_chance_up": {"stat": "crit_chance", "value": 0.02, "unit": "percentage_point"},
 	"hp_up": {"stat": "max_health", "value": 5.0, "unit": "flat"},
@@ -42,6 +50,8 @@ const LEVEL_UP_NORMAL_TARGETS := {
 	"mine_range_up": {"stat": "mining_range", "value": 0.05, "unit": "percent"},
 	"luck_up": {"stat": "luck", "value": 1.0, "unit": "flat"},
 	"interest_up": {"stat": "interest_rate", "value": 0.02, "unit": "percentage_point"},
+	"melee_atk_up": {"stat": "melee_attack_damage_flat", "value": 1.0, "unit": "flat"},
+	"ranged_atk_up": {"stat": "ranged_attack_damage_flat", "value": 1.0, "unit": "flat"},
 }
 
 var _game_data: Node = null
@@ -70,22 +80,29 @@ func _build_snapshot() -> Dictionary:
 		"player_stats": _get_player_stats(),
 		"difficulty_multipliers": _get_difficulty_multipliers(),
 		"attack_module_grade_multipliers": {
-			"damage": GC.ATTACK_MODULE_GRADE_DAMAGE_MULTIPLIERS,
+			"base_damage_derivation": GC.ATTACK_MODULE_GRADE_DAMAGE_MULTIPLIERS,
 			"speed": GC.ATTACK_MODULE_GRADE_SPEED_MULTIPLIERS,
 			"range": GC.ATTACK_MODULE_GRADE_RANGE_MULTIPLIERS,
 		},
 		"attack_module_styles": _get_attack_module_style_snapshot(),
+		"attack_module_damage_formula": _get_attack_module_damage_formula_snapshot(),
+		"xp_reward_efficiency": _get_xp_reward_efficiency_snapshot(),
 		"stage_days": _get_stage_days(),
 		"day_hp_comparison": _get_day_hp_comparison(),
 		"boss_days": _get_boss_days(),
 		"missing_day_fallback": _get_missing_day_fallback(),
 		"block_catalog": _get_block_catalog_snapshot(),
+		"shop_item_price_distribution": _get_shop_item_price_distribution(),
+		"shop_reroll_costs": _get_shop_reroll_costs(),
 		"shop_stat_bonus_by_rank": _get_shop_stat_bonus_by_rank(),
 		"shop_stat_bonus_rank_comparison": _get_shop_stat_bonus_rank_comparison(),
 		"level_up_cards": _get_level_up_card_snapshot(),
 		"level_up_rarity_chances_by_luck": _get_level_up_rarity_chances_by_luck(),
 		"level_up_card_rarity_effect_values": _get_level_up_card_rarity_effect_values(),
 		"level_up_choice_sample": _get_level_up_choice_sample(),
+		"attack_speed_growth": _get_attack_speed_growth_snapshot(),
+		"spawn_pressure": _get_spawn_pressure_snapshot(),
+		"attack_damage_stats": _get_attack_damage_stats_snapshot(),
 	}
 
 
@@ -108,6 +125,8 @@ func _get_attack_module_style_snapshot() -> Dictionary:
 			"module_type": String(definition.module_type),
 			"attack_style": String(definition.attack_style),
 			"effect_style": String(definition.effect_style),
+			"module_base_damage": int(_game_state.call("get_module_base_damage", definition)),
+			"legacy_damage_multiplier": _round_to(float(definition.damage_multiplier), 3),
 			"base_shape_units": {
 				"x": _round_to(definition.base_shape_units.x, 3),
 				"y": _round_to(definition.base_shape_units.y, 3),
@@ -141,11 +160,56 @@ func _get_attack_module_style_snapshot() -> Dictionary:
 	}
 
 
+func _get_attack_module_damage_formula_snapshot() -> Dictionary:
+	var rows: Array[Dictionary] = []
+	for raw_definition in _game_data.call("get_attack_module_definitions"):
+		var definition = raw_definition
+		if definition == null:
+			continue
+		var d_grade_module_base_damage := int(_game_state.call("get_module_base_damage", definition))
+		var grade_base_damage_by_grade: Dictionary = {}
+		for raw_grade in GC.ATTACK_MODULE_GRADE_ORDER:
+			var grade := String(raw_grade)
+			grade_base_damage_by_grade[grade] = int(_game_state.call("get_attack_module_base_damage_for_grade", definition, grade))
+		var current_grade := String(definition.rank)
+		var current_grade_base_damage := int(grade_base_damage_by_grade.get(current_grade, d_grade_module_base_damage))
+		var legacy_base_damage := maxi(int(round(float(GC.PLAYER_ATTACK_DAMAGE) * float(definition.damage_multiplier))), 1)
+		var entry := {
+			"module_id": String(definition.module_id),
+			"grade": current_grade,
+		}
+		rows.append({
+			"module_id": String(definition.module_id),
+			"module_type": String(definition.module_type),
+			"grade": current_grade,
+			"legacy_damage_multiplier": _round_to(float(definition.damage_multiplier), 3),
+			"legacy_converted_base_damage": legacy_base_damage,
+			"d_grade_module_base_damage": d_grade_module_base_damage,
+			"current_grade_module_base_damage": current_grade_base_damage,
+			"grade_base_damage_by_grade": grade_base_damage_by_grade,
+			"damage_at_current_grade_no_bonuses": int(_game_state.call("get_attack_module_damage", entry)),
+		})
+	return {
+		"formula": {
+			"melee": "floor((grade_module_base_damage + melee_attack_damage_flat) * global_damage_multiplier)",
+			"ranged": "floor((grade_module_base_damage + ranged_attack_damage_flat) * global_damage_multiplier)",
+			"mechanic": "floor(grade_module_base_damage * global_damage_multiplier)",
+			"global_damage_multiplier": "1 + damage_percent",
+			"grade_base_damage": "Until grade-specific base damage data exists, fixed grade base = round(D-grade module_base_damage * legacy grade damage multiplier).",
+			"legacy_fallback": "D-grade module_base_damage missing -> round(PLAYER_ATTACK_DAMAGE * damage_multiplier)",
+			"rank_grade_policy": "Attack module item rank is the equipped module grade.",
+			"laser_b_example": "laser_module rank B has fixed base round(2 * 1.35) = 3, so ranged +1 is floor((3 + 1) * 1.0) = 4.",
+		},
+		"items": rows,
+	}
+
+
 func _get_player_stats() -> Dictionary:
 	return {
-		"attack_damage": GC.PLAYER_ATTACK_DAMAGE,
+		"deprecated_player_attack_damage": GC.PLAYER_ATTACK_DAMAGE,
+		"default_module_base_damage": GC.PLAYER_ATTACK_DAMAGE,
 		"attack_cooldown": GC.PLAYER_ATTACK_COOLDOWN,
-		"base_dps": float(GC.PLAYER_ATTACK_DAMAGE) / GC.PLAYER_ATTACK_COOLDOWN,
+		"default_sword_dps": float(GC.PLAYER_ATTACK_DAMAGE) / GC.PLAYER_ATTACK_COOLDOWN,
 		"max_health": GC.PLAYER_MAX_HEALTH,
 		"defense": GC.PLAYER_BASE_DEFENSE,
 		"crit_chance": GC.PLAYER_BASE_CRIT_CHANCE,
@@ -161,6 +225,8 @@ func _get_player_stats() -> Dictionary:
 		"block_hp_per_unit": GC.BLOCK_HP_PER_UNIT,
 		"block_reward_per_unit": GC.BLOCK_REWARD_PER_UNIT,
 		"block_sand_units_per_unit": GC.BLOCK_SAND_UNITS_PER_UNIT,
+		"block_destroy_xp_per_unit": GC.BLOCK_DESTROY_XP_PER_UNIT,
+		"sand_removed_cells_per_xp": GC.SAND_REMOVED_CELLS_PER_XP,
 	}
 
 
@@ -200,6 +266,167 @@ func _get_day_hp_comparison() -> Array[Dictionary]:
 			"stage_boss_hp_actual_runtime": _get_stage_boss_hp(day),
 		})
 	return rows
+
+
+func _get_xp_reward_efficiency_snapshot() -> Dictionary:
+	return {
+		"formulas": {
+			"current": {
+				"block_destroy_xp": "width_u * height_u * BLOCK_DESTROY_XP_PER_UNIT",
+				"block_destroy_xp_per_unit": GC.BLOCK_DESTROY_XP_PER_UNIT,
+				"sand_mining_xp": "floor(total_removed_sand_cells / SAND_REMOVED_CELLS_PER_XP), accumulated across mining actions",
+				"sand_removed_cells_per_xp": GC.SAND_REMOVED_CELLS_PER_XP,
+			},
+			"legacy_estimate": {
+				"block_destroy_xp": "width_u * height_u * 2",
+				"sand_mining_xp": "removed_sand_cells * 1",
+			},
+		},
+		"basic_block": _get_xp_comparison_for_block(&"wood", &"size_1x1", StringName(), 1),
+		"day_default_block_comparison": _get_day_default_block_xp_comparison(),
+		"day_spawn_weighted_comparison": _get_day_spawn_weighted_xp_comparison(),
+		"catalog_axis_comparison": _get_catalog_axis_xp_comparison(),
+	}
+
+
+func _get_day_default_block_xp_comparison() -> Array[Dictionary]:
+	var rows: Array[Dictionary] = []
+	for day in [1, 10, 20, 30]:
+		rows.append(_get_xp_comparison_for_block(&"wood", &"size_1x1", StringName(), day))
+	return rows
+
+
+func _get_day_spawn_weighted_xp_comparison() -> Array[Dictionary]:
+	var rows: Array[Dictionary] = []
+	var catalog = _game_data.call("get_block_catalog")
+	for day in [1, 10, 20, 30]:
+		var candidates: Array = catalog.get_spawn_candidates(&"normal", day)
+		var total_weight := 0.0
+		var weighted_block_xp := 0.0
+		var weighted_sand_cells := 0.0
+		var weighted_sand_xp := 0.0
+		var candidate_count := 0
+		for raw_candidate in candidates:
+			var candidate: Dictionary = raw_candidate
+			var material = candidate.get("material")
+			var size = candidate.get("size")
+			if material == null or size == null:
+				continue
+			var weight := float(candidate.get("weight", 0.0))
+			if weight <= 0.0:
+				continue
+			var resolved = _game_data.call(
+				"resolve_specific_block_definition",
+				material.material_id,
+				size.size_id,
+				&"normal",
+				day,
+				null
+			)
+			if resolved == null:
+				continue
+			var comparison := _get_xp_comparison_for_resolved(resolved, day)
+			total_weight += weight
+			weighted_block_xp += float(comparison.get("block_destroy_xp", 0)) * weight
+			weighted_sand_cells += float(comparison.get("sand_cells_from_decomposition", 0)) * weight
+			weighted_sand_xp += float(comparison.get("sand_total_mining_xp", 0)) * weight
+			candidate_count += 1
+		var avg_block_xp := 0.0
+		var avg_sand_cells := 0.0
+		var avg_sand_xp := 0.0
+		if total_weight > 0.0:
+			avg_block_xp = weighted_block_xp / total_weight
+			avg_sand_cells = weighted_sand_cells / total_weight
+			avg_sand_xp = weighted_sand_xp / total_weight
+		rows.append({
+			"day": day,
+			"candidate_count": candidate_count,
+			"weighted_block_destroy_xp": _round_to(avg_block_xp, 3),
+			"weighted_sand_cells_from_decomposition": _round_to(avg_sand_cells, 3),
+			"weighted_sand_total_mining_xp": _round_to(avg_sand_xp, 3),
+			"block_to_sand_xp_ratio": _ratio_or_zero(avg_block_xp, avg_sand_xp, 3),
+		})
+	return rows
+
+
+func _get_catalog_axis_xp_comparison() -> Dictionary:
+	var catalog = _game_data.call("get_block_catalog")
+	var materials: Array[Dictionary] = []
+	for material in catalog.block_materials:
+		var day := maxi(int(material.min_stage), 1)
+		materials.append(_get_xp_comparison_for_block(material.material_id, &"size_1x1", StringName(), day))
+	var sizes: Array[Dictionary] = []
+	for size in catalog.block_sizes:
+		var area := maxi(int(size.width_u) * int(size.height_u), 1)
+		var sand_cells := maxi(int(round(GC.BLOCK_SAND_UNITS_PER_UNIT * float(size.reward_multiplier))), 1)
+		var block_xp := _calculate_block_xp(int(size.width_u), int(size.height_u))
+		var sand_xp := _calculate_sand_xp(sand_cells)
+		sizes.append({
+			"size_id": String(size.size_id),
+			"area": area,
+			"block_destroy_xp": block_xp,
+			"sand_cells_from_decomposition": sand_cells,
+			"sand_total_mining_xp": sand_xp,
+			"block_to_sand_xp_ratio": _ratio_or_zero(float(block_xp), float(sand_xp), 3),
+		})
+	var types: Array[Dictionary] = []
+	for block_type in catalog.block_types:
+		types.append(_get_xp_comparison_for_block(&"wood", &"size_1x1", block_type.id, 1))
+	return {
+		"materials": materials,
+		"sizes": sizes,
+		"types": types,
+		"notes": {
+			"material": "Current XP formulas do not use material multipliers.",
+			"size": "Block XP scales by width * height; decomposed sand XP scales with size reward/sand units.",
+			"type": "Current block XP does not use type multipliers; decomposed sand can use type sand_units_multiplier.",
+		},
+	}
+
+
+func _get_xp_comparison_for_block(material_id: StringName, size_id: StringName, type_id: StringName, day: int) -> Dictionary:
+	var type_definition = null
+	if type_id != StringName():
+		type_definition = _game_data.call("get_block_type_definition", type_id)
+	var resolved = _game_data.call("resolve_specific_block_definition", material_id, size_id, &"normal", day, type_definition)
+	if resolved == null:
+		return {
+			"day": day,
+			"material": String(material_id),
+			"size": String(size_id),
+			"type": String(type_id),
+			"resolved_ok": false,
+		}
+	return _get_xp_comparison_for_resolved(resolved, day)
+
+
+func _get_xp_comparison_for_resolved(resolved, day: int) -> Dictionary:
+	var width := int(resolved.size_cells.x)
+	var height := int(resolved.size_cells.y)
+	var area := maxi(width * height, 1)
+	var block_xp := _calculate_block_xp(width, height)
+	var sand_cells := int(resolved.final_sand_units)
+	var sand_xp := _calculate_sand_xp(sand_cells)
+	var legacy_block_xp := area * 2
+	var legacy_sand_xp := sand_cells
+	return {
+		"day": day,
+		"material": String(resolved.material_id),
+		"size": String(resolved.size_id),
+		"type": String(resolved.type_id),
+		"resolved_ok": true,
+		"area": area,
+		"final_hp": int(resolved.final_hp),
+		"final_reward_gold": int(resolved.final_reward),
+		"sand_cells_from_decomposition": sand_cells,
+		"block_destroy_xp": block_xp,
+		"sand_total_mining_xp": sand_xp,
+		"block_to_sand_xp_ratio": _ratio_or_zero(float(block_xp), float(sand_xp), 3),
+		"sand_to_block_xp_ratio": _ratio_or_zero(float(sand_xp), float(block_xp), 3),
+		"legacy_block_destroy_xp": legacy_block_xp,
+		"legacy_sand_total_mining_xp": legacy_sand_xp,
+		"legacy_sand_to_block_xp_ratio": _ratio_or_zero(float(legacy_sand_xp), float(legacy_block_xp), 3),
+	}
 
 
 func _get_specific_block_hp(material_id: StringName, size_id: StringName, type_id: StringName, day: int) -> int:
@@ -300,6 +527,22 @@ func _round_to(value: float, digits: int) -> float:
 	return round(value * scale) / scale
 
 
+func _ratio_or_zero(numerator: float, denominator: float, digits: int = 2) -> float:
+	if absf(denominator) <= 0.0001:
+		return 0.0
+	return _round_to(numerator / denominator, digits)
+
+
+func _calculate_block_xp(width_cells: int, height_cells: int) -> int:
+	return maxi(width_cells * height_cells, 1) * GC.BLOCK_DESTROY_XP_PER_UNIT
+
+
+func _calculate_sand_xp(sand_count: int) -> int:
+	if sand_count <= 0:
+		return 0
+	return int(floori(float(sand_count) / float(GC.SAND_REMOVED_CELLS_PER_XP)))
+
+
 func _get_missing_day_fallback() -> Dictionary:
 	var missing_day := 999
 	return {
@@ -353,6 +596,55 @@ func _get_block_catalog_snapshot() -> Dictionary:
 		"materials": materials,
 		"sizes": sizes,
 		"types": types,
+	}
+
+
+func _get_shop_item_price_distribution() -> Dictionary:
+	var fallback_prices: Dictionary = GC.SHOP_ITEM_RANK_FALLBACK_PRICES
+	var by_rank: Dictionary = {}
+	var explicit_prices: Array[Dictionary] = []
+	for raw_item in _game_data.call("get_all_shop_items"):
+		var item: Dictionary = raw_item
+		var rank := String(item.get("rank", "D"))
+		var raw_price := int(item.get("price_gold", 0))
+		var fallback_price := int(fallback_prices.get(rank, 15))
+		var effective_price := raw_price if raw_price > 0 else fallback_price
+		var has_explicit := raw_price > 0
+		if not by_rank.has(rank):
+			by_rank[rank] = {
+				"fallback_price": fallback_price,
+				"item_count": 0,
+				"items_with_explicit_price": 0,
+			}
+		var rank_entry: Dictionary = by_rank[rank]
+		rank_entry["item_count"] = int(rank_entry["item_count"]) + 1
+		if has_explicit:
+			rank_entry["items_with_explicit_price"] = int(rank_entry["items_with_explicit_price"]) + 1
+			explicit_prices.append({
+				"item_id": String(item.get("item_id", "")),
+				"rank": rank,
+				"explicit_price": raw_price,
+				"fallback_price": fallback_price,
+			})
+	return {
+		"fallback_prices": fallback_prices,
+		"by_rank": by_rank,
+		"items_with_explicit_price": explicit_prices,
+	}
+
+
+func _get_shop_reroll_costs() -> Dictionary:
+	var samples: Array[Dictionary] = []
+	for count in range(0, 5):
+		samples.append({
+			"current_shop_reroll_count": count,
+			"next_cost": GC.get_shop_reroll_cost(count),
+		})
+	return {
+		"base_cost": GC.SHOP_REROLL_BASE_COST,
+		"cost_increase_per_reroll": GC.SHOP_REROLL_COST_INCREMENT,
+		"formula": "SHOP_REROLL_BASE_COST + current_shop_reroll_count * SHOP_REROLL_COST_INCREMENT",
+		"samples": samples,
 	}
 
 
@@ -605,7 +897,7 @@ func _get_level_up_card_rarity_effect_values() -> Dictionary:
 
 func _get_level_up_choice_sample() -> Dictionary:
 	_game_state.call("reset_run")
-	var choices: Array = _game_state.call("generate_level_up_card_choices", 3)
+	var choices: Array = _game_state.call("generate_level_up_card_choices", 5)
 	var seen := {}
 	var has_duplicate_exact := false
 	var rows: Array[Dictionary] = []
@@ -649,6 +941,9 @@ func _measure_level_card_delta(card_id: String, rarity_id: String = "normal", in
 func _read_level_stats() -> Dictionary:
 	return {
 		"attack_damage": int(_game_state.call("get_attack_damage")),
+		"melee_attack_damage_flat": int(_game_state.call("get_melee_attack_damage_flat")),
+		"ranged_attack_damage_flat": int(_game_state.call("get_ranged_attack_damage_flat")),
+		"damage_percent": float(_game_state.call("get_damage_percent")),
 		"attack_cooldown": float(_game_state.call("get_attack_cooldown_duration")),
 		"attacks_per_second": float(_game_state.call("get_attacks_per_second")),
 		"attack_range": float(_game_state.call("get_attack_range_multiplier")),
@@ -675,3 +970,130 @@ func _diff_stats(before: Dictionary, after: Dictionary) -> Dictionary:
 		if absf(diff) > 0.0001:
 			delta[key] = diff
 	return delta
+
+
+func _get_attack_speed_growth_snapshot() -> Dictionary:
+	var cd_before: float = NERF_V1_REFERENCE["attack_cooldown_before"]
+	var cd_after: float = GC.PLAYER_ATTACK_COOLDOWN
+	var pct_before: float = NERF_V1_REFERENCE["level_card_normal_pct_before"]
+	var pct_after: float = NERF_V1_REFERENCE["level_card_normal_pct_after"]
+	var dmg := float(GC.PLAYER_ATTACK_DAMAGE)
+	var curve_before: Array[Dictionary] = []
+	var curve_after: Array[Dictionary] = []
+	for n in [0, 5, 10, 15, 20]:
+		var mult_before := pow(1.0 + pct_before, float(n))
+		var mult_after := pow(1.0 + pct_after, float(n))
+		curve_before.append({
+			"normal_cards": n,
+			"attacks_per_sec": _round_to(1.0 / cd_before * mult_before, 3),
+			"base_dps": _round_to(dmg / cd_before * mult_before, 2),
+		})
+		curve_after.append({
+			"normal_cards": n,
+			"attacks_per_sec": _round_to(1.0 / cd_after * mult_after, 3),
+			"base_dps": _round_to(dmg / cd_after * mult_after, 2),
+		})
+	return {
+		"nerf_v1_changes": NERF_V1_REFERENCE,
+		"curve_before_nerf": curve_before,
+		"curve_after_nerf": curve_after,
+		"note": "before_nerf: hardcoded reference (cd=0.25, card+3%). after_nerf: current GameConstants.",
+	}
+
+
+func _get_spawn_pressure_snapshot() -> Dictionary:
+	var base_interval := GC.BLOCK_SPAWN_INTERVAL
+	# 너프 v2 이전 기준값: 일반 Day 전체 1.0, rush 0.5, boss 0.8
+	var before_by_day := {
+		5: 0.5, 10: 0.8, 15: 0.5, 20: 0.8, 25: 0.5, 30: 0.8
+	}
+	var all_days: Array[Dictionary] = []
+	var total := int(_game_data.call("get_total_days"))
+	for day in range(1, total + 1):
+		var mult := float(_game_data.call("get_spawn_interval_multiplier", day))
+		var interval := base_interval * mult
+		all_days.append({
+			"day": day,
+			"day_type": String(_game_data.call("get_day_type", day)),
+			"spawn_interval_multiplier": _round_to(mult, 3),
+			"effective_interval_sec": _round_to(interval, 3),
+			"blocks_per_min": _round_to(60.0 / interval, 1),
+		})
+	var key_comparison: Array[Dictionary] = []
+	for day in [1, 5, 10, 15, 20, 25, 30]:
+		var mult_after := float(_game_data.call("get_spawn_interval_multiplier", day))
+		var mult_before: float = float(before_by_day.get(day, 1.0))
+		key_comparison.append({
+			"day": day,
+			"day_type": String(_game_data.call("get_day_type", day)),
+			"mult_before": mult_before,
+			"mult_after": _round_to(mult_after, 3),
+			"interval_before_sec": _round_to(base_interval * mult_before, 3),
+			"interval_after_sec": _round_to(base_interval * mult_after, 3),
+			"blocks_per_min_before": _round_to(60.0 / (base_interval * mult_before), 1),
+			"blocks_per_min_after": _round_to(60.0 / (base_interval * mult_after), 1),
+		})
+	return {
+		"base_spawn_interval_sec": base_interval,
+		"all_days": all_days,
+		"key_day_comparison": key_comparison,
+		"note": "before values: normal=1.0, rush=0.5, boss=0.8 (pre-nerf-v2). after values: from current StageTable.",
+	}
+
+
+func _get_attack_damage_stats_snapshot() -> Dictionary:
+	_game_state.call("reset_run")
+	var base_damage_percent := float(_game_state.call("get_damage_percent"))
+	var base_melee_flat := int(_game_state.call("get_melee_attack_damage_flat"))
+	var base_ranged_flat := int(_game_state.call("get_ranged_attack_damage_flat"))
+
+	var card_deltas: Array[Dictionary] = []
+	for card_id in ["damage_up", "melee_atk_up", "ranged_atk_up"]:
+		_game_state.call("reset_run")
+		_game_state.set("player_current_xp", 1000)
+		_game_state.call("apply_level_up_card", card_id, "normal")
+		card_deltas.append({
+			"card_id": card_id,
+			"damage_percent": float(_game_state.call("get_damage_percent")),
+			"melee_attack_damage_flat": int(_game_state.call("get_melee_attack_damage_flat")),
+			"ranged_attack_damage_flat": int(_game_state.call("get_ranged_attack_damage_flat")),
+		})
+
+	var card_deltas_plat: Array[Dictionary] = []
+	for card_id in ["damage_up", "melee_atk_up", "ranged_atk_up"]:
+		_game_state.call("reset_run")
+		_game_state.set("player_current_xp", 1000)
+		_game_state.call("apply_level_up_card", card_id, "platinum")
+		card_deltas_plat.append({
+			"card_id": card_id,
+			"damage_percent": float(_game_state.call("get_damage_percent")),
+			"melee_attack_damage_flat": int(_game_state.call("get_melee_attack_damage_flat")),
+			"ranged_attack_damage_flat": int(_game_state.call("get_ranged_attack_damage_flat")),
+		})
+
+	var cumulative_10: Array[Dictionary] = []
+	for card_id in ["damage_up", "melee_atk_up", "ranged_atk_up"]:
+		_game_state.call("reset_run")
+		for _i in range(10):
+			_game_state.set("player_current_xp", 1000)
+			_game_state.call("apply_level_up_card", card_id, "normal")
+		cumulative_10.append({
+			"card_id": card_id,
+			"n_cards": 10,
+			"damage_percent": float(_game_state.call("get_damage_percent")),
+			"melee_attack_damage_flat": int(_game_state.call("get_melee_attack_damage_flat")),
+			"ranged_attack_damage_flat": int(_game_state.call("get_ranged_attack_damage_flat")),
+		})
+
+	_game_state.call("reset_run")
+	return {
+		"base": {
+			"damage_percent": base_damage_percent,
+			"melee_attack_damage_flat": base_melee_flat,
+			"ranged_attack_damage_flat": base_ranged_flat,
+		},
+		"single_normal_card_delta": card_deltas,
+		"single_platinum_card_delta": card_deltas_plat,
+		"cumulative_10x_normal_cards": cumulative_10,
+		"note": "damage_up increases global damage_percent. melee_atk_up and ranged_atk_up are flat bonuses added only to their matching module type. mechanic modules ignore melee/ranged flat and receive damage_percent only.",
+	}

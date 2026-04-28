@@ -38,10 +38,15 @@ func _run_checks() -> void:
 	_check_ranged_attack_module_style_fields()
 	_check_ranged_range_growth_only()
 	_check_apply_dictionary_style_resolver_defaults()
+	_check_sand_xp_accumulator()
 	_check_existing_stat_bonus_purchase()
 	_check_melee_purity_core_condition()
 	_check_module_focus_circuit_condition()
 	_check_attack_module_add_and_synthesis_smoke()
+	_check_shop_item_price_deduction()
+	_check_shop_reroll_cost_progression()
+	_check_shop_reroll_gold_failure_and_reset()
+	_check_shop_reroll_roll_count_and_prices()
 
 
 func _reset_with_gold(amount: int = 5000) -> void:
@@ -278,6 +283,25 @@ func _check_apply_dictionary_style_resolver_defaults() -> void:
 	})
 
 
+func _check_sand_xp_accumulator() -> void:
+	_reset_with_gold()
+	_game_state.call("add_sand_removed_xp", 3)
+	var before_payout := int(_game_state.get("player_current_xp"))
+	_game_state.call("add_sand_removed_xp", 1)
+	var after_first_payout := int(_game_state.get("player_current_xp"))
+	_game_state.call("add_sand_removed_xp", 4)
+	var after_second_payout := int(_game_state.get("player_current_xp"))
+	_record("sand_xp_accumulator", {
+		"cells_per_xp": GameConstants.SAND_REMOVED_CELLS_PER_XP,
+		"after_3_cells": before_payout,
+		"after_4_cells": after_first_payout,
+		"after_8_cells": after_second_payout,
+	})
+	_expect(before_payout == 0, "sand XP should wait until enough cells are removed")
+	_expect(after_first_payout == 1, "sand XP should pay 1 XP after 4 removed cells")
+	_expect(after_second_payout == 2, "sand XP should continue accumulating across mining actions")
+
+
 func _check_existing_stat_bonus_purchase() -> void:
 	_reset_with_gold()
 	var before: int = _game_state.call("get_attack_damage")
@@ -366,6 +390,145 @@ func _check_attack_module_add_and_synthesis_smoke() -> void:
 	_expect(String(synth_result.get("reason", "")) == "synthesize", "dagger_module duplicate should synthesize at full slots")
 	_expect(_get_equipped_attack_module_entries().size() == 5, "synthesis should keep equipped module count capped")
 	_expect(dagger_grade == "B", "C dagger duplicate should synthesize to B")
+
+
+func _check_shop_item_price_deduction() -> void:
+	# D rank fallback: small_gear = 15G
+	_reset_with_gold(1000)
+	var gold_before_d := int(_game_state.get("gold"))
+	_game_state.call("purchase_shop_item", &"small_gear")
+	var d_deducted := gold_before_d - int(_game_state.get("gold"))
+	_record("price_deduction_d_rank", d_deducted)
+	_expect(d_deducted == 15, "D rank fallback price should be 15G, got %d" % d_deducted)
+
+	# C rank fallback: dagger_module = 30G
+	_reset_with_gold(1000)
+	var gold_before_c := int(_game_state.get("gold"))
+	_game_state.call("purchase_shop_item", &"dagger_module")
+	var c_deducted := gold_before_c - int(_game_state.get("gold"))
+	_record("price_deduction_c_rank", c_deducted)
+	_expect(c_deducted == 30, "C rank fallback price should be 30G, got %d" % c_deducted)
+
+	# B rank fallback: lance_module = 60G
+	_reset_with_gold(1000)
+	var gold_before_b := int(_game_state.get("gold"))
+	_game_state.call("purchase_shop_item", &"lance_module")
+	var b_deducted := gold_before_b - int(_game_state.get("gold"))
+	_record("price_deduction_b_rank", b_deducted)
+	_expect(b_deducted == 60, "B rank fallback price should be 60G, got %d" % b_deducted)
+
+	# A rank fallback: axe_module = 120G
+	_reset_with_gold(1000)
+	var gold_before_a := int(_game_state.get("gold"))
+	_game_state.call("purchase_shop_item", &"axe_module")
+	var a_deducted := gold_before_a - int(_game_state.get("gold"))
+	_record("price_deduction_a_rank", a_deducted)
+	_expect(a_deducted == 120, "A rank fallback price should be 120G, got %d" % a_deducted)
+
+	# S rank fallback: greatsword_module = 240G
+	_reset_with_gold(1000)
+	var gold_before_s := int(_game_state.get("gold"))
+	_game_state.call("purchase_shop_item", &"greatsword_module")
+	var s_deducted := gold_before_s - int(_game_state.get("gold"))
+	_record("price_deduction_s_rank", s_deducted)
+	_expect(s_deducted == 240, "S rank fallback price should be 240G, got %d" % s_deducted)
+
+	# Explicit price override: melee_purity_core has price_gold = 320 (A rank but costs more)
+	_reset_with_gold(1000)
+	var gold_before_exp := int(_game_state.get("gold"))
+	_game_state.call("purchase_shop_item", &"melee_purity_core")
+	var exp_deducted := gold_before_exp - int(_game_state.get("gold"))
+	_record("price_deduction_explicit_price", exp_deducted)
+	_expect(exp_deducted == 320, "melee_purity_core explicit price should be 320G, got %d" % exp_deducted)
+
+	# Explicit price override: module_focus_circuit has price_gold = 240 (B rank but costs more)
+	_reset_with_gold(1000)
+	var gold_before_foc := int(_game_state.get("gold"))
+	_game_state.call("purchase_shop_item", &"module_focus_circuit")
+	var foc_deducted := gold_before_foc - int(_game_state.get("gold"))
+	_record("price_deduction_focus_explicit_price", foc_deducted)
+	_expect(foc_deducted == 240, "module_focus_circuit explicit price should be 240G, got %d" % foc_deducted)
+
+	# Display price equals purchase price: snapshot price_gold matches what was actually deducted
+	_reset_with_gold(1000)
+	var snapshot: Dictionary = _game_state.call("get_day_shop_snapshot", PackedStringArray(["axe_module"]))
+	var entries: Array = snapshot.get("item_entries", [])
+	var display_price := 0
+	if not entries.is_empty():
+		display_price = int((entries[0] as Dictionary).get("price_gold", 0))
+	_record("price_display_equals_deduction_a_rank", display_price)
+	_expect(display_price == 120, "A rank display price in snapshot should be 120G, got %d" % display_price)
+
+
+func _check_shop_reroll_cost_progression() -> void:
+	_reset_with_gold(1000)
+	_record("shop_reroll_initial_cost", _game_state.call("get_current_shop_reroll_cost"))
+	_expect(int(_game_state.call("get_current_shop_reroll_cost")) == 50, "reroll count 0 should cost 50G")
+
+	var first_result: Dictionary = _game_state.call("try_purchase_shop_reroll")
+	_record("shop_reroll_first_result", first_result)
+	_record("shop_reroll_cost_after_one", _game_state.call("get_current_shop_reroll_cost"))
+	_expect(bool(first_result.get("ok", false)), "first reroll purchase should succeed")
+	_expect(int(first_result.get("cost", 0)) == 50, "first reroll should spend 50G")
+	_expect(int(_game_state.get("current_shop_reroll_count")) == 1, "reroll count should be 1 after one reroll")
+	_expect(int(_game_state.call("get_current_shop_reroll_cost")) == 75, "next reroll after one should cost 75G")
+
+	var second_result: Dictionary = _game_state.call("try_purchase_shop_reroll")
+	_record("shop_reroll_second_result", second_result)
+	_record("shop_reroll_cost_after_two", _game_state.call("get_current_shop_reroll_cost"))
+	_expect(bool(second_result.get("ok", false)), "second reroll purchase should succeed")
+	_expect(int(second_result.get("cost", 0)) == 75, "second reroll should spend 75G")
+	_expect(int(_game_state.get("current_shop_reroll_count")) == 2, "reroll count should be 2 after two rerolls")
+	_expect(int(_game_state.call("get_current_shop_reroll_cost")) == 100, "next reroll after two should cost 100G")
+
+
+func _check_shop_reroll_gold_failure_and_reset() -> void:
+	_reset_with_gold(49)
+	var gold_before := int(_game_state.get("gold"))
+	var fail_result: Dictionary = _game_state.call("try_purchase_shop_reroll")
+	_record("shop_reroll_insufficient_gold_result", fail_result)
+	_expect(not bool(fail_result.get("ok", false)), "reroll should fail with 49G")
+	_expect(String(fail_result.get("reason", "")) == "insufficient_gold", "reroll failure reason should be insufficient_gold")
+	_expect(int(_game_state.get("gold")) == gold_before, "failed reroll should not spend gold")
+	_expect(int(_game_state.get("current_shop_reroll_count")) == 0, "failed reroll should not increase reroll count")
+
+	_reset_with_gold(1000)
+	var success_result: Dictionary = _game_state.call("try_purchase_shop_reroll")
+	_record("shop_reroll_gold_after_success", int(_game_state.get("gold")))
+	_expect(bool(success_result.get("ok", false)), "reroll should succeed with enough gold")
+	_expect(int(_game_state.get("gold")) == 950, "successful first reroll should deduct 50G")
+	_game_state.call("reset_shop_reroll_count")
+	_record("shop_reroll_cost_after_reset", _game_state.call("get_current_shop_reroll_cost"))
+	_expect(int(_game_state.get("current_shop_reroll_count")) == 0, "new shop generation should reset reroll count to 0")
+	_expect(int(_game_state.call("get_current_shop_reroll_cost")) == 50, "reroll cost after reset should return to 50G")
+
+
+func _check_shop_reroll_roll_count_and_prices() -> void:
+	_reset_with_gold(1000)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 12345
+	var reroll_result: Dictionary = _game_state.call("try_purchase_shop_reroll")
+	var rerolled_ids: PackedStringArray = _game_data.call(
+		"roll_shop_item_ids",
+		rng,
+		GameConstants.DAY_SHOP_ITEM_COUNT,
+		_game_state.call("get_shop_roll_context")
+	)
+	var snapshot: Dictionary = _game_state.call("get_day_shop_snapshot", rerolled_ids)
+	var entries: Array = snapshot.get("item_entries", [])
+	var price_mismatches: Array[String] = []
+	for raw_entry in entries:
+		var entry: Dictionary = raw_entry
+		var item_id := StringName(String(entry.get("item_id", "")))
+		var definition: Dictionary = _game_data.call("get_shop_item_definition", item_id)
+		var expected_price := int(_game_state.call("get_effective_shop_item_price", definition))
+		if int(entry.get("price_gold", 0)) != expected_price:
+			price_mismatches.append(String(item_id))
+	_record("shop_reroll_generated_item_count", rerolled_ids.size())
+	_record("shop_reroll_snapshot_price_mismatches", price_mismatches)
+	_expect(bool(reroll_result.get("ok", false)), "reroll purchase should succeed before rolling new items")
+	_expect(rerolled_ids.size() == GameConstants.DAY_SHOP_ITEM_COUNT, "reroll should generate DAY_SHOP_ITEM_COUNT items")
+	_expect(price_mismatches.is_empty(), "reroll snapshot prices should match get_effective_shop_item_price")
 
 
 func _get_equipped_attack_module_entries() -> Array:

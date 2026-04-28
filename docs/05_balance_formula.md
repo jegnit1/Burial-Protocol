@@ -14,7 +14,7 @@
 - 기본 플레이어 스탯
 - Day별 블록 체력 증가
 - 난이도 배율
-- 공격모듈 등급 배율
+- 공격모듈 등급별 고정 기본데미지
 - 상점 아이템 랭크별 스탯 증가량
 - 레벨업 카드 희귀도와 스탯 증가량
 - 행운에 따른 레벨업 카드 희귀도 보정
@@ -60,9 +60,12 @@ Day 21~30:
 
 | 스탯 | 기본값 | 기준 |
 |---|---:|---|
-| 공격력 | `10` | `PLAYER_ATTACK_DAMAGE` |
-| 공격 쿨다운 | `0.25초` | `PLAYER_ATTACK_COOLDOWN` |
-| 기본 공격속도 | `4.0/sec` | `1 / 0.25` |
+| 기본 모듈 데미지 | `10` | `sword_module.module_base_damage` |
+| 근거리 공격력 | `0` | melee 모듈에 더하는 flat 보너스 |
+| 원거리 공격력 | `0` | ranged 모듈에 더하는 flat 보너스 |
+| 데미지 | `0%` | 모든 최종 피해에 곱하는 전역 보너스 |
+| 공격 쿨다운 | `0.30초` | `PLAYER_ATTACK_COOLDOWN` |
+| 기본 공격속도 | `3.33/sec` | `1 / 0.30` |
 | 최대 체력 | `100` | `PLAYER_MAX_HEALTH` |
 | 방어력 | `0` | `PLAYER_BASE_DEFENSE` |
 | 치명타 확률 | `1%` | `PLAYER_BASE_CRIT_CHANCE` |
@@ -79,7 +82,7 @@ Day 21~30:
 핵심 기준:
 
 ```text
-기본 공격력 10 = 기본 1U 블록 HP 10
+소드 D등급 module_base_damage 10 = 기본 1U 블록 HP 10
 ```
 
 즉, 아무 배율도 없는 기본 1U 블록은 이론상 기본 공격 1타로 처리 가능한 기준이다.
@@ -88,25 +91,34 @@ Day 21~30:
 
 ## 3. 기본 DPS 기준
 
-현재 기본 공격 기준 DPS:
+현재 소드 D등급 기준 DPS:
 
 ```text
-base_dps = PLAYER_ATTACK_DAMAGE / PLAYER_ATTACK_COOLDOWN
-base_dps = 10 / 0.25 = 40
+base_dps = sword_module.module_base_damage / PLAYER_ATTACK_COOLDOWN
+base_dps = 10 / 0.30 ≈ 33.33
 ```
 
-공격모듈을 장착한 실제 DPS는 아래 개념을 따른다.
+공격모듈 피해는 module_base_damage 기반으로 계산한다.
 
 ```text
-module_dps =
-  base_attack_damage
-  x module_damage_multiplier
-  x module_grade_damage_multiplier
-  x module_attack_rate
+melee_damage =
+  floor((module_base_damage + melee_attack_damage_flat)
+  x global_damage_multiplier)
+
+ranged_damage =
+  floor((module_base_damage + ranged_attack_damage_flat)
+  x global_damage_multiplier)
+
+mechanic_damage =
+  floor(module_base_damage
+  x global_damage_multiplier)
 ```
 
-메카닉 모듈은 별도 예외가 있다.
-메카닉 모듈은 플레이어 공격력 보너스의 영향을 받지 않고, `PLAYER_ATTACK_DAMAGE`를 기준으로 계산한다.
+`damage_multiplier`는 기존 데이터 호환용이다.
+`module_base_damage`가 없을 때만 `round(10 x damage_multiplier)`로 base damage를 계산한다.
+등급별 base damage 데이터가 아직 없으면, 기존 등급 피해 배율표는 최종 배율이 아니라 등급별 고정 `module_base_damage` 산정에만 사용한다.
+최종 데미지 단계에서 곱해지는 배율은 `global_damage_multiplier` 하나뿐이다.
+메카닉 모듈은 근거리/원거리 flat 공격력은 받지 않고, 전역 데미지 %만 받는다.
 
 ---
 
@@ -196,9 +208,9 @@ Nightmare Day 30 = 33.40x
 
 ---
 
-## 6. 공격모듈 등급 배율
+## 6. 공격모듈 등급과 고정 기본데미지
 
-공격모듈은 장착 장비이며, 상점 아이템 랭크와 별개로 등급을 가진다.
+공격모듈은 장착 장비이며, 데이터의 `rank`를 장착 `grade`로 사용한다.
 
 등급:
 
@@ -206,9 +218,15 @@ Nightmare Day 30 = 33.40x
 D / C / B / A / S
 ```
 
-현재 공격모듈 등급별 피해 배율:
+현재 공격모듈 등급별 피해 계수는 최종 데미지 배율이 아니다.
+등급별 `module_base_damage` 데이터가 준비되기 전까지, D 기준 `module_base_damage`를 등급별 고정 기본데미지로 환산하는 마이그레이션 계수다.
 
-| 등급 | 피해 배율 |
+```text
+grade_module_base_damage =
+  round(d_grade_module_base_damage x legacy_grade_damage_factor)
+```
+
+| 등급 | base damage 환산 계수 |
 |---|---:|
 | D | `1.00` |
 | C | `1.15` |
@@ -239,8 +257,17 @@ D / C / B / A / S
 원칙:
 
 - 공격모듈 등급은 장비 자체의 성장이다.
+- 공격모듈의 `rank`는 장착 `grade`와 같다.
+- 빈 슬롯에 B급 공격모듈을 구매하면 B급 모듈로 장착된다.
+- 같은 `module_id`와 같은 `grade`를 다시 구매하면 합성 대상이 된다.
+- 최종 데미지 계산에서 grade damage multiplier를 곱하지 않는다.
+- 등급은 해당 grade의 고정 `module_base_damage`를 결정하는 데만 사용한다.
 - 레벨업 카드 희귀도와 이름 체계를 섞지 않는다.
 - 공격모듈은 `D/C/B/A/S`, 레벨업 카드는 `Normal/Silver/Gold/Platinum`을 사용한다.
+
+예: `laser_module`은 B급 공격모듈이며 D 기준 `module_base_damage = 2`다.
+B급 고정 기본데미지는 `round(2 x 1.35) = 3`으로 산정한다.
+원거리 공격력 `+1`이면 `floor((3 + 1) x 1.0) = 4`가 정상이다.
 
 ---
 
@@ -283,7 +310,7 @@ shop_item_value =
 
 | 스탯 | D 기준값 | 비고 |
 |---|---:|---|
-| 공격력 | `+1` | 정수 |
+| 데미지 | `+1%` | 모든 최종 피해 multiplier |
 | 공격속도 | `+3%` | multiplier 계열 |
 | 공격범위 | `+5%` | multiplier 계열 |
 | 최대 체력 | `+5` | 정수 |
@@ -309,17 +336,17 @@ shop_item_value =
 
 ## 9. 상점 아이템 랭크별 예시 증가량
 
-### 공격력
+### 데미지
 
-D 기준값: `+1`
+D 기준값: `+1%`
 
 | 랭크 | 증가량 |
 |---|---:|
-| D | `+1` |
-| C | `+2` |
-| B | `+3` |
-| A | `+6` |
-| S | `+9` |
+| D | `+1%` |
+| C | `+2%` |
+| B | `+3%` |
+| A | `+5%` |
+| S | `+9%` |
 
 ### 공격속도
 
@@ -359,7 +386,74 @@ D 기준값: `+1%p`
 
 ---
 
-## 10. 레벨업 카드 희귀도
+## 10. 상점 아이템 랭크별 가격
+
+상점 아이템 가격 결정 순서:
+
+```text
+1. item 데이터에 price_gold > 0이 있으면 그 값을 사용한다.
+2. price_gold == 0이면 rank 기반 fallback 가격을 사용한다.
+```
+
+랭크별 fallback 가격:
+
+| 랭크 | 가격 |
+|---|---:|
+| D | `15G` |
+| C | `30G` |
+| B | `60G` |
+| A | `120G` |
+| S | `240G` |
+
+의도:
+
+- 고랭크 아이템은 더 비싸게, 저랭크 아이템은 더 싸게 판매한다.
+- 상점 가격이 골드 수입과 맞게 스케일링되어야 후반 S랭크 선택이 의미 있어진다.
+- 특별한 조건부 아이템(`melee_purity_core` 등)은 데이터에 직접 explicit price를 설정할 수 있다.
+- 표시 가격과 실제 구매 차감 가격은 반드시 일치한다.
+
+예외:
+
+| 아이템 | 랭크 | 데이터 price_gold | 실제 가격 | 비고 |
+|---|---|---:|---:|---|
+| `melee_purity_core` | A | `320G` | `320G` | 조건부 아이템 프리미엄 |
+| `module_focus_circuit` | B | `240G` | `240G` | 조건부 아이템 프리미엄 |
+
+### Shop Reroll Cost
+
+Shop reroll only refreshes the current intermission shop list.
+It does not change item price tiering.
+
+Formula:
+
+```text
+current_reroll_cost =
+  SHOP_REROLL_BASE_COST
+  + current_shop_reroll_count * SHOP_REROLL_COST_INCREMENT
+```
+
+Constants:
+
+```text
+SHOP_REROLL_BASE_COST = 50G
+SHOP_REROLL_COST_INCREMENT = 25G
+```
+
+Examples:
+
+| Current shop reroll count | Next reroll cost |
+|---:|---:|
+| 0 | `50G` |
+| 1 | `75G` |
+| 2 | `100G` |
+| 3 | `125G` |
+
+`current_shop_reroll_count` is scoped to the current shop phase and resets to `0`
+when a new intermission shop is generated.
+
+---
+
+## 11. 레벨업 카드 희귀도
 
 레벨업 카드는 상점 아이템과 다른 희귀도 체계를 사용한다.
 
@@ -378,7 +472,7 @@ Normal / Silver / Gold / Platinum
 
 ---
 
-## 11. 레벨업 카드 희귀도 확률
+## 12. 레벨업 카드 희귀도 확률
 
 기본 확률:
 
@@ -421,7 +515,7 @@ luck 1당:
 
 ---
 
-## 12. 레벨업 카드 희귀도 배율
+## 13. 레벨업 카드 희귀도 배율
 
 레벨업 카드 값은 기본 카드 값에 희귀도 배율을 곱한다.
 
@@ -445,13 +539,15 @@ level_up_card_value =
 
 ---
 
-## 13. 레벨업 카드 스탯 풀
+## 14. 레벨업 카드 스탯 풀
 
 레벨업 카드는 아래 스탯만 사용한다.
 
 전투:
 
-- 공격력
+- 데미지 % (전역)
+- 근거리 공격력 (melee 모듈 전용)
+- 원거리 공격력 (ranged 모듈 전용)
 - 공격속도
 - 공격범위
 - 치명타 확률
@@ -494,14 +590,16 @@ level_up_card_value =
 
 ---
 
-## 14. 레벨업 카드 기본 증가량
+## 15. 레벨업 카드 기본 증가량
 
 아래 값은 Normal 기준이다.
 
 | 카드 | Normal 기준값 |
 |---|---:|
-| 공격력 증가 | `+1` |
-| 공격속도 증가 | `+3%` |
+| 데미지 증가 (전역) | `+1%` |
+| 근거리 공격력 증가 | `+1` |
+| 원거리 공격력 증가 | `+1` |
+| 공격속도 증가 | `+2%` |
 | 공격범위 증가 | `+5%` |
 | 치명타 확률 증가 | `+2%p` |
 | 최대 체력 증가 | `+5` |
@@ -518,29 +616,29 @@ level_up_card_value =
 
 ---
 
-## 15. 레벨업 카드 희귀도별 예시
+## 16. 레벨업 카드 희귀도별 예시
 
-### 공격력 증가
+### 데미지 증가
 
-Normal 기준값: `+1`
+Normal 기준값: `+1%`
 
 | 희귀도 | 증가량 |
 |---|---:|
-| Normal | `+1` |
-| Silver | `+2` |
-| Gold | `+3` |
-| Platinum | `+4` |
+| Normal | `+1%` |
+| Silver | `+2%` |
+| Gold | `+3%` |
+| Platinum | `+4%` |
 
 ### 공격속도 증가
 
-Normal 기준값: `+3%`
+Normal 기준값: `+2%`
 
 | 희귀도 | 증가량 |
 |---|---:|
-| Normal | `+3%` |
-| Silver | `+5%` |
-| Gold | `+8%` |
-| Platinum | `+12%` |
+| Normal | `+2%` |
+| Silver | `+3%` |
+| Gold | `+5%` |
+| Platinum | `+8%` |
 
 ### 최대 체력 증가
 
@@ -566,9 +664,9 @@ Normal 기준값: `+2%p`
 
 ---
 
-## 16. 레벨업 카드 생성 방식
+## 17. 레벨업 카드 생성 방식
 
-레벨업 시 카드 3장을 제시한다.
+레벨업 시 카드 5장을 제시한다.
 
 권장 생성 순서:
 
@@ -579,6 +677,10 @@ Normal 기준값: `+2%p`
 4. 카드 슬롯 2 스탯 종류 roll
 5. 카드 슬롯 3 희귀도 roll
 6. 카드 슬롯 3 스탯 종류 roll
+7. 카드 슬롯 4 희귀도 roll
+8. 카드 슬롯 4 스탯 종류 roll
+9. 카드 슬롯 5 희귀도 roll
+10. 카드 슬롯 5 스탯 종류 roll
 ```
 
 중복 규칙:
@@ -604,7 +706,7 @@ Normal 공격력
 
 ---
 
-## 17. 레벨업 카드와 상점 아이템의 관계
+## 18. 레벨업 카드와 상점 아이템의 관계
 
 레벨업 카드는 상점 아이템보다 평균적으로 약해야 한다.
 상점 아이템은 골드를 지불하고 구매하는 선택지이기 때문이다.
@@ -628,7 +730,7 @@ Platinum 레벨업 카드가 떠도 S랭크 상점 아이템보다 강하면 안
 
 ---
 
-## 18. 구현 시 주의사항
+## 19. 구현 시 주의사항
 
 - 레벨업 카드 희귀도는 UI에서 명확히 표시한다.
 - 희귀도별 색상, 테두리, 사운드 피드백을 둔다.
@@ -640,7 +742,7 @@ Platinum 레벨업 카드가 떠도 S랭크 상점 아이템보다 강하면 안
 
 ---
 
-## 19. 향후 튜닝 체크리스트
+## 20. 향후 튜닝 체크리스트
 
 밸런스 조정 시 아래를 확인한다.
 

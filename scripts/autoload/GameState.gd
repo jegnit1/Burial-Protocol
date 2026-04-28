@@ -10,6 +10,8 @@ signal level_up_ready()
 signal attack_module_changed(module_id: StringName)
 signal owned_attack_modules_changed(module_ids: PackedStringArray)
 signal run_items_changed()
+signal shop_reroll_count_changed(count: int, next_cost: int)
+signal shop_locked_slots_changed(locked_slots: Dictionary)
 
 const SAVE_FILE_PATH := "user://profile.save"
 const SAVE_VERSION := 1
@@ -120,14 +122,21 @@ var current_run_stage_reached := 1
 var current_day := 1
 var day_time_remaining := 0.0
 var run_cleared := false
+var current_shop_reroll_count := 0
+var current_shop_locked_slots: Dictionary = {}
 
 # 경험치 및 레벨업 상태
 var player_level := 1
 var player_current_xp := 0
 var player_next_level_xp := 50
+var pending_sand_removed_cells_for_xp := 0
 
 # 런타임 성장 보너스
+# Deprecated: kept for old saves/scripts. New combat damage uses run_bonus_damage_percent instead.
 var run_bonus_attack_damage := 0
+var run_bonus_damage_percent := 0.0
+var run_bonus_melee_attack_damage := 0
+var run_bonus_ranged_attack_damage := 0
 var run_bonus_move_speed := 0.0
 var run_bonus_max_hp := 0
 var run_attack_speed_mult := 1.0
@@ -177,11 +186,16 @@ func reset_run() -> void:
 	current_day = 1
 	day_time_remaining = GameData.get_day_duration(current_day)
 	run_cleared = false
+	reset_shop_reroll_count()
 	
 	player_level = 1
 	player_current_xp = 0
 	player_next_level_xp = 50
+	pending_sand_removed_cells_for_xp = 0
 	run_bonus_attack_damage = 0
+	run_bonus_damage_percent = 0.0
+	run_bonus_melee_attack_damage = 0
+	run_bonus_ranged_attack_damage = 0
 	run_bonus_move_speed = 0.0
 	run_bonus_max_hp = 0
 	run_attack_speed_mult = 1.0
@@ -254,6 +268,84 @@ func try_spend_gold(amount: int) -> bool:
 	return true
 
 
+func reset_shop_reroll_count() -> void:
+	current_shop_reroll_count = 0
+	shop_reroll_count_changed.emit(current_shop_reroll_count, get_current_shop_reroll_cost())
+
+
+func reset_shop_locks() -> void:
+	current_shop_locked_slots = {}
+	shop_locked_slots_changed.emit(get_current_shop_locked_slots())
+
+
+func get_current_shop_locked_slots() -> Dictionary:
+	return current_shop_locked_slots.duplicate()
+
+
+func is_shop_slot_locked(slot_index: int) -> bool:
+	return bool(current_shop_locked_slots.get(slot_index, false))
+
+
+func set_shop_slot_locked(slot_index: int, locked: bool) -> void:
+	if slot_index < 0 or slot_index >= GameConstants.DAY_SHOP_ITEM_COUNT:
+		return
+	if locked:
+		current_shop_locked_slots[slot_index] = true
+	else:
+		current_shop_locked_slots.erase(slot_index)
+	shop_locked_slots_changed.emit(get_current_shop_locked_slots())
+
+
+func toggle_shop_slot_locked(slot_index: int) -> bool:
+	var locked := not is_shop_slot_locked(slot_index)
+	set_shop_slot_locked(slot_index, locked)
+	return locked
+
+
+func remove_shop_slot_lock_and_shift(slot_index: int) -> void:
+	if slot_index < 0:
+		return
+	var shifted_locks: Dictionary = {}
+	for raw_key in current_shop_locked_slots.keys():
+		var locked_index := int(raw_key)
+		if locked_index == slot_index:
+			continue
+		if locked_index > slot_index:
+			locked_index -= 1
+		if locked_index >= 0 and locked_index < GameConstants.DAY_SHOP_ITEM_COUNT:
+			shifted_locks[locked_index] = true
+	current_shop_locked_slots = shifted_locks
+	shop_locked_slots_changed.emit(get_current_shop_locked_slots())
+
+
+func get_current_shop_reroll_cost() -> int:
+	return GameConstants.get_shop_reroll_cost(current_shop_reroll_count)
+
+
+func can_afford_shop_reroll() -> bool:
+	return can_afford_gold(get_current_shop_reroll_cost())
+
+
+func try_purchase_shop_reroll() -> Dictionary:
+	var cost := get_current_shop_reroll_cost()
+	if not try_spend_gold(cost):
+		return {
+			"ok": false,
+			"reason": "insufficient_gold",
+			"cost": cost,
+			"reroll_count": current_shop_reroll_count,
+		}
+	current_shop_reroll_count += 1
+	shop_reroll_count_changed.emit(current_shop_reroll_count, get_current_shop_reroll_cost())
+	return {
+		"ok": true,
+		"reason": "rerolled",
+		"cost": cost,
+		"reroll_count": current_shop_reroll_count,
+		"next_cost": get_current_shop_reroll_cost(),
+	}
+
+
 func damage_player(amount: int) -> int:
 	if amount <= 0:
 		return 0
@@ -277,7 +369,7 @@ func get_player_max_health() -> int:
 func get_attack_damage() -> int:
 	var entries := get_equipped_attack_module_entries()
 	if entries.is_empty():
-		return get_base_attack_damage()
+		return maxi(int(floor(float(get_base_attack_damage()) * get_global_damage_multiplier())), 1)
 	return get_attack_module_damage(entries[0])
 
 
@@ -296,32 +388,91 @@ func get_attacks_per_second() -> float:
 
 
 func get_base_attack_damage() -> int:
-	var base_damage := GameConstants.PLAYER_ATTACK_DAMAGE + run_bonus_attack_damage
-	var conditional_flat := get_stat_query_effect_value("attack_damage_flat")
-	var conditional_percent := get_stat_query_effect_value("attack_damage_percent")
-	return maxi(int(round((float(base_damage) + conditional_flat) * (1.0 + conditional_percent))), 1)
+	return maxi(GameConstants.PLAYER_ATTACK_DAMAGE + run_bonus_attack_damage, 1)
+
+
+func get_melee_base_attack_damage() -> int:
+	return maxi(GameConstants.PLAYER_ATTACK_DAMAGE + run_bonus_melee_attack_damage, 1)
+
+
+func get_ranged_base_attack_damage() -> int:
+	return maxi(GameConstants.PLAYER_ATTACK_DAMAGE + run_bonus_ranged_attack_damage, 1)
+
+
+func get_melee_attack_damage_flat() -> int:
+	return run_bonus_melee_attack_damage
+
+
+func get_ranged_attack_damage_flat() -> int:
+	return run_bonus_ranged_attack_damage
+
+
+func get_damage_percent() -> float:
+	var legacy_flat_as_percent := get_stat_query_effect_value("attack_damage_flat") * 0.01
+	return run_bonus_damage_percent \
+		+ get_stat_query_effect_value("damage_percent") \
+		+ get_stat_query_effect_value("attack_damage_percent") \
+		+ legacy_flat_as_percent
+
+
+func get_global_damage_multiplier() -> float:
+	return maxf(1.0 + get_damage_percent(), 0.0)
+
+
+func get_damage_percent_display() -> int:
+	return int(round(get_damage_percent() * 100.0))
+
+
+func get_module_base_damage(module_definition) -> int:
+	if module_definition == null:
+		return get_base_attack_damage()
+	var explicit_base_damage := int(module_definition.module_base_damage)
+	if explicit_base_damage > 0:
+		return explicit_base_damage
+	return maxi(int(round(float(GameConstants.PLAYER_ATTACK_DAMAGE) * module_definition.damage_multiplier)), 1)
+
+
+func get_attack_module_base_damage_for_grade(module_definition, grade: String) -> int:
+	var base_damage := get_module_base_damage(module_definition)
+	var grade_base_multiplier := _get_attack_module_grade_multiplier(
+		grade,
+		GameConstants.ATTACK_MODULE_GRADE_DAMAGE_MULTIPLIERS
+	)
+	return maxi(int(round(float(base_damage) * grade_base_multiplier)), 1)
+
+
+func get_attack_base_damage_for_module(module_entry: Dictionary) -> int:
+	var module_definition = get_attack_module_definition_from_entry(module_entry)
+	if module_definition == null:
+		return get_base_attack_damage()
+	var grade := String(module_entry.get("grade", module_definition.rank))
+	var module_base_damage := get_attack_module_base_damage_for_grade(module_definition, grade)
+	match String(module_definition.module_type):
+		"melee":
+			return maxi(module_base_damage + get_melee_attack_damage_flat(), 1)
+		"ranged":
+			return maxi(module_base_damage + get_ranged_attack_damage_flat(), 1)
+		"mechanic":
+			return module_base_damage
+		_:
+			return module_base_damage
 
 
 func get_attack_module_damage(module_entry: Dictionary) -> int:
 	var module_definition = get_attack_module_definition_from_entry(module_entry)
 	if module_definition == null:
-		return get_base_attack_damage()
-	var grade_multiplier := _get_attack_module_grade_multiplier(
-		String(module_entry.get("grade", module_definition.rank)),
-		GameConstants.ATTACK_MODULE_GRADE_DAMAGE_MULTIPLIERS
-	)
-	return maxi(int(floor(float(get_base_attack_damage()) * module_definition.damage_multiplier * grade_multiplier)), 1)
+		return maxi(int(floor(float(get_base_attack_damage()) * get_global_damage_multiplier())), 1)
+	var base_damage := get_attack_base_damage_for_module(module_entry)
+	return maxi(int(floor(float(base_damage) * get_global_damage_multiplier())), 1)
 
 
 func get_mechanic_attack_module_damage(module_entry: Dictionary) -> int:
 	var module_definition = get_attack_module_definition_from_entry(module_entry)
 	if module_definition == null:
-		return GameConstants.PLAYER_ATTACK_DAMAGE
-	var grade_multiplier := _get_attack_module_grade_multiplier(
-		String(module_entry.get("grade", module_definition.rank)),
-		GameConstants.ATTACK_MODULE_GRADE_DAMAGE_MULTIPLIERS
-	)
-	return maxi(int(floor(float(GameConstants.PLAYER_ATTACK_DAMAGE) * module_definition.damage_multiplier * grade_multiplier)), 1)
+		return maxi(int(floor(float(get_base_attack_damage()) * get_global_damage_multiplier())), 1)
+	var grade := String(module_entry.get("grade", module_definition.rank))
+	var base_damage := get_attack_module_base_damage_for_grade(module_definition, grade)
+	return maxi(int(floor(float(base_damage) * get_global_damage_multiplier())), 1)
 
 
 func get_attack_module_cooldown_duration(module_entry: Dictionary) -> float:
@@ -392,9 +543,11 @@ func get_attack_module_definition_from_entry(module_entry: Dictionary):
 func get_attack_module_entry_label(module_entry: Dictionary) -> String:
 	var module_definition = get_attack_module_definition_from_entry(module_entry)
 	var module_name := String(module_entry.get("module_id", "unknown"))
+	var fallback_grade := "D"
 	if module_definition != null:
 		module_name = module_definition.display_name
-	return "%s %s" % [module_name, String(module_entry.get("grade", "D"))]
+		fallback_grade = String(module_definition.rank)
+	return "%s %s" % [module_name, String(module_entry.get("grade", fallback_grade))]
 
 
 func get_equipped_attack_module_definition():
@@ -577,14 +730,22 @@ func get_stat_query_effect_value(effect_key: String, context: Dictionary = {}) -
 	return total
 
 
+func get_effective_shop_item_price(definition: Dictionary) -> int:
+	var raw_price := int(definition.get("price_gold", 0))
+	if raw_price > 0:
+		return raw_price
+	var rank := String(definition.get("rank", "D"))
+	return int(GameConstants.SHOP_ITEM_RANK_FALLBACK_PRICES.get(rank, 15))
+
+
 func get_day_shop_snapshot(item_ids: PackedStringArray) -> Dictionary:
 	var entries: Array[Dictionary] = []
-	for raw_item_id in item_ids:
-		var item_id := StringName(raw_item_id)
+	for slot_index in range(item_ids.size()):
+		var item_id := StringName(item_ids[slot_index])
 		var definition := GameData.get_shop_item_definition(item_id)
 		if definition.is_empty():
 			continue
-		entries.append(_build_shop_item_snapshot(definition))
+		entries.append(_build_shop_item_snapshot(definition, slot_index))
 	return {
 		"gold": gold,
 		"equipped_attack_module_id": String(get_equipped_attack_module_id()),
@@ -593,6 +754,10 @@ func get_day_shop_snapshot(item_ids: PackedStringArray) -> Dictionary:
 		"owned_function_module_ids": Array(owned_function_module_ids),
 		"owned_enhance_module_counts": owned_enhance_module_counts.duplicate(true),
 		"current_run_effects": current_run_effects.duplicate(true),
+		"shop_reroll_count": current_shop_reroll_count,
+		"shop_reroll_cost": get_current_shop_reroll_cost(),
+		"can_afford_shop_reroll": can_afford_shop_reroll(),
+		"shop_locked_slots": get_current_shop_locked_slots(),
 		"item_entries": entries,
 	}
 
@@ -602,7 +767,7 @@ func purchase_shop_item(item_id: StringName) -> Dictionary:
 	if definition.is_empty():
 		return {"ok": false, "reason": "missing_definition"}
 	var category := StringName(String(definition.get("item_category", "")))
-	var price_gold := int(definition.get("price_gold", 0))
+	var price_gold := get_effective_shop_item_price(definition)
 	if category == &"function_module" and is_function_module_owned(item_id):
 		return {"ok": false, "reason": "already_owned"}
 	if category != &"attack_module" and category != &"function_module" and category != &"enhance_module":
@@ -756,7 +921,10 @@ func get_stat_panel_entries() -> Array[Dictionary]:
 	var attack_shape_units := get_attack_shape_size_units()
 	return [
 		{"label": "공격 모듈", "value": _get_equipped_attack_module_summary()},
-		{"label": "공격력", "value": str(get_attack_damage())},
+		{"label": "현재 모듈 공격력", "value": str(get_attack_damage())},
+		{"label": "근거리 공격력", "value": "+%d" % get_melee_attack_damage_flat()},
+		{"label": "원거리 공격력", "value": "+%d" % get_ranged_attack_damage_flat()},
+		{"label": "데미지", "value": "+%d%%" % get_damage_percent_display()},
 		{"label": "공격속도", "value": "%.2f / sec" % get_attacks_per_second()},
 		{"label": "공격범위", "value": "%.2fU x %.2fU" % [attack_shape_units.x, attack_shape_units.y]},
 		{"label": "치명타 확률", "value": "%.0f%%" % get_critical_chance_percent()},
@@ -1165,9 +1333,11 @@ func _reset_run_shop_items() -> void:
 	owned_enhance_module_counts = {}
 	current_run_items = PackedStringArray()
 	current_run_effects = {}
+	reset_shop_reroll_count()
+	reset_shop_locks()
 
 
-func _build_shop_item_snapshot(definition: Dictionary) -> Dictionary:
+func _build_shop_item_snapshot(definition: Dictionary, slot_index: int = -1) -> Dictionary:
 	var item_id := String(definition.get("item_id", ""))
 	var category := String(definition.get("item_category", ""))
 	var owned := false
@@ -1182,7 +1352,7 @@ func _build_shop_item_snapshot(definition: Dictionary) -> Dictionary:
 		"enhance_module":
 			stack_count = get_enhance_module_stack_count(StringName(item_id))
 			owned = stack_count > 0
-	var price_gold := int(definition.get("price_gold", 0))
+	var price_gold := get_effective_shop_item_price(definition)
 	var can_afford := can_afford_gold(price_gold)
 	var can_buy := can_afford
 	var purchase_reason := ""
@@ -1190,7 +1360,9 @@ func _build_shop_item_snapshot(definition: Dictionary) -> Dictionary:
 		var attack_purchase_state := can_add_or_synthesize_attack_module(StringName(item_id))
 		can_buy = can_afford and bool(attack_purchase_state.get("ok", false))
 		purchase_reason = String(attack_purchase_state.get("reason", ""))
+	var is_locked := is_shop_slot_locked(slot_index)
 	return {
+		"slot_index": slot_index,
 		"item_id": item_id,
 		"item_category": category,
 		"name": String(definition.get("name", item_id)),
@@ -1204,6 +1376,8 @@ func _build_shop_item_snapshot(definition: Dictionary) -> Dictionary:
 		"stack_count": stack_count,
 		"can_afford": can_afford,
 		"can_buy": can_buy,
+		"is_locked": is_locked,
+		"can_lock": slot_index >= 0,
 		"purchase_reason": purchase_reason,
 	}
 
@@ -1282,7 +1456,9 @@ func _apply_shop_effect_values(definition: Dictionary) -> void:
 func _apply_stat_bonus_effect(effect_key: String, effect_value: Variant) -> void:
 	match effect_key:
 		"attack_damage_flat":
-			run_bonus_attack_damage += int(effect_value)
+			run_bonus_damage_percent += float(effect_value) * 0.01
+		"attack_damage_percent", "damage_percent":
+			run_bonus_damage_percent += float(effect_value)
 		"attack_speed_percent":
 			run_attack_speed_mult /= maxf(1.0 + float(effect_value), 0.01)
 		"attack_range_percent":
@@ -1448,6 +1624,17 @@ func add_xp(amount: int) -> void:
 	if player_current_xp >= player_next_level_xp:
 		level_up_ready.emit()
 
+
+func add_sand_removed_xp(removed_cells: int) -> void:
+	if removed_cells <= 0:
+		return
+	pending_sand_removed_cells_for_xp += removed_cells
+	var xp_amount := GameConstants.get_sand_xp(pending_sand_removed_cells_for_xp)
+	if xp_amount <= 0:
+		return
+	pending_sand_removed_cells_for_xp -= xp_amount * GameConstants.SAND_REMOVED_CELLS_PER_XP
+	add_xp(xp_amount)
+
 func get_level_up_card_pool() -> Array[Dictionary]:
 	var cards: Array[Dictionary] = []
 	for raw_key in GameConstants.LEVEL_UP_CARDS.keys():
@@ -1557,10 +1744,10 @@ func generate_level_up_card_choices(count: int = 3) -> Array[Dictionary]:
 func get_level_up_card_effect_description(card_id: String, rarity_id: String = "normal") -> String:
 	var multiplier := get_level_up_card_rarity_multiplier(rarity_id)
 	match card_id:
-		"atk_up":
-			return "Attack +%d" % _scale_level_up_int(1, multiplier)
+		"atk_up", "damage_up":
+			return "Damage +%s" % _format_level_up_percent(_scale_level_up_percent(0.01, multiplier))
 		"atk_spd_up":
-			return "Attack speed +%s" % _format_level_up_percent(_scale_level_up_percent(0.03, multiplier))
+			return "Attack speed +%s" % _format_level_up_percent(_scale_level_up_percent(0.02, multiplier))
 		"hp_up":
 			var hp_gain := _scale_level_up_int(5, multiplier)
 			return "Max HP +%d, heal +%d" % [hp_gain, hp_gain]
@@ -1588,6 +1775,10 @@ func get_level_up_card_effect_description(card_id: String, rarity_id: String = "
 			return "Jump power +%s" % _format_level_up_percent(_scale_level_up_percent(0.03, multiplier))
 		"mine_range_up":
 			return "Mining range +%s" % _format_level_up_percent(_scale_level_up_percent(0.05, multiplier))
+		"melee_atk_up":
+			return "Melee attack +%d" % _scale_level_up_int(1, multiplier)
+		"ranged_atk_up":
+			return "Ranged attack +%d" % _scale_level_up_int(1, multiplier)
 		_:
 			return ""
 
@@ -1622,10 +1813,10 @@ func _format_level_up_percent(value: float) -> String:
 func apply_level_up_card(card_id: String, rarity_id: String = "normal") -> void:
 	var rarity_multiplier := get_level_up_card_rarity_multiplier(rarity_id)
 	match card_id:
-		"atk_up":
-			run_bonus_attack_damage += _scale_level_up_int(1, rarity_multiplier)
+		"atk_up", "damage_up":
+			run_bonus_damage_percent += _scale_level_up_percent(0.01, rarity_multiplier)
 		"atk_spd_up":
-			run_attack_speed_mult /= 1.0 + _scale_level_up_percent(0.03, rarity_multiplier)
+			run_attack_speed_mult /= 1.0 + _scale_level_up_percent(0.02, rarity_multiplier)
 		"hp_up":
 			var hp_gain := _scale_level_up_int(5, rarity_multiplier)
 			run_bonus_max_hp += hp_gain
@@ -1643,7 +1834,11 @@ func apply_level_up_card(card_id: String, rarity_id: String = "normal") -> void:
 			run_bonus_luck += float(_scale_level_up_int(1, rarity_multiplier))
 		"interest_up":
 			run_bonus_interest_rate += _scale_level_up_percent(0.02, rarity_multiplier)
-			
+		"melee_atk_up":
+			run_bonus_melee_attack_damage += _scale_level_up_int(1, rarity_multiplier)
+		"ranged_atk_up":
+			run_bonus_ranged_attack_damage += _scale_level_up_int(1, rarity_multiplier)
+
 	# 경험치 차감 및 레벨 증가
 	match card_id:
 		"atk_range_up":

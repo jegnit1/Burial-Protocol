@@ -4,10 +4,12 @@ class_name DayShopUI
 signal next_day_requested
 signal closed
 signal item_purchased(item_id: StringName)
+signal reroll_requested
 
 var _shop_item_ids := PackedStringArray()
 var _selected_index := 0
 var _item_buttons: Array[Button] = []
+var _lock_buttons: Array[Button] = []
 var _owned_attack_buttons: Array[Button] = []
 
 var _gold_label: Label
@@ -20,6 +22,7 @@ var _detail_short_desc_label: Label
 var _detail_desc_label: RichTextLabel
 var _detail_state_label: Label
 var _action_button: Button
+var _reroll_button: Button
 
 
 func _ready() -> void:
@@ -30,6 +33,10 @@ func _ready() -> void:
 		GameState.gold_changed.connect(_on_shop_state_changed)
 	if not GameState.run_items_changed.is_connected(_on_shop_state_changed):
 		GameState.run_items_changed.connect(_on_shop_state_changed)
+	if not GameState.shop_reroll_count_changed.is_connected(_on_shop_state_changed):
+		GameState.shop_reroll_count_changed.connect(_on_shop_state_changed)
+	if not GameState.shop_locked_slots_changed.is_connected(_on_shop_state_changed):
+		GameState.shop_locked_slots_changed.connect(_on_shop_state_changed)
 	_refresh_ui()
 
 
@@ -235,6 +242,11 @@ func _build_ui() -> void:
 	close_button.pressed.connect(_on_close_pressed)
 	button_row.add_child(close_button)
 
+	_reroll_button = Button.new()
+	_reroll_button.custom_minimum_size = Vector2(180.0, 48.0)
+	_reroll_button.pressed.connect(_on_reroll_pressed)
+	button_row.add_child(_reroll_button)
+
 	var next_day_button := Button.new()
 	next_day_button.text = "Next Day"
 	next_day_button.custom_minimum_size = Vector2(180.0, 48.0)
@@ -247,10 +259,19 @@ func _refresh_ui() -> void:
 		return
 	var snapshot := GameState.get_day_shop_snapshot(_shop_item_ids)
 	_gold_label.text = "GOLD %d" % int(snapshot.get("gold", 0))
-	_status_label.text = "Remaining %d | Price 100G | Bought items are removed immediately" % _shop_item_ids.size()
+	_status_label.text = "Remaining %d | Bought items are removed immediately" % _shop_item_ids.size()
+	_refresh_reroll_button(snapshot)
 	_refresh_owned_attack_modules()
 	_refresh_item_list(snapshot)
 	_refresh_detail(snapshot)
+
+
+func _refresh_reroll_button(snapshot: Dictionary) -> void:
+	if _reroll_button == null:
+		return
+	var cost := int(snapshot.get("shop_reroll_cost", GameState.get_current_shop_reroll_cost()))
+	_reroll_button.text = "Reroll (%dG)" % cost
+	_reroll_button.disabled = not bool(snapshot.get("can_afford_shop_reroll", GameState.can_afford_shop_reroll()))
 
 
 func _refresh_owned_attack_modules() -> void:
@@ -284,6 +305,7 @@ func _refresh_item_list(snapshot: Dictionary) -> void:
 	for child in _item_list.get_children():
 		child.queue_free()
 	_item_buttons.clear()
+	_lock_buttons.clear()
 	var entries: Array = snapshot.get("item_entries", [])
 	if entries.is_empty():
 		var empty_label := Label.new()
@@ -295,6 +317,18 @@ func _refresh_item_list(snapshot: Dictionary) -> void:
 	_selected_index = clampi(_selected_index, 0, entries.size() - 1)
 	for index in range(entries.size()):
 		var entry: Dictionary = entries[index]
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		_item_list.add_child(row)
+		var lock_button := Button.new()
+		lock_button.custom_minimum_size = Vector2(86.0, 0.0)
+		lock_button.toggle_mode = true
+		lock_button.button_pressed = bool(entry.get("is_locked", false))
+		lock_button.text = "Unlock" if lock_button.button_pressed else "Lock"
+		lock_button.disabled = not bool(entry.get("can_lock", true))
+		lock_button.pressed.connect(_on_lock_pressed.bind(index))
+		row.add_child(lock_button)
+		_lock_buttons.append(lock_button)
 		var button := Button.new()
 		button.text = "[%s][%s] %s - %dG" % [
 			String(entry.get("rank", "?")),
@@ -303,10 +337,11 @@ func _refresh_item_list(snapshot: Dictionary) -> void:
 			int(entry.get("price_gold", 0)),
 		]
 		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		button.toggle_mode = true
 		button.button_pressed = index == _selected_index
 		button.pressed.connect(_on_item_selected.bind(index))
-		_item_list.add_child(button)
+		row.add_child(button)
 		_item_buttons.append(button)
 
 
@@ -332,11 +367,13 @@ func _refresh_detail(snapshot: Dictionary) -> void:
 	var equipped := bool(entry.get("equipped", false))
 	var can_afford := bool(entry.get("can_afford", false))
 	var can_buy := bool(entry.get("can_buy", can_afford))
+	var lock_text := "   LOCKED" if bool(entry.get("is_locked", false)) else ""
 	_detail_name_label.text = String(entry.get("name", item_id))
-	_detail_meta_label.text = "Category %s   Rank %s   Price %dG" % [
+	_detail_meta_label.text = "Category %s   Rank %s   Price %dG%s" % [
 		_category_label(category),
 		String(entry.get("rank", "?")),
 		int(entry.get("price_gold", 0)),
+		lock_text,
 	]
 	_detail_short_desc_label.text = String(entry.get("short_desc", ""))
 	_detail_desc_label.text = String(entry.get("desc", ""))
@@ -389,6 +426,19 @@ func _on_item_selected(index: int) -> void:
 	_refresh_ui()
 
 
+func _on_lock_pressed(index: int) -> void:
+	var snapshot := GameState.get_day_shop_snapshot(_shop_item_ids)
+	var entries: Array = snapshot.get("item_entries", [])
+	if index < 0 or index >= entries.size():
+		return
+	_selected_index = index
+	var entry: Dictionary = entries[index]
+	var locked := GameState.toggle_shop_slot_locked(index)
+	var action_text := "locked" if locked else "unlocked"
+	GameState.set_status_text("%s %s." % [String(entry.get("name", "Shop item")), action_text])
+	_refresh_ui()
+
+
 func _on_owned_attack_module_pressed(module_id: StringName) -> void:
 	if GameState.equip_attack_module(module_id):
 		GameState.set_status_text("Attack module switched to %s." % GameState.get_equipped_attack_module_display_name())
@@ -406,8 +456,10 @@ func _on_action_pressed() -> void:
 	var category := String(entry.get("item_category", ""))
 	var result := GameState.purchase_shop_item(item_id)
 	if bool(result.get("ok", false)):
+		var purchased_index := _selected_index
 		GameState.set_status_text("%s purchased." % String(entry.get("name", "")))
-		_remove_shop_item(item_id)
+		GameState.remove_shop_slot_lock_and_shift(purchased_index)
+		_remove_shop_item_at_index(purchased_index, item_id)
 		item_purchased.emit(item_id)
 	else:
 		var reason := String(result.get("reason", "failed"))
@@ -421,18 +473,26 @@ func _on_action_pressed() -> void:
 	_refresh_ui()
 
 
+func _on_reroll_pressed() -> void:
+	if not GameState.can_afford_shop_reroll():
+		GameState.set_status_text("Not enough gold to reroll.")
+		_refresh_ui()
+		return
+	reroll_requested.emit()
+
+
 func _on_shop_state_changed(_value = null, _value_b = null) -> void:
 	_refresh_ui()
 
 
-func _remove_shop_item(item_id: StringName) -> void:
+func _remove_shop_item_at_index(slot_index: int, item_id: StringName) -> void:
 	# 실제 구매가 일어난 상품만 현재 상점 목록에서 제거한다.
 	var item_key := String(item_id)
 	var remaining_ids := PackedStringArray()
-	for raw_item_id in _shop_item_ids:
-		if raw_item_id == item_key:
+	for index in range(_shop_item_ids.size()):
+		if index == slot_index and _shop_item_ids[index] == item_key:
 			continue
-		remaining_ids.append(raw_item_id)
+		remaining_ids.append(_shop_item_ids[index])
 	_shop_item_ids = remaining_ids
 	_selected_index = clampi(_selected_index, 0, max(_shop_item_ids.size() - 1, 0))
 

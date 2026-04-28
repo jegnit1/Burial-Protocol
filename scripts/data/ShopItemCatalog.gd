@@ -64,14 +64,18 @@ func has_item(item_id: StringName) -> bool:
 func normalize_item_definition(item: Dictionary) -> Dictionary:
 	var normalized := item.duplicate(true)
 	ATTACK_MODULE_STYLE_RESOLVER.normalize_item_dictionary(normalized)
+	if String(normalized.get("item_category", "")) == "attack_module":
+		normalized["module_base_damage"] = _get_normalized_module_base_damage(normalized)
 	var effect_type := String(normalized.get("effect_type", "none"))
 	var effect_values: Dictionary = {}
 	if normalized.get("effect_values", {}) is Dictionary:
 		effect_values = (normalized.get("effect_values", {}) as Dictionary).duplicate(true)
+	_normalize_damage_effect_values(effect_values)
 	normalized["effect_type"] = effect_type
 	normalized["effect_values"] = effect_values
 	normalized["conditions"] = _normalize_dictionary_array(normalized.get("conditions", []))
 	var effects := _normalize_dictionary_array(normalized.get("effects", []))
+	_normalize_damage_effect_entries(effects)
 	if effects.is_empty() and not effect_values.is_empty():
 		for raw_key in effect_values.keys():
 			effects.append({
@@ -84,7 +88,57 @@ func normalize_item_definition(item: Dictionary) -> Dictionary:
 		effect_type
 	)
 	normalized["tags"] = Array(normalized.get("tags", []))
+	_apply_damage_percent_display_text(normalized)
 	return normalized
+
+
+func _get_normalized_module_base_damage(item: Dictionary) -> int:
+	var explicit_base_damage := int(item.get("module_base_damage", 0))
+	if explicit_base_damage > 0:
+		return explicit_base_damage
+	var damage_multiplier := float(item.get("damage_multiplier", 1.0))
+	return maxi(int(round(float(GameConstants.PLAYER_ATTACK_DAMAGE) * damage_multiplier)), 1)
+
+
+func _apply_damage_percent_display_text(item: Dictionary) -> void:
+	var damage_percent = null
+	var effects: Array = item.get("effects", [])
+	for raw_effect in effects:
+		var effect: Dictionary = raw_effect
+		if String(effect.get("type", "")) != "damage_percent":
+			continue
+		damage_percent = float(effect.get("value", 0.0))
+		break
+	if damage_percent == null:
+		return
+	var percent_text := "%d%%" % int(round(float(damage_percent) * 100.0))
+	if String(item.get("effect_type", "")) == "conditional_stat_bonus":
+		item["short_desc"] = "Conditional damage +" + percent_text
+		item["desc"] = "When this item's condition is met, final damage increases by " + percent_text + "."
+	else:
+		item["short_desc"] = "Damage +" + percent_text
+		item["desc"] = "Increases all final damage by " + percent_text + "."
+
+
+func _normalize_damage_effect_values(effect_values: Dictionary) -> void:
+	if effect_values.has("attack_damage_flat"):
+		effect_values["damage_percent"] = float(effect_values.get("damage_percent", 0.0)) + float(effect_values["attack_damage_flat"]) * 0.01
+		effect_values.erase("attack_damage_flat")
+	if effect_values.has("attack_damage_percent"):
+		effect_values["damage_percent"] = float(effect_values.get("damage_percent", 0.0)) + float(effect_values["attack_damage_percent"])
+		effect_values.erase("attack_damage_percent")
+
+
+func _normalize_damage_effect_entries(effects: Array[Dictionary]) -> void:
+	for index in range(effects.size()):
+		var effect: Dictionary = effects[index]
+		match String(effect.get("type", "")):
+			"attack_damage_flat":
+				effect["type"] = "damage_percent"
+				effect["value"] = float(effect.get("value", 0.0)) * 0.01
+			"attack_damage_percent":
+				effect["type"] = "damage_percent"
+		effects[index] = effect
 
 
 func roll_shop_item_ids(

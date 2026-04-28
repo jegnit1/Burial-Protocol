@@ -19,6 +19,7 @@ range_growth_height_scale = 0.1
 hit_shape = &"rectangle"
 range_width_u = 1.0
 range_height_u = 1.0
+module_base_damage = 10
 icon_path = "res://assets/ui/items/attack_modules/sword_module.png"
 world_visual_scene_path = "res://scenes/player/modules/SwordModuleVisual.tscn"
 tags = PackedStringArray("starter", "melee", "standard")
@@ -42,6 +43,7 @@ hit_shape = &"rectangle"
 range_width_u = 0.5
 range_height_u = 0.5
 damage_multiplier = 0.8
+module_base_damage = 8
 attack_speed_multiplier = 1.4
 icon_path = "res://assets/ui/items/attack_modules/dagger_module.png"
 world_visual_scene_path = "res://scenes/player/modules/DaggerModuleVisual.tscn"
@@ -65,6 +67,7 @@ range_growth_height_scale = 0.0
 hit_shape = &"rectangle"
 range_width_u = 2.5
 range_height_u = 0.5
+module_base_damage = 10
 attack_speed_multiplier = 0.85
 icon_path = "res://assets/ui/items/attack_modules/lance_module.png"
 world_visual_scene_path = "res://scenes/player/modules/LanceModuleVisual.tscn"
@@ -89,6 +92,7 @@ hit_shape = &"rectangle"
 range_width_u = 1.0
 range_height_u = 1.0
 damage_multiplier = 1.2
+module_base_damage = 12
 attack_speed_multiplier = 0.8
 icon_path = "res://assets/ui/items/attack_modules/axe_module.png"
 world_visual_scene_path = "res://scenes/player/modules/AxeModuleVisual.tscn"
@@ -113,6 +117,7 @@ hit_shape = &"rectangle"
 range_width_u = 1.5
 range_height_u = 1.0
 damage_multiplier = 1.5
+module_base_damage = 15
 attack_speed_multiplier = 0.65
 icon_path = "res://assets/ui/items/attack_modules/greatsword_module.png"
 world_visual_scene_path = "res://scenes/player/modules/GreatswordModuleVisual.tscn"
@@ -134,6 +139,7 @@ range_growth_scale = 1.0
 range_width_u = 5.0
 range_height_u = 0.5
 damage_multiplier = 0.5
+module_base_damage = 5
 attack_speed_multiplier = 0.7
 projectile_count = 1
 spread_angle = 0.0
@@ -160,6 +166,7 @@ range_growth_scale = 1.0
 range_width_u = 4.0
 range_height_u = 0.7
 damage_multiplier = 0.4
+module_base_damage = 4
 attack_speed_multiplier = 0.7
 projectile_count = 3
 spread_angle = 26.0
@@ -192,6 +199,7 @@ range_growth_scale = 1.0
 range_width_u = 6.0
 range_height_u = 0.4
 damage_multiplier = 0.3
+module_base_damage = 3
 attack_speed_multiplier = 0.6
 projectile_count = 1
 spread_angle = 0.0
@@ -225,6 +233,7 @@ range_growth_scale = 1.0
 range_width_u = 7.0
 range_height_u = 0.35
 damage_multiplier = 0.2
+module_base_damage = 2
 attack_speed_multiplier = 0.6
 projectile_count = 0
 spread_angle = 0.0
@@ -255,6 +264,7 @@ attack_style = &"drone"
 range_width_u = 6.0
 range_height_u = 6.0
 damage_multiplier = 0.6
+module_base_damage = 6
 attack_speed_multiplier = 0.55
 icon_path = "res://assets/ui/items/attack_modules/drone_attack_module.png"
 world_visual_scene_path = "res://scenes/player/modules/DroneModuleVisual.tscn"
@@ -509,11 +519,11 @@ max_stack = 99
 icon_path = "res://assets/ui/items/enhance_modules/small_gear.png"
 effect_type = &"stat_bonus"
 effect_values = {
-"attack_damage_flat": 1
+"damage_percent": 0.01
 }
 tags = PackedStringArray("stat", "attack_damage")
-short_desc = "공격력 +1"
-desc = "기본 공격력을 1 증가시킨다."
+short_desc = "Damage +1%"
+desc = "Increases all final damage by 1%."
 
 [sub_resource type="Resource" id="Resource_hpalw"]
 script = ExtResource("1_eikcl")
@@ -526,11 +536,11 @@ max_stack = 99
 icon_path = "res://assets/ui/items/enhance_modules/reinforced_bolt.png"
 effect_type = &"stat_bonus"
 effect_values = {
-"attack_damage_flat": 2
+"damage_percent": 0.02
 }
 tags = PackedStringArray("stat", "attack_damage")
-short_desc = "공격력 +2"
-desc = "기본 공격력을 2 증가시킨다."
+short_desc = "Damage +2%"
+desc = "Increases all final damage by 2%."
 
 [sub_resource type="Resource" id="Resource_vnb2v"]
 script = ExtResource("1_eikcl")
@@ -543,11 +553,11 @@ max_stack = 99
 icon_path = "res://assets/ui/items/enhance_modules/aux_gear.png"
 effect_type = &"stat_bonus"
 effect_values = {
-"attack_damage_flat": 3
+"damage_percent": 0.03
 }
 tags = PackedStringArray("stat", "attack_damage")
-short_desc = "공격력 +3"
-desc = "기본 공격력을 3 증가시킨다."
+short_desc = "Damage +3%"
+desc = "Increases all final damage by 3%."
 
 [sub_resource type="Resource" id="Resource_c4qly"]
 script = ExtResource("1_eikcl")
@@ -560,11 +570,11 @@ max_stack = 99
 icon_path = "res://assets/ui/items/enhance_modules/output_amp_motor.png"
 effect_type = &"stat_bonus"
 effect_values = {
-"attack_damage_flat": 5
+"damage_percent": 0.05
 }
 tags = PackedStringArray("stat", "attack_damage")
-short_desc = "공격력 +5"
-desc = "기본 공격력을 5 증가시킨다."
+short_desc = "Damage +5%"
+desc = "Increases all final damage by 5%."
 
 [sub_resource type="Resource" id="Resource_bdset"]
 script = ExtResource("1_eikcl")
@@ -577,11 +587,11 @@ max_stack = 99
 icon_path = "res://assets/ui/items/enhance_modules/reinforced_servo_arm.png"
 effect_type = &"stat_bonus"
 effect_values = {
-"attack_damage_flat": 10
+"damage_percent": 0.10
 }
 tags = PackedStringArray("stat", "attack_damage")
-short_desc = "공격력 +10"
-desc = "기본 공격력을 10 증가시킨다."
+short_desc = "Damage +10%"
+desc = "Increases all final damage by 10%."
 
 [sub_resource type="Resource" id="Resource_3kjki"]
 script = ExtResource("1_eikcl")
@@ -1762,13 +1772,13 @@ conditions = Array[Dictionary]([{
 "type": "all_attack_modules_type"
 }])
 effects = Array[Dictionary]([{
-"type": "attack_damage_percent",
+"type": "damage_percent",
 "value": 0.2
 }])
 apply_timing = &"stat_query"
 tags = PackedStringArray("stat", "conditional", "attack_damage", "melee")
-short_desc = "모든 공격모듈이 근접이면 공격력 +20%"
-desc = "장착한 공격모듈이 모두 melee 타입일 때 최종 공격력을 20% 증가시킨다."
+short_desc = "All melee modules: Damage +20%"
+desc = "Increases all final damage by 20% while every equipped attack module is melee."
 
 [sub_resource type="Resource" id="Resource_mfocus"]
 script = ExtResource("1_eikcl")
@@ -1787,13 +1797,13 @@ conditions = Array[Dictionary]([{
 "value": 3
 }])
 effects = Array[Dictionary]([{
-"type": "attack_damage_flat",
-"value": 2
+"type": "damage_percent",
+"value": 0.02
 }])
 apply_timing = &"stat_query"
 tags = PackedStringArray("stat", "conditional", "attack_damage", "attack_module_count")
-short_desc = "공격모듈 3개 이상 장착 시 공격력 +2"
-desc = "장착한 공격모듈이 3개 이상일 때 최종 공격력을 2 증가시킨다."
+short_desc = "3+ attack modules: Damage +2%"
+desc = "Increases all final damage by 2% while at least 3 attack modules are equipped."
 
 [resource]
 script = ExtResource("2_010nu")

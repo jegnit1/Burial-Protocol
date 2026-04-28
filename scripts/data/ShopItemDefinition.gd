@@ -8,7 +8,7 @@ const ATTACK_MODULE_STYLE_RESOLVER := preload("res://scripts/data/AttackModuleSt
 @export var name := ""
 @export var item_category: StringName = &"attack_module"
 @export var rank := "D"
-@export var price_gold := 100
+@export var price_gold := 0
 @export var shop_enabled := true
 @export var shop_spawn_weight := -1.0
 @export var stackable := false
@@ -28,6 +28,7 @@ const ATTACK_MODULE_STYLE_RESOLVER := preload("res://scripts/data/AttackModuleSt
 @export var range_width_u := 0.0
 @export var range_height_u := 0.0
 @export var damage_multiplier := 1.0
+@export var module_base_damage := 0
 @export var attack_speed_multiplier := 1.0
 @export var projectile_count := 1
 @export var spread_angle := 0.0
@@ -99,6 +100,7 @@ func to_dictionary() -> Dictionary:
 		"range_width_u": range_width_u,
 		"range_height_u": range_height_u,
 		"damage_multiplier": damage_multiplier,
+		"module_base_damage": module_base_damage,
 		"attack_speed_multiplier": attack_speed_multiplier,
 		"projectile_count": projectile_count,
 		"spread_angle": spread_angle,
@@ -135,7 +137,7 @@ func apply_dictionary(data: Dictionary) -> void:
 	name = String(data.get("name", ""))
 	item_category = StringName(String(data.get("item_category", "attack_module")))
 	rank = String(data.get("rank", "D"))
-	price_gold = int(data.get("price_gold", 100))
+	price_gold = int(data.get("price_gold", 0))
 	shop_enabled = bool(data.get("shop_enabled", true))
 	shop_spawn_weight = float(data.get("shop_spawn_weight", -1.0))
 	stackable = bool(data.get("stackable", false))
@@ -162,6 +164,7 @@ func apply_dictionary(data: Dictionary) -> void:
 	range_width_u = float(style_data.get("range_width_u", range_units))
 	range_height_u = float(style_data.get("range_height_u", 0.0))
 	damage_multiplier = float(data.get("damage_multiplier", 1.0))
+	module_base_damage = int(data.get("module_base_damage", 0))
 	attack_speed_multiplier = float(data.get("attack_speed_multiplier", 1.0))
 	projectile_count = int(style_data.get("projectile_count", 1))
 	spread_angle = float(style_data.get("spread_angle", style_data.get("projectile_spread_degrees", 0.0)))
