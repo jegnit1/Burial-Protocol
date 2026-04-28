@@ -26,7 +26,7 @@ class SeismicSensorDraw extends Control:
 		var w_min_y := float(GameConstants.WORLD_ORIGIN.y)
 		var w_max_y := world_bottom
 		if camera:
-			var view_size = Vector2(1920, 1080) / camera.zoom
+			var view_size = Vector2(GameConstants.VIEWPORT_SIZE) / camera.zoom
 			w_min_y = camera.global_position.y - view_size.y * 2.0
 			w_max_y = camera.global_position.y + view_size.y * 1.0
 			
@@ -50,7 +50,7 @@ class SeismicSensorDraw extends Control:
 		# Draw Viewport Box
 		if camera:
 			# Just an approximation of viewport local height
-			var view_size = Vector2(1920, 1080) / camera.zoom
+			var view_size = Vector2(GameConstants.VIEWPORT_SIZE) / camera.zoom
 			var cy = camera.global_position.y
 			var c_top = cy - view_size.y * 0.5
 			var c_bottom = cy + view_size.y * 0.5
@@ -380,25 +380,25 @@ func _make_skill_slot_style(background_color: Color, border_color: Color) -> Sty
 	style.border_width_right = 2
 	style.border_width_bottom = 2
 	style.border_color = border_color
-	style.corner_radius_top_left = 10
-	style.corner_radius_top_right = 10
-	style.corner_radius_bottom_right = 10
-	style.corner_radius_bottom_left = 10
+	style.corner_radius_top_left = 8
+	style.corner_radius_top_right = 8
+	style.corner_radius_bottom_right = 8
+	style.corner_radius_bottom_left = 8
 	return style
 
 
 func _create_skill_slot(icon_text: String, name_text: String, hint_text: String) -> Panel:
 	var slot_panel := Panel.new()
-	slot_panel.custom_minimum_size = Vector2(92, 96)
+	slot_panel.custom_minimum_size = Vector2(80, 88)
 	slot_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	slot_panel.add_theme_stylebox_override("panel", _make_skill_slot_style(Color(0.08, 0.11, 0.15, 0.90), Color("5e6977")))
 
 	var content_margin := MarginContainer.new()
 	content_margin.set_anchors_preset(Control.PRESET_FULL_RECT)
-	content_margin.add_theme_constant_override("margin_left", 10)
-	content_margin.add_theme_constant_override("margin_top", 8)
-	content_margin.add_theme_constant_override("margin_right", 10)
-	content_margin.add_theme_constant_override("margin_bottom", 8)
+	content_margin.add_theme_constant_override("margin_left", 8)
+	content_margin.add_theme_constant_override("margin_top", 6)
+	content_margin.add_theme_constant_override("margin_right", 8)
+	content_margin.add_theme_constant_override("margin_bottom", 6)
 	content_margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	slot_panel.add_child(content_margin)
 
@@ -411,19 +411,19 @@ func _create_skill_slot(icon_text: String, name_text: String, hint_text: String)
 	var icon_label := Label.new()
 	icon_label.text = icon_text
 	icon_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	icon_label.add_theme_font_size_override("font_size", 28)
+	icon_label.add_theme_font_size_override("font_size", 24)
 	content_vbox.add_child(icon_label)
 
 	var name_label := Label.new()
 	name_label.text = name_text
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_label.add_theme_font_size_override("font_size", 15)
+	name_label.add_theme_font_size_override("font_size", 13)
 	content_vbox.add_child(name_label)
 
 	var hint_label := Label.new()
 	hint_label.text = hint_text
 	hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint_label.add_theme_font_size_override("font_size", 14)
+	hint_label.add_theme_font_size_override("font_size", 12)
 	content_vbox.add_child(hint_label)
 
 	var overlay := ColorRect.new()
@@ -437,7 +437,7 @@ func _create_skill_slot(icon_text: String, name_text: String, hint_text: String)
 	cooldown_label.set_anchors_preset(Control.PRESET_FULL_RECT)
 	cooldown_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	cooldown_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	cooldown_label.add_theme_font_size_override("font_size", 20)
+	cooldown_label.add_theme_font_size_override("font_size", 18)
 	cooldown_label.add_theme_color_override("font_color", Color("f4f6f8"))
 	cooldown_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	cooldown_label.visible = false
@@ -483,46 +483,46 @@ func _build_layout() -> void:
 	
 	var day_lbl_title := Label.new()
 	day_lbl_title.text = "CURRENT DAY"
-	day_lbl_title.add_theme_font_size_override("font_size", 20)
+	day_lbl_title.add_theme_font_size_override("font_size", 18)
 	day_lbl_title.add_theme_color_override("font_color", Color("a28956"))
 	top_left_panel.add_child(day_lbl_title)
 	
 	var row2 := HBoxContainer.new()
-	row2.add_theme_constant_override("separation", 16)
+	row2.add_theme_constant_override("separation", 12)
 	top_left_panel.add_child(row2)
 	
 	day_label = Label.new()
-	day_label.add_theme_font_size_override("font_size", 54)
+	day_label.add_theme_font_size_override("font_size", 46)
 	day_label.add_theme_color_override("font_color", Color("e5c687"))
 	row2.add_child(day_label)
 	
 	difficulty_label = Label.new()
-	difficulty_label.add_theme_font_size_override("font_size", 24)
+	difficulty_label.add_theme_font_size_override("font_size", 21)
 	difficulty_label.add_theme_color_override("font_color", Color("8a95a5"))
 	var diff_margin := MarginContainer.new()
-	diff_margin.add_theme_constant_override("margin_top", 24)
+	diff_margin.add_theme_constant_override("margin_top", 20)
 	diff_margin.add_child(difficulty_label)
 	row2.add_child(diff_margin)
 	
 	next_boss_label = Label.new()
-	next_boss_label.add_theme_font_size_override("font_size", 20)
+	next_boss_label.add_theme_font_size_override("font_size", 18)
 	next_boss_label.add_theme_color_override("font_color", Color("c87474"))
 	top_left_panel.add_child(next_boss_label)
 	
 	var time_lbl_title := Label.new()
 	time_lbl_title.text = "TIME REMAINING"
-	time_lbl_title.add_theme_font_size_override("font_size", 18)
+	time_lbl_title.add_theme_font_size_override("font_size", 16)
 	var time_spacing := MarginContainer.new()
-	time_spacing.add_theme_constant_override("margin_top", 10)
+	time_spacing.add_theme_constant_override("margin_top", 8)
 	time_spacing.add_child(time_lbl_title)
 	top_left_panel.add_child(time_spacing)
 	
 	var time_row := HBoxContainer.new()
-	time_row.add_theme_constant_override("separation", 12)
+	time_row.add_theme_constant_override("separation", 10)
 	top_left_panel.add_child(time_row)
 	
 	time_bar = ProgressBar.new()
-	time_bar.custom_minimum_size = Vector2(200, 20)
+	time_bar.custom_minimum_size = Vector2(176, 18)
 	time_bar.show_percentage = false
 	var time_bg = StyleBoxFlat.new()
 	time_bg.bg_color = Color(0.1, 0.1, 0.1, 0.8)
@@ -530,7 +530,7 @@ func _build_layout() -> void:
 	time_row.add_child(time_bar)
 	
 	time_label = Label.new()
-	time_label.add_theme_font_size_override("font_size", 20)
+	time_label.add_theme_font_size_override("font_size", 18)
 	time_row.add_child(time_label)
 
 	# ==========================================
@@ -543,17 +543,17 @@ func _build_layout() -> void:
 	margin.add_child(top_right_panel)
 	
 	var gold_title_row := HBoxContainer.new()
-	gold_title_row.add_theme_constant_override("separation", 16)
+	gold_title_row.add_theme_constant_override("separation", 12)
 	top_right_panel.add_child(gold_title_row)
 	
 	var gold_lbl_title := Label.new()
 	gold_lbl_title.text = "GOLD"
-	gold_lbl_title.add_theme_font_size_override("font_size", 20)
+	gold_lbl_title.add_theme_font_size_override("font_size", 18)
 	gold_lbl_title.add_theme_color_override("font_color", Color("d7b94d"))
 	gold_title_row.add_child(gold_lbl_title)
 	
 	econ_day_gold_label = Label.new()
-	econ_day_gold_label.add_theme_font_size_override("font_size", 18)
+	econ_day_gold_label.add_theme_font_size_override("font_size", 16)
 	econ_day_gold_label.add_theme_color_override("font_color", Color("9ab184"))
 	var day_gold_margin = MarginContainer.new()
 	day_gold_margin.add_theme_constant_override("margin_top", 2)
@@ -561,25 +561,25 @@ func _build_layout() -> void:
 	gold_title_row.add_child(day_gold_margin)
 	
 	econ_gold_label = Label.new()
-	econ_gold_label.add_theme_font_size_override("font_size", 42)
+	econ_gold_label.add_theme_font_size_override("font_size", 36)
 	econ_gold_label.add_theme_color_override("font_color", Color("f0d984"))
 	top_right_panel.add_child(econ_gold_label)
 	
 	var weight_spacing := MarginContainer.new()
-	weight_spacing.add_theme_constant_override("margin_top", 16)
+	weight_spacing.add_theme_constant_override("margin_top", 12)
 	var weight_title_row := HBoxContainer.new()
-	weight_title_row.add_theme_constant_override("separation", 12)
+	weight_title_row.add_theme_constant_override("separation", 10)
 	weight_spacing.add_child(weight_title_row)
 	top_right_panel.add_child(weight_spacing)
 	
 	var weight_lbl_title := Label.new()
 	weight_lbl_title.text = "WEIGHT LOAD"
-	weight_lbl_title.add_theme_font_size_override("font_size", 18)
+	weight_lbl_title.add_theme_font_size_override("font_size", 16)
 	weight_lbl_title.add_theme_color_override("font_color", Color("a2a7b0"))
 	weight_title_row.add_child(weight_lbl_title)
 	
 	econ_weight_label = Label.new()
-	econ_weight_label.add_theme_font_size_override("font_size", 18)
+	econ_weight_label.add_theme_font_size_override("font_size", 16)
 	weight_title_row.add_child(econ_weight_label)
 	
 	var wbar_row = HBoxContainer.new()
@@ -587,7 +587,7 @@ func _build_layout() -> void:
 	top_right_panel.add_child(wbar_row)
 	
 	econ_weight_bar = ProgressBar.new()
-	econ_weight_bar.custom_minimum_size = Vector2(250, 24)
+	econ_weight_bar.custom_minimum_size = Vector2(210, 20)
 	econ_weight_bar.show_percentage = false
 	var wbg = StyleBoxFlat.new()
 	wbg.bg_color = Color(0.1, 0.1, 0.1, 0.8)
@@ -595,7 +595,7 @@ func _build_layout() -> void:
 	wbar_row.add_child(econ_weight_bar)
 	
 	econ_weight_status_label = Label.new()
-	econ_weight_status_label.add_theme_font_size_override("font_size", 18)
+	econ_weight_status_label.add_theme_font_size_override("font_size", 16)
 	wbar_row.add_child(econ_weight_status_label)
 	
 	# ==========================================
@@ -609,7 +609,7 @@ func _build_layout() -> void:
 	margin.add_child(bottom_left_panel)
 	
 	var pstat_row := HBoxContainer.new()
-	pstat_row.add_theme_constant_override("separation", 16)
+	pstat_row.add_theme_constant_override("separation", 12)
 	bottom_left_panel.add_child(pstat_row)
 	
 	# Level box
@@ -625,16 +625,16 @@ func _build_layout() -> void:
 	pstat_row.add_child(lv_panel)
 	
 	var lv_margin := MarginContainer.new()
-	lv_margin.add_theme_constant_override("margin_left", 12)
-	lv_margin.add_theme_constant_override("margin_right", 12)
-	lv_margin.add_theme_constant_override("margin_top", 16)
-	lv_margin.add_theme_constant_override("margin_bottom", 16)
+	lv_margin.add_theme_constant_override("margin_left", 10)
+	lv_margin.add_theme_constant_override("margin_right", 10)
+	lv_margin.add_theme_constant_override("margin_top", 12)
+	lv_margin.add_theme_constant_override("margin_bottom", 12)
 	lv_panel.add_child(lv_margin)
 	
 	status_level_label = Label.new()
 	status_level_label.text = "LV\nTODO"
 	status_level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	status_level_label.add_theme_font_size_override("font_size", 20)
+	status_level_label.add_theme_font_size_override("font_size", 18)
 	lv_margin.add_child(status_level_label)
 	
 	var bars_vbox := VBoxContainer.new()
@@ -649,13 +649,13 @@ func _build_layout() -> void:
 	
 	var hp_title := Label.new()
 	hp_title.text = "HP"
-	hp_title.custom_minimum_size = Vector2(30, 0)
+	hp_title.custom_minimum_size = Vector2(28, 0)
 	hp_title.add_theme_color_override("font_color", Color("68e08d"))
-	hp_title.add_theme_font_size_override("font_size", 18)
+	hp_title.add_theme_font_size_override("font_size", 16)
 	hp_row.add_child(hp_title)
 	
 	status_hp_bar = ProgressBar.new()
-	status_hp_bar.custom_minimum_size = Vector2(200, 20)
+	status_hp_bar.custom_minimum_size = Vector2(170, 18)
 	status_hp_bar.show_percentage = false
 	var hp_bg = StyleBoxFlat.new()
 	hp_bg.bg_color = Color(0.1, 0.1, 0.1, 0.8)
@@ -663,7 +663,7 @@ func _build_layout() -> void:
 	hp_row.add_child(status_hp_bar)
 	
 	status_hp_label = Label.new()
-	status_hp_label.add_theme_font_size_override("font_size", 18)
+	status_hp_label.add_theme_font_size_override("font_size", 16)
 	hp_row.add_child(status_hp_label)
 
 	var battery_row := HBoxContainer.new()
@@ -672,13 +672,13 @@ func _build_layout() -> void:
 
 	var battery_title := Label.new()
 	battery_title.text = "BAT"
-	battery_title.custom_minimum_size = Vector2(30, 0)
+	battery_title.custom_minimum_size = Vector2(28, 0)
 	battery_title.add_theme_color_override("font_color", Color("69d2c0"))
-	battery_title.add_theme_font_size_override("font_size", 18)
+	battery_title.add_theme_font_size_override("font_size", 16)
 	battery_row.add_child(battery_title)
 
 	status_battery_bar = ProgressBar.new()
-	status_battery_bar.custom_minimum_size = Vector2(200, 16)
+	status_battery_bar.custom_minimum_size = Vector2(170, 14)
 	status_battery_bar.show_percentage = false
 	var battery_bg = StyleBoxFlat.new()
 	battery_bg.bg_color = Color(0.1, 0.1, 0.1, 0.8)
@@ -686,7 +686,7 @@ func _build_layout() -> void:
 	battery_row.add_child(status_battery_bar)
 
 	status_battery_label = Label.new()
-	status_battery_label.add_theme_font_size_override("font_size", 16)
+	status_battery_label.add_theme_font_size_override("font_size", 14)
 	battery_row.add_child(status_battery_label)
 	
 	# XP
@@ -696,13 +696,13 @@ func _build_layout() -> void:
 	
 	var xp_title := Label.new()
 	xp_title.text = "XP"
-	xp_title.custom_minimum_size = Vector2(30, 0)
+	xp_title.custom_minimum_size = Vector2(28, 0)
 	xp_title.add_theme_color_override("font_color", Color("5fb2d1"))
-	xp_title.add_theme_font_size_override("font_size", 18)
+	xp_title.add_theme_font_size_override("font_size", 16)
 	xp_row.add_child(xp_title)
 	
 	status_xp_bar = ProgressBar.new()
-	status_xp_bar.custom_minimum_size = Vector2(200, 14)
+	status_xp_bar.custom_minimum_size = Vector2(170, 12)
 	status_xp_bar.show_percentage = false
 	status_xp_bar.max_value = 100
 	status_xp_bar.value = 0
@@ -716,7 +716,7 @@ func _build_layout() -> void:
 	
 	status_xp_label = Label.new()
 	status_xp_label.text = "0 / TODO"
-	status_xp_label.add_theme_font_size_override("font_size", 16)
+	status_xp_label.add_theme_font_size_override("font_size", 14)
 	status_xp_label.add_theme_color_override("font_color", Color(0.7,0.7,0.7))
 	xp_row.add_child(status_xp_label)
 
@@ -730,12 +730,12 @@ func _build_layout() -> void:
 	# Center Left: Seismic / Fall Sensor HUD
 	# ==========================================
 	sensor_draw = SeismicSensorDraw.new()
-	sensor_draw.custom_minimum_size = Vector2(80, 400)
+	sensor_draw.custom_minimum_size = Vector2(72, 340)
 	
 	var sensor_margin := MarginContainer.new()
 	sensor_margin.set_anchors_preset(Control.PRESET_LEFT_WIDE)
 	sensor_margin.add_theme_constant_override("margin_left", GameConstants.HUD_SIDE_PADDING)
-	sensor_margin.add_theme_constant_override("margin_top", GameConstants.HUD_TOP_PADDING + 220)
+	sensor_margin.add_theme_constant_override("margin_top", GameConstants.HUD_TOP_PADDING + 184)
 	sensor_margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	
 	var sensor_bg_panel := PanelContainer.new()
@@ -758,8 +758,8 @@ func _build_layout() -> void:
 	skill_bar_anchor.anchor_top = 1.0
 	skill_bar_anchor.anchor_right = 1.0
 	skill_bar_anchor.anchor_bottom = 1.0
-	skill_bar_anchor.offset_left = -(GameConstants.HUD_SIDE_PADDING + 312.0)
-	skill_bar_anchor.offset_top = -(GameConstants.HUD_TOP_PADDING + 112.0)
+	skill_bar_anchor.offset_left = -(GameConstants.HUD_SIDE_PADDING + 272.0)
+	skill_bar_anchor.offset_top = -(GameConstants.HUD_TOP_PADDING + 100.0)
 	skill_bar_anchor.offset_right = -GameConstants.HUD_SIDE_PADDING
 	skill_bar_anchor.offset_bottom = -GameConstants.HUD_TOP_PADDING
 	skill_bar_anchor.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -767,7 +767,7 @@ func _build_layout() -> void:
 
 	var skill_bar := HBoxContainer.new()
 	skill_bar.alignment = BoxContainer.ALIGNMENT_END
-	skill_bar.add_theme_constant_override("separation", 12)
+	skill_bar.add_theme_constant_override("separation", 10)
 	skill_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	skill_bar_anchor.add_child(skill_bar)
 
