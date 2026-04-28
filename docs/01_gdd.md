@@ -1,6 +1,6 @@
 # Burial Protocol - Game Design Document
 
-기준일: `2026-04-24`  
+기준일: `2026-04-28`  
 기준 브랜치: `main`  
 엔진: Godot `4.6`  
 언어: GDScript
@@ -52,6 +52,10 @@ Burial Protocol의 핵심 감성은 아래 세 가지다.
 - attack_module/function_module/enhance_module 구매
 - 공격모듈 즉시 장착, 중복 장착, 합성
 - XP와 레벨업 카드
+- 레벨업 카드 5장 제시 방식
+- 근거리/원거리 공격력 분리 (`run_bonus_melee_attack_damage`, `run_bonus_ranged_attack_damage`)
+- 공격모듈 attack_style/effect_style 시스템 (AttackModuleStyleResolver)
+- 상점 아이템 랭크별 가격 티어링 (`SHOP_ITEM_RANK_FALLBACK_PRICES`)
 - 런타임 스탯 증가
 - HUD와 ESC 스탯 패널
 - 저장 파일과 최고 기록 저장
@@ -508,7 +512,7 @@ XP 획득:
 ### 13-2. 레벨업
 
 레벨업 시 게임이 일시정지되고 `LevelUpUI`가 뜬다.
-카드 3장 중 하나를 선택하면 즉시 런타임 스탯이 증가한다.
+카드 5장 중 하나를 선택하면 즉시 런타임 스탯이 증가한다.
 
 ### 13-3. 현재 주요 스탯
 

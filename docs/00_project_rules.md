@@ -5,7 +5,7 @@
 이 문서는 Burial Protocol 코드베이스에서 현재 실제로 적용 중인 작업 기준을 정리한다.
 기획 희망사항이나 장기 아이디어가 아니라, 지금 실행 가능한 코드와 문서를 어떤 원칙으로 맞춰야 하는지 기록한다.
 
-기준일: `2026-04-24`
+기준일: `2026-04-28`
 기준 브랜치: `main`
 
 ---
@@ -32,6 +32,7 @@
 - `scripts/autoload/GameState.gd`
 - `scripts/data/BlockSpawnResolver.gd`
 - `scripts/data/ShopItemCatalog.gd`
+- `scripts/data/AttackModuleStyleResolver.gd`
 - `scenes/main/Main.gd`
 - `scenes/player/Player.gd`
 - `scenes/blocks/FallingBlock.gd`
@@ -50,7 +51,7 @@
 
 ## 2. 현재 docs 구조
 
-현재 docs는 아래 5개 문서를 기준으로 유지한다.
+현재 docs는 아래 8개 문서를 기준으로 유지한다.
 
 ```text
 docs/
@@ -59,6 +60,9 @@ docs/
   02_systems_spec.md
   03_data_and_state_spec.md
   04_roadmap.md
+  05_balance_formula.md
+  06_attack_module_style_spec.md
+  attack_module_system_spec.md
 ```
 
 각 문서 역할:
@@ -70,8 +74,11 @@ docs/
 | `02_systems_spec.md` | 실제 플레이 시스템 통합 스펙 |
 | `03_data_and_state_spec.md` | 데이터 소유권, 저장/런타임 상태, signal 구조 |
 | `04_roadmap.md` | TODO, 미구현, 다음 작업 우선순위 |
+| `05_balance_formula.md` | 밸런스 수치 공식과 기준 예산 |
+| `06_attack_module_style_spec.md` | 공격모듈 공격 스타일/연출 스타일 스펙 |
+| `attack_module_system_spec.md` | 공격모듈 시스템 구현 기준 |
 
-문서를 새로 만들기 전에 먼저 위 5개 중 어디에 들어가야 하는지 판단한다.
+문서를 새로 만들기 전에 먼저 위 문서 중 어디에 들어가야 하는지 판단한다.
 
 ---
 
@@ -119,6 +126,7 @@ docs/
 - 난이도 옵션
 - 입력 바인딩
 - 레벨업 카드 정의
+- 상점 아이템 랭크별 가격 기본값 (`SHOP_ITEM_RANK_FALLBACK_PRICES`)
 
 ### 4-2. 콘텐츠 데이터는 `.tres`와 데이터 스크립트가 소유한다
 

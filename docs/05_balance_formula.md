@@ -1,6 +1,6 @@
 # Burial Protocol - Balance Formula Specification
 
-기준일: `2026-04-24`  
+기준일: `2026-04-28`  
 기준 브랜치: `main`
 
 ---

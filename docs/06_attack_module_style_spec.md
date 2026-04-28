@@ -1,6 +1,6 @@
 # Burial Protocol - Attack Module Style Specification
 
-기준일: `2026-04-24`  
+기준일: `2026-04-28`  
 기준 브랜치: `main`
 
 ---
@@ -574,15 +574,15 @@ range_units *= attack_range_multiplier
 권장 구현 순서:
 
 ```text
-1. 공격모듈 데이터에 attack_style/effect_style 필드 추가
-2. 기존 melee 모듈 5종에 slash/stab/pierce/cleave/smash 매핑
-3. 기존 ranged 또는 향후 ranged 모듈에 shotgun/sniper/laser/rifle/revolver 매핑
-4. range_growth_width_scale / range_growth_height_scale 처리 추가
-5. 기존 melee shape query가 attack_style별 base_shape_units를 사용하도록 정리
-6. ranged projectile/hitscan 처리에서 attack_style별 옵션을 읽도록 정리
-7. AttackEffectSpawner 또는 유사한 연출 전용 helper 추가
-8. 각 effect_style별 임시 디버그 이펙트 구현
-9. 실제 아트/사운드 에셋 적용
+[완료] 1. 공격모듈 데이터에 attack_style/effect_style 필드 추가
+[완료] 2. 기존 melee 모듈 5종에 slash/stab/pierce/cleave/smash 매핑
+[완료] 3. 기존 ranged 또는 향후 ranged 모듈에 shotgun/sniper/laser/rifle/revolver 매핑
+[완료] 4. range_growth_width_scale / range_growth_height_scale 처리 추가
+[완료] 7. AttackModuleStyleResolver 구현 (AttackEffectSpawner 대체 — 판정/스타일 데이터 반환 helper)
+        5. 기존 melee shape query가 attack_style별 base_shape_units를 사용하도록 정리
+        6. ranged projectile/hitscan 처리에서 attack_style별 옵션을 읽도록 정리
+        8. 각 effect_style별 임시 디버그 이펙트 구현
+        9. 실제 아트/사운드 에셋 적용
 ```
 
 주의:

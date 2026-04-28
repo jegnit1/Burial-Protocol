@@ -1,6 +1,6 @@
 # Burial Protocol - Data and State Specification
 
-기준일: `2026-04-24`  
+기준일: `2026-04-28`  
 기준 브랜치: `main`
 
 ---
@@ -49,6 +49,7 @@
 - 난이도 옵션
 - 입력 바인딩
 - 레벨업 카드 정의
+- 상점 아이템 랭크별 가격 기본값 (`SHOP_ITEM_RANK_FALLBACK_PRICES`)
 - 공통 계산 유틸
 
 중요:
@@ -181,6 +182,8 @@ Type은 선택 affix/modifier다.
 `ShopItemCatalog.gd`는 Day 구간별 랭크 weight table을 사용한다.
 행운은 랭크 weight를 보정한다.
 
+아이템 데이터에 `price_gold`가 없거나 0이면 `GameConstants.SHOP_ITEM_RANK_FALLBACK_PRICES`의 랭크별 기본 가격을 사용한다.
+최종 유효 가격 결정은 `GameState.get_effective_shop_item_price(item_id)`가 담당한다.
 구매 가능성 최종 판단은 `GameState.purchase_shop_item()`과 관련 helper가 담당한다.
 
 ---
@@ -501,6 +504,8 @@ if item_id == "side_breaker":
 런타임 스탯 보너스:
 
 - `run_bonus_attack_damage`
+- `run_bonus_melee_attack_damage`
+- `run_bonus_ranged_attack_damage`
 - `run_bonus_move_speed`
 - `run_bonus_max_hp`
 - `run_attack_speed_mult`
@@ -581,6 +586,8 @@ if item_id == "side_breaker":
 
 - `get_attack_damage()`
 - `get_base_attack_damage()`
+- `get_melee_base_attack_damage()`
+- `get_ranged_base_attack_damage()`
 - `get_attack_cooldown_duration()`
 - `get_attacks_per_second()`
 - `get_attack_range_multiplier()`
@@ -618,6 +625,7 @@ if item_id == "side_breaker":
 - `get_interest_percent()`
 - `calculate_interest_payout()`
 - `get_luck()`
+- `get_effective_shop_item_price(item_id)`
 
 조건부 `stat_query` 효과를 구현할 경우, 위 getter들은 공통 effect evaluator를 통해 조건을 만족하는 스탯 보너스를 함께 반영해야 한다.
 

@@ -1,6 +1,6 @@
 # Burial Protocol - Roadmap
 
-기준일: `2026-04-24`  
+기준일: `2026-04-28`  
 기준 브랜치: `main`
 
 ---
@@ -45,10 +45,14 @@
 - `stat_query` 기반 조건부 스탯 보너스 1차 구현
 - 조건부 상점 아이템 테스트 2종 검증
 - XP와 레벨업 카드
-- 레벨업 카드 15종 풀
+- 레벨업 카드 17종 풀 (melee_atk_up, ranged_atk_up 추가)
+- 레벨업 카드 5장 제시 방식
 - 레벨업 카드 Normal/Silver/Gold/Platinum 희귀도
 - Luck 기반 레벨업 희귀도 보정
 - 레벨업 희귀도별 UI 색상/테두리/라벨 표시
+- 근거리/원거리 공격력 분리 (`run_bonus_melee_attack_damage`, `run_bonus_ranged_attack_damage`)
+- 공격모듈 attack_style/effect_style 시스템 (`AttackModuleStyleResolver`)
+- 상점 아이템 랭크별 가격 티어링 (`SHOP_ITEM_RANK_FALLBACK_PRICES`)
 - 런타임 스탯 증가
 - HUD와 ESC 스탯 패널
 - 저장 파일과 최고 기록 저장
@@ -161,7 +165,7 @@
 - `luck_up`
 - `interest_up`
 
-현재 레벨업 카드 풀은 15종이다.
+이 시점에서 레벨업 카드 풀은 15종이었다. (→ 이후 2-12에서 17종으로 확장)
 
 ### 2-8. 레벨업 카드 희귀도 시스템
 
@@ -210,6 +214,41 @@
 - 이동속도/점프력 계열
 
 상점 아이템 나머지 수치 조정은 필요할 때 별도 판단한다.
+
+### 2-11. 공격모듈 스타일 시스템
+
+완료:
+
+- `scripts/data/AttackModuleStyleResolver.gd` 추가
+- 공격모듈 데이터에 `attack_style`, `effect_style` 필드 처리
+- melee (`slash`, `stab`, `pierce`, `cleave`, `smash`) / ranged (`shotgun`, `sniper`, `laser`, `rifle`, `revolver`) 스타일 분리
+- `AttackModuleStyleResolver`가 attack_style별 shape, range growth 계수, projectile 옵션 등을 반환
+- mechanic 모듈은 스타일 시스템 예외로 유지
+
+### 2-12. 근거리/원거리 공격력 분리
+
+완료:
+
+- `GameState.gd`에 `run_bonus_melee_attack_damage`, `run_bonus_ranged_attack_damage` 추가
+- `get_melee_base_attack_damage()`, `get_ranged_base_attack_damage()` getter 추가
+- `melee_atk_up`, `ranged_atk_up` 레벨업 카드 추가 (레벨업 카드 풀 15종 → 17종)
+- `reset_run()`에서 초기화 포함
+
+### 2-13. 상점 아이템 랭크별 가격 티어링
+
+완료:
+
+- `GameConstants.gd`에 `SHOP_ITEM_RANK_FALLBACK_PRICES = {D:15, C:30, B:60, A:120, S:240}` 추가
+- `GameState.get_effective_shop_item_price(item_id)` 구현
+- `price_gold`가 없거나 0인 아이템은 랭크 기본 가격을 자동 적용
+- `DayShopUI.gd`에서 가격 표시 시 유효 가격 getter 사용
+
+### 2-14. 레벨업 카드 5장 제시
+
+완료:
+
+- `LevelUpUI`에서 카드 제시 수를 3장 → 5장으로 확장
+- `GameConstants.LEVEL_UP_CARD_COUNT` 기준
 
 ---
 
