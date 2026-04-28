@@ -20,12 +20,13 @@ const FLOOR_ROW := WORLD_ROWS - 1
 const WORLD_PIXEL_WIDTH := WORLD_COLUMNS * CELL_SIZE
 # 월드 전체 세로 길이의 픽셀 값.
 const WORLD_PIXEL_HEIGHT := WORLD_ROWS * CELL_SIZE
+const WORLD_CAMERA_ZOOM := 1.2
 # 화면 상단 HUD 영역의 높이.
-const HUD_HEIGHT := 256
+const HUD_HEIGHT := 208
 # 화면 최상단과 HUD 패널 사이의 간격.
-const HUD_TOP_PADDING := 40
+const HUD_TOP_PADDING := 24
 # 뷰포트 좌우 가장자리에서 HUD 패널이 안쪽으로 들어오는 여백.
-const HUD_SIDE_PADDING := 40
+const HUD_SIDE_PADDING := 24
 # HUD 패널 내부 여백.
 const HUD_INNER_MARGIN := 32
 # 위아래로 쌓이는 HUD 섹션 사이의 간격.
@@ -39,9 +40,9 @@ const HUD_SECONDARY_FONT_SIZE := 38
 # HUD 디버그 정보의 글자 크기.
 const HUD_DEBUG_FONT_SIZE := 30
 # HUD가 위에 들어갈 공간을 남기고 실제 월드가 시작되는 Y 오프셋.
-const WORLD_TOP_MARGIN := HUD_HEIGHT + 64
+const WORLD_TOP_MARGIN := HUD_HEIGHT + 40
 # 뷰포트 내부에서 월드가 시작되는 X 오프셋.
-const WORLD_SIDE_MARGIN := 64
+const WORLD_SIDE_MARGIN := 32
 # 화면 좌표계에서 월드 좌상단 원점 위치.
 const WORLD_ORIGIN := Vector2i(WORLD_SIDE_MARGIN, WORLD_TOP_MARGIN)
 # 카메라가 월드 바깥 여백을 아주 조금 포함해서 보여주도록 하는 비율.

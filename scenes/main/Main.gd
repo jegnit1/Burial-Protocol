@@ -139,7 +139,7 @@ func _on_spawn_timer_timeout() -> void:
 	if resolved_definition == null:
 		return
 	var block_data := BlockData.from_resolved_definition(resolved_definition)
-	var camera_top_y := world_camera.position.y - float(GameConstants.VIEWPORT_SIZE.y) * 0.5
+	var camera_top_y := _get_camera_top_y_world()
 	var spawn_result := _pick_fair_spawn_position(block_data.size_cells, camera_top_y)
 	if not bool(spawn_result.get("ok", false)):
 		last_spawned_block_debug = "Spawn skipped: no safe airspace"
@@ -559,7 +559,7 @@ func _spawn_boss_block() -> void:
 		push_warning("Boss block could not be resolved for day %d." % _current_day)
 		return
 	var block_data := BlockData.from_resolved_definition(resolved_definition)
-	var camera_top_y := world_camera.position.y - float(GameConstants.VIEWPORT_SIZE.y) * 0.5
+	var camera_top_y := _get_camera_top_y_world()
 	var spawn_result := _pick_fair_spawn_position(block_data.size_cells, camera_top_y)
 	if not bool(spawn_result.get("ok", false)):
 		last_spawned_block_debug = "Boss spawn skipped: no safe airspace"
@@ -635,7 +635,7 @@ func _spawn_day_kiosk() -> void:
 	_day_kiosk = DAY_KIOSK_SCRIPT.new() as Node2D
 	add_child(_day_kiosk)
 	var center_rect := GameConstants.get_center_rect()
-	var camera_top_y := world_camera.position.y - float(GameConstants.VIEWPORT_SIZE.y) * 0.5
+	var camera_top_y := _get_camera_top_y_world()
 	var spawn_position := Vector2(
 		center_rect.position.x + center_rect.size.x * 0.5,
 		camera_top_y - 96.0
@@ -1056,7 +1056,7 @@ func _refresh_debug() -> void:
 
 
 func _configure_camera() -> void:
-	world_camera.zoom = Vector2.ONE
+	world_camera.zoom = Vector2.ONE * GameConstants.WORLD_CAMERA_ZOOM
 	world_camera.position_smoothing_enabled = false
 	world_camera.limit_left = GameConstants.WORLD_ORIGIN.x
 	world_camera.limit_right = GameConstants.WORLD_ORIGIN.x + GameConstants.WORLD_PIXEL_WIDTH
@@ -1070,6 +1070,14 @@ func _configure_camera() -> void:
 
 func _update_camera_y() -> void:
 	world_camera.position.y = _get_clamped_camera_y(player.position.y - CAMERA_PLAYER_Y_OFFSET)
+
+
+func _get_camera_half_height_world() -> float:
+	return (float(GameConstants.VIEWPORT_SIZE.y) * 0.5) / world_camera.zoom.y
+
+
+func _get_camera_top_y_world() -> float:
+	return world_camera.position.y - _get_camera_half_height_world()
 
 
 func _pick_fair_spawn_position(size_cells: Vector2i, camera_top_y: float) -> Dictionary:
@@ -1098,10 +1106,11 @@ func _pick_fair_spawn_position(size_cells: Vector2i, camera_top_y: float) -> Dic
 
 
 func _get_clamped_camera_y(target_y: float) -> float:
+	var camera_half_height := _get_camera_half_height_world()
 	return clampf(
 		target_y,
-		GameConstants.WORLD_PLAYABLE_TOP_Y + float(GameConstants.VIEWPORT_SIZE.y) * 0.5,
-		float(GameConstants.WORLD_ORIGIN.y + GameConstants.WORLD_PIXEL_HEIGHT) - float(GameConstants.VIEWPORT_SIZE.y) * 0.5
+		GameConstants.WORLD_PLAYABLE_TOP_Y + camera_half_height,
+		float(GameConstants.WORLD_ORIGIN.y + GameConstants.WORLD_PIXEL_HEIGHT) - camera_half_height
 	)
 
 
