@@ -27,21 +27,17 @@ const ATTACK_MODULE_STYLE_RESOLVER := preload("res://scripts/data/AttackModuleSt
 @export var range_growth_scale := 1.0
 @export var range_width_u := 0.0
 @export var range_height_u := 0.0
-@export var damage_multiplier := 1.0
 @export var module_base_damage := 0
+@export var base_damage_by_grade: Dictionary = {}
 @export var attack_speed_multiplier := 1.0
 @export var projectile_count := 1
 @export var spread_angle := 0.0
 @export var pierce_count := 0
 @export var is_hitscan := false
 @export var projectile_visual_size := Vector2.ZERO
-@export var projectile_spread_degrees := 0.0
-@export var projectile_pierce_count := 0
 @export var projectile_speed := 900.0
 @export var projectile_lifetime := 1.2
 @export var projectile_max_distance := 900.0
-@export var projectile_size := Vector2(18.0, 6.0)
-@export var projectile_hit_scan := false
 @export var projectile_homing := false
 @export var mechanic_drone_count := 1
 @export var mechanic_targeting: StringName = &"nearest"
@@ -99,8 +95,8 @@ func to_dictionary() -> Dictionary:
 		"range_growth_scale": range_growth_scale,
 		"range_width_u": range_width_u,
 		"range_height_u": range_height_u,
-		"damage_multiplier": damage_multiplier,
 		"module_base_damage": module_base_damage,
+		"base_damage_by_grade": base_damage_by_grade.duplicate(true),
 		"attack_speed_multiplier": attack_speed_multiplier,
 		"projectile_count": projectile_count,
 		"spread_angle": spread_angle,
@@ -108,14 +104,9 @@ func to_dictionary() -> Dictionary:
 		"is_hitscan": is_hitscan,
 		"projectile_visual_size_x": projectile_visual_size.x,
 		"projectile_visual_size_y": projectile_visual_size.y,
-		"projectile_spread_degrees": projectile_spread_degrees,
-		"projectile_pierce_count": projectile_pierce_count,
 		"projectile_speed": projectile_speed,
 		"projectile_lifetime": projectile_lifetime,
 		"projectile_max_distance": projectile_max_distance,
-		"projectile_size_x": projectile_size.x,
-		"projectile_size_y": projectile_size.y,
-		"projectile_hit_scan": projectile_hit_scan,
 		"projectile_homing": projectile_homing,
 		"mechanic_drone_count": mechanic_drone_count,
 		"mechanic_targeting": String(mechanic_targeting),
@@ -163,29 +154,22 @@ func apply_dictionary(data: Dictionary) -> void:
 	range_growth_scale = float(style_data.get("range_growth_scale", 1.0))
 	range_width_u = float(style_data.get("range_width_u", range_units))
 	range_height_u = float(style_data.get("range_height_u", 0.0))
-	damage_multiplier = float(data.get("damage_multiplier", 1.0))
 	module_base_damage = int(data.get("module_base_damage", 0))
+	base_damage_by_grade = _normalize_base_damage_by_grade(data.get("base_damage_by_grade", {}))
 	attack_speed_multiplier = float(data.get("attack_speed_multiplier", 1.0))
 	projectile_count = int(style_data.get("projectile_count", 1))
-	spread_angle = float(style_data.get("spread_angle", style_data.get("projectile_spread_degrees", 0.0)))
-	pierce_count = int(style_data.get("pierce_count", style_data.get("projectile_pierce_count", 0)))
-	is_hitscan = bool(style_data.get("is_hitscan", style_data.get("projectile_hit_scan", false)))
+	spread_angle = float(style_data.get("spread_angle", 0.0))
+	pierce_count = int(style_data.get("pierce_count", 0))
+	is_hitscan = bool(style_data.get("is_hitscan", false))
 	projectile_visual_size = Vector2(
-		float(style_data.get("projectile_visual_size_x", style_data.get("projectile_size_x", 0.0))),
-		float(style_data.get("projectile_visual_size_y", style_data.get("projectile_size_y", 0.0)))
+		float(style_data.get("projectile_visual_size_x", 0.0)),
+		float(style_data.get("projectile_visual_size_y", 0.0))
 	)
-	projectile_spread_degrees = float(style_data.get("projectile_spread_degrees", spread_angle))
-	projectile_pierce_count = int(style_data.get("projectile_pierce_count", pierce_count))
 	projectile_speed = float(data.get("projectile_speed", 900.0))
 	projectile_lifetime = float(data.get("projectile_lifetime", 1.2))
 	projectile_max_distance = float(data.get("projectile_max_distance", 900.0))
-	projectile_size = Vector2(
-		float(style_data.get("projectile_size_x", projectile_visual_size.x if projectile_visual_size.x > 0.0 else 18.0)),
-		float(style_data.get("projectile_size_y", projectile_visual_size.y if projectile_visual_size.y > 0.0 else 6.0))
-	)
 	if projectile_visual_size.x <= 0.0 or projectile_visual_size.y <= 0.0:
-		projectile_visual_size = projectile_size
-	projectile_hit_scan = bool(style_data.get("projectile_hit_scan", is_hitscan))
+		projectile_visual_size = Vector2(18.0, 6.0)
 	projectile_homing = bool(data.get("projectile_homing", false))
 	mechanic_drone_count = int(data.get("mechanic_drone_count", 1))
 	mechanic_targeting = StringName(String(data.get("mechanic_targeting", "nearest")))
@@ -210,4 +194,20 @@ func _to_dictionary_array(raw_value: Variant) -> Array[Dictionary]:
 			continue
 		var entry: Dictionary = raw_entry
 		result.append(entry.duplicate(true))
+	return result
+
+
+func _normalize_base_damage_by_grade(raw_value: Variant) -> Dictionary:
+	var result: Dictionary = {}
+	if not raw_value is Dictionary:
+		return result
+	var raw_dictionary: Dictionary = raw_value
+	for raw_grade in raw_dictionary.keys():
+		var grade := String(raw_grade).strip_edges().to_upper()
+		if grade.is_empty():
+			continue
+		var damage := int(raw_dictionary[raw_grade])
+		if damage <= 0:
+			continue
+		result[grade] = damage
 	return result

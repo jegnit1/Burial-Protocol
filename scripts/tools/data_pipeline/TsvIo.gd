@@ -8,10 +8,7 @@ func write_rows(path: String, headers: Array, rows: Array) -> Dictionary:
 	var lines: Array[String] = []
 	lines.append(_build_line(headers))
 	for row in rows:
-		var cells: Array[String] = []
-		for header in headers:
-			cells.append(_escape_cell(row.get(header, "")))
-		lines.append("\t".join(cells))
+		lines.append(_build_row_line(headers, row))
 	var file := FileAccess.open(normalized_path, FileAccess.WRITE)
 	if file == null:
 		return {
@@ -91,6 +88,15 @@ func _build_line(headers: Array) -> String:
 	for header in headers:
 		escaped_headers.append(_escape_cell(header))
 	return "\t".join(escaped_headers)
+
+
+func _build_row_line(headers: Array, row: Dictionary) -> String:
+	var cells: Array[String] = []
+	for header in headers:
+		cells.append(_escape_cell(row.get(header, "")))
+	while not cells.is_empty() and cells[cells.size() - 1].is_empty():
+		cells.remove_at(cells.size() - 1)
+	return "\t".join(cells)
 
 
 func _parse_line(line: String) -> Array[String]:

@@ -11,6 +11,8 @@ const DIFFICULTY_ORDER := ["normal", "hard", "extreme", "hell", "nightmare"]
 @export var block_materials: Array[Resource] = []
 @export var block_sizes: Array[Resource] = []
 @export var block_types: Array[Resource] = []
+@export var block_size_spawn_rules: Array[Resource] = []
+@export var block_material_size_weight_rules: Array[Resource] = []
 
 var _block_material_by_id: Dictionary = {}
 var _block_size_by_id: Dictionary = {}

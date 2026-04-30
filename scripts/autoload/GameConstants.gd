@@ -20,7 +20,7 @@ const FLOOR_ROW := WORLD_ROWS - 1
 const WORLD_PIXEL_WIDTH := WORLD_COLUMNS * CELL_SIZE
 # 월드 전체 세로 길이의 픽셀 값.
 const WORLD_PIXEL_HEIGHT := WORLD_ROWS * CELL_SIZE
-const WORLD_CAMERA_ZOOM := 1.2
+const WORLD_CAMERA_ZOOM := 0.75
 # 화면 상단 HUD 영역의 높이.
 const HUD_HEIGHT := 208
 # 화면 최상단과 HUD 패널 사이의 간격.

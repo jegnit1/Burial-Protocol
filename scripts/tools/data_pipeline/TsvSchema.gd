@@ -11,10 +11,20 @@ const BLOCK_CATALOG_META_FILE := "block_catalog_meta.tsv"
 const BLOCK_MATERIALS_FILE := "block_materials.tsv"
 const BLOCK_SIZES_FILE := "block_sizes.tsv"
 const BLOCK_TYPES_FILE := "block_types.tsv"
+const BLOCK_SIZE_SPAWN_RULES_FILE := "block_size_spawn_rules.tsv"
+const BLOCK_MATERIAL_SIZE_WEIGHT_RULES_FILE := "block_material_size_weight_rules.tsv"
 const STAGE_DAYS_FILE := "stage_days.tsv"
 const ATTACK_MODULE_ITEMS_FILE := "attack_module_items.tsv"
 const FUNCTION_MODULE_ITEMS_FILE := "function_module_items.tsv"
 const ENHANCE_MODULE_ITEMS_FILE := "enhance_module_items.tsv"
+
+const ATTACK_MODULE_BASE_DAMAGE_GRADES := [
+	"D",
+	"C",
+	"B",
+	"A",
+	"S",
+]
 
 const BLOCK_CATALOG_META_HEADERS := [
 	"default_material_id",
@@ -68,6 +78,49 @@ const BLOCK_TYPE_HEADERS := [
 	"reward_multiplier",
 	"sand_units_multiplier",
 	"special_result_override",
+]
+
+const BLOCK_SIZE_SPAWN_RULE_HEADERS := [
+	"size_id",
+	"size_group",
+	"base_spawn_weight",
+	"normal_multiplier",
+	"hard_multiplier",
+	"extreme_multiplier",
+	"hell_multiplier",
+	"nightmare_multiplier",
+	"day_1_5_multiplier",
+	"day_6_10_multiplier",
+	"day_11_15_multiplier",
+	"day_16_20_multiplier",
+	"day_21_25_multiplier",
+	"day_26_30_multiplier",
+	"min_day_hint",
+	"notes",
+]
+
+const BLOCK_MATERIAL_SIZE_WEIGHT_RULE_HEADERS := [
+	"rule_id",
+	"material_id",
+	"size_id",
+	"size_group",
+	"area_group",
+	"width_group",
+	"height_group",
+	"weight_multiplier",
+	"normal_multiplier",
+	"hard_multiplier",
+	"extreme_multiplier",
+	"hell_multiplier",
+	"nightmare_multiplier",
+	"day_1_5_multiplier",
+	"day_6_10_multiplier",
+	"day_11_15_multiplier",
+	"day_16_20_multiplier",
+	"day_21_25_multiplier",
+	"day_26_30_multiplier",
+	"min_day_hint",
+	"notes",
 ]
 
 const STAGE_DAY_HEADERS := [
@@ -127,6 +180,12 @@ const EFFECT_HEADERS := [
 	"effect_battery_recovery_flat",
 ]
 
+const EFFECT_METADATA_HEADERS := [
+	"conditions_json",
+	"effects_json",
+	"apply_timing",
+]
+
 const EFFECT_COLUMN_TO_KEY := {
 	"effect_damage_multiplier": "damage_multiplier",
 	"effect_sand_remove_interval_sec": "sand_remove_interval_sec",
@@ -160,19 +219,32 @@ static func get_attack_module_item_headers() -> Array:
 		"default_start_module",
 		"module_type",
 		"attack_style",
+		"effect_style",
+		"base_shape_units_x",
+		"base_shape_units_y",
+		"range_growth_width_scale",
+		"range_growth_height_scale",
+		"hit_shape",
+		"range_units",
+		"range_growth_scale",
 		"range_width_u",
 		"range_height_u",
-		"damage_multiplier",
+		"module_base_damage",
+		"base_damage_D",
+		"base_damage_C",
+		"base_damage_B",
+		"base_damage_A",
+		"base_damage_S",
 		"attack_speed_multiplier",
 		"projectile_count",
-		"projectile_spread_degrees",
-		"projectile_pierce_count",
+		"spread_angle",
+		"pierce_count",
 		"projectile_speed",
 		"projectile_lifetime",
 		"projectile_max_distance",
-		"projectile_size_x",
-		"projectile_size_y",
-		"projectile_hit_scan",
+		"projectile_visual_size_x",
+		"projectile_visual_size_y",
+		"is_hitscan",
 		"projectile_homing",
 		"mechanic_drone_count",
 		"mechanic_targeting",
@@ -184,6 +256,7 @@ static func get_attack_module_item_headers() -> Array:
 static func get_function_module_item_headers() -> Array:
 	var headers := ITEM_COMMON_HEADERS.duplicate()
 	headers.append("effect_type")
+	headers.append_array(EFFECT_METADATA_HEADERS)
 	headers.append_array(EFFECT_HEADERS)
 	return headers
 
@@ -198,6 +271,8 @@ static func get_all_tsv_files() -> Array[String]:
 		BLOCK_MATERIALS_FILE,
 		BLOCK_SIZES_FILE,
 		BLOCK_TYPES_FILE,
+		BLOCK_SIZE_SPAWN_RULES_FILE,
+		BLOCK_MATERIAL_SIZE_WEIGHT_RULES_FILE,
 		STAGE_DAYS_FILE,
 		ATTACK_MODULE_ITEMS_FILE,
 		FUNCTION_MODULE_ITEMS_FILE,

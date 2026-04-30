@@ -8,6 +8,8 @@ const BLOCK_CATALOG_SCRIPT = preload("res://scripts/data/BlockCatalog.gd")
 const BLOCK_MATERIAL_DATA_SCRIPT = preload("res://scripts/data/BlockMaterialData.gd")
 const BLOCK_SIZE_DATA_SCRIPT = preload("res://scripts/data/BlockSizeData.gd")
 const BLOCK_TYPE_DEFINITION_SCRIPT = preload("res://scripts/data/BlockTypeDefinition.gd")
+const BLOCK_SIZE_SPAWN_RULE_DATA_SCRIPT = preload("res://scripts/data/BlockSizeSpawnRuleData.gd")
+const BLOCK_MATERIAL_SIZE_WEIGHT_RULE_DATA_SCRIPT = preload("res://scripts/data/BlockMaterialSizeWeightRuleData.gd")
 
 var _io = TSV_IO_SCRIPT.new()
 var _validation = TSV_VALIDATION_SERVICE_SCRIPT.new()
@@ -18,8 +20,10 @@ func import_from_directory(input_dir: String) -> Dictionary:
 	var material_result := _io.read_rows(_join_path(input_dir, TSV_SCHEMA.BLOCK_MATERIALS_FILE))
 	var size_result := _io.read_rows(_join_path(input_dir, TSV_SCHEMA.BLOCK_SIZES_FILE))
 	var type_result := _io.read_rows(_join_path(input_dir, TSV_SCHEMA.BLOCK_TYPES_FILE))
+	var size_rule_result := _io.read_rows(_join_path(input_dir, TSV_SCHEMA.BLOCK_SIZE_SPAWN_RULES_FILE))
+	var material_size_rule_result := _io.read_rows(_join_path(input_dir, TSV_SCHEMA.BLOCK_MATERIAL_SIZE_WEIGHT_RULES_FILE))
 	var errors: Array[String] = []
-	for result in [meta_result, material_result, size_result, type_result]:
+	for result in [meta_result, material_result, size_result, type_result, size_rule_result, material_size_rule_result]:
 		if bool(result.get("ok", false)):
 			continue
 		for error_text in result.get("errors", []):
@@ -35,7 +39,11 @@ func import_from_directory(input_dir: String) -> Dictionary:
 		size_result["headers"],
 		size_result["rows"],
 		type_result["headers"],
-		type_result["rows"]
+		type_result["rows"],
+		size_rule_result["headers"],
+		size_rule_result["rows"],
+		material_size_rule_result["headers"],
+		material_size_rule_result["rows"]
 	)
 	if not bool(validation.get("ok", false)):
 		return {"ok": false, "errors": validation["errors"]}
@@ -97,6 +105,27 @@ func import_from_directory(input_dir: String) -> Dictionary:
 		block_type.special_result_override = StringName(_validation.get_required_string(row, "special_result_override", TSV_SCHEMA.BLOCK_TYPES_FILE, errors))
 		catalog.block_types.append(block_type)
 
+	for row in size_rule_result["rows"]:
+		var rule = BLOCK_SIZE_SPAWN_RULE_DATA_SCRIPT.new()
+		rule.size_id = StringName(_validation.get_required_string(row, "size_id", TSV_SCHEMA.BLOCK_SIZE_SPAWN_RULES_FILE, errors))
+		rule.size_group = _validation.get_required_string(row, "size_group", TSV_SCHEMA.BLOCK_SIZE_SPAWN_RULES_FILE, errors)
+		rule.base_spawn_weight = _validation.get_required_float(row, "base_spawn_weight", TSV_SCHEMA.BLOCK_SIZE_SPAWN_RULES_FILE, errors)
+		_assign_spawn_rule_multipliers(rule, row, TSV_SCHEMA.BLOCK_SIZE_SPAWN_RULES_FILE, errors)
+		catalog.block_size_spawn_rules.append(rule)
+
+	for row in material_size_rule_result["rows"]:
+		var rule = BLOCK_MATERIAL_SIZE_WEIGHT_RULE_DATA_SCRIPT.new()
+		rule.rule_id = StringName(_validation.get_required_string(row, "rule_id", TSV_SCHEMA.BLOCK_MATERIAL_SIZE_WEIGHT_RULES_FILE, errors))
+		rule.material_id = StringName(_validation.get_optional_string(row, "material_id"))
+		rule.size_id = StringName(_validation.get_optional_string(row, "size_id"))
+		rule.size_group = _validation.get_optional_string(row, "size_group")
+		rule.area_group = _validation.get_optional_string(row, "area_group")
+		rule.width_group = _validation.get_optional_string(row, "width_group")
+		rule.height_group = _validation.get_optional_string(row, "height_group")
+		rule.weight_multiplier = _validation.get_required_float(row, "weight_multiplier", TSV_SCHEMA.BLOCK_MATERIAL_SIZE_WEIGHT_RULES_FILE, errors)
+		_assign_spawn_rule_multipliers(rule, row, TSV_SCHEMA.BLOCK_MATERIAL_SIZE_WEIGHT_RULES_FILE, errors)
+		catalog.block_material_size_weight_rules.append(rule)
+
 	if not errors.is_empty():
 		return {"ok": false, "errors": errors}
 	return {
@@ -104,6 +133,22 @@ func import_from_directory(input_dir: String) -> Dictionary:
 		"errors": [],
 		"catalog": catalog,
 	}
+
+
+func _assign_spawn_rule_multipliers(rule, row: Dictionary, file_label: String, errors: Array[String]) -> void:
+	rule.normal_multiplier = _validation.get_required_float(row, "normal_multiplier", file_label, errors)
+	rule.hard_multiplier = _validation.get_required_float(row, "hard_multiplier", file_label, errors)
+	rule.extreme_multiplier = _validation.get_required_float(row, "extreme_multiplier", file_label, errors)
+	rule.hell_multiplier = _validation.get_required_float(row, "hell_multiplier", file_label, errors)
+	rule.nightmare_multiplier = _validation.get_required_float(row, "nightmare_multiplier", file_label, errors)
+	rule.day_1_5_multiplier = _validation.get_required_float(row, "day_1_5_multiplier", file_label, errors)
+	rule.day_6_10_multiplier = _validation.get_required_float(row, "day_6_10_multiplier", file_label, errors)
+	rule.day_11_15_multiplier = _validation.get_required_float(row, "day_11_15_multiplier", file_label, errors)
+	rule.day_16_20_multiplier = _validation.get_required_float(row, "day_16_20_multiplier", file_label, errors)
+	rule.day_21_25_multiplier = _validation.get_required_float(row, "day_21_25_multiplier", file_label, errors)
+	rule.day_26_30_multiplier = _validation.get_required_float(row, "day_26_30_multiplier", file_label, errors)
+	rule.min_day_hint = _validation.get_required_int(row, "min_day_hint", file_label, errors)
+	rule.notes = _validation.get_optional_string(row, "notes")
 
 
 func _join_path(base_dir: String, file_name: String) -> String:

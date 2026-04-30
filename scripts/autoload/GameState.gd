@@ -279,26 +279,37 @@ func reset_shop_locks() -> void:
 
 
 func get_current_shop_locked_slots() -> Dictionary:
-	return current_shop_locked_slots.duplicate()
+	return current_shop_locked_slots.duplicate(true)
 
 
 func is_shop_slot_locked(slot_index: int) -> bool:
-	return bool(current_shop_locked_slots.get(slot_index, false))
+	return current_shop_locked_slots.has(slot_index)
 
 
-func set_shop_slot_locked(slot_index: int, locked: bool) -> void:
+func get_shop_locked_item_id(slot_index: int) -> StringName:
+	var raw_value = current_shop_locked_slots.get(slot_index, "")
+	if raw_value is bool:
+		return StringName()
+	var item_key := String(raw_value)
+	if item_key.is_empty():
+		return StringName()
+	return StringName(item_key)
+
+
+func set_shop_slot_locked(slot_index: int, locked: bool, item_id: StringName = StringName()) -> void:
 	if slot_index < 0 or slot_index >= GameConstants.DAY_SHOP_ITEM_COUNT:
 		return
 	if locked:
-		current_shop_locked_slots[slot_index] = true
+		var item_key := String(item_id)
+		current_shop_locked_slots[slot_index] = item_key if not item_key.is_empty() else true
 	else:
 		current_shop_locked_slots.erase(slot_index)
 	shop_locked_slots_changed.emit(get_current_shop_locked_slots())
 
 
-func toggle_shop_slot_locked(slot_index: int) -> bool:
+func toggle_shop_slot_locked(slot_index: int, item_id: StringName = StringName()) -> bool:
 	var locked := not is_shop_slot_locked(slot_index)
-	set_shop_slot_locked(slot_index, locked)
+	set_shop_slot_locked(slot_index, locked, item_id)
 	return locked
 
 
@@ -308,12 +319,13 @@ func remove_shop_slot_lock_and_shift(slot_index: int) -> void:
 	var shifted_locks: Dictionary = {}
 	for raw_key in current_shop_locked_slots.keys():
 		var locked_index := int(raw_key)
+		var locked_value = current_shop_locked_slots[raw_key]
 		if locked_index == slot_index:
 			continue
 		if locked_index > slot_index:
 			locked_index -= 1
 		if locked_index >= 0 and locked_index < GameConstants.DAY_SHOP_ITEM_COUNT:
-			shifted_locks[locked_index] = true
+			shifted_locks[locked_index] = locked_value
 	current_shop_locked_slots = shifted_locks
 	shop_locked_slots_changed.emit(get_current_shop_locked_slots())
 
@@ -424,21 +436,74 @@ func get_damage_percent_display() -> int:
 
 
 func get_module_base_damage(module_definition) -> int:
-	if module_definition == null:
-		return get_base_attack_damage()
-	var explicit_base_damage := int(module_definition.module_base_damage)
-	if explicit_base_damage > 0:
-		return explicit_base_damage
-	return maxi(int(round(float(GameConstants.PLAYER_ATTACK_DAMAGE) * module_definition.damage_multiplier)), 1)
+	return get_attack_module_base_damage_for_grade(module_definition, "D")
 
 
 func get_attack_module_base_damage_for_grade(module_definition, grade: String) -> int:
-	var base_damage := get_module_base_damage(module_definition)
-	var grade_base_multiplier := _get_attack_module_grade_multiplier(
+	if module_definition == null:
+		return get_base_attack_damage()
+	var grade_damage := _get_attack_module_base_damage_from_grade_map(module_definition, grade)
+	if grade_damage > 0:
+		return grade_damage
+	var explicit_base_damage := _get_explicit_module_base_damage(module_definition)
+	if explicit_base_damage > 0:
+		return explicit_base_damage
+	push_warning("Attack module '%s' has no base_damage_by_grade value for grade '%s' and no module_base_damage; falling back to 1." % [
+		String(_get_definition_item_id(module_definition)),
 		grade,
-		GameConstants.ATTACK_MODULE_GRADE_DAMAGE_MULTIPLIERS
-	)
-	return maxi(int(round(float(base_damage) * grade_base_multiplier)), 1)
+	])
+	return 1
+
+
+func _get_attack_module_base_damage_from_grade_map(module_definition, grade: String) -> int:
+	var grade_map := _get_definition_base_damage_by_grade(module_definition)
+	if grade_map.is_empty():
+		return 0
+	var grade_key := grade.strip_edges().to_upper()
+	if grade_key.is_empty():
+		grade_key = "D"
+	if not grade_map.has(grade_key):
+		return 0
+	return maxi(int(grade_map[grade_key]), 0)
+
+
+func _get_definition_base_damage_by_grade(module_definition) -> Dictionary:
+	if module_definition == null:
+		return {}
+	var raw_map = {}
+	if module_definition is Dictionary:
+		raw_map = module_definition.get("base_damage_by_grade", {})
+	else:
+		raw_map = module_definition.base_damage_by_grade
+	if not raw_map is Dictionary:
+		return {}
+	var raw_dictionary: Dictionary = raw_map
+	var result: Dictionary = {}
+	for raw_grade in raw_dictionary.keys():
+		var grade := String(raw_grade).strip_edges().to_upper()
+		if grade.is_empty():
+			continue
+		var damage := int(raw_dictionary[raw_grade])
+		if damage <= 0:
+			continue
+		result[grade] = damage
+	return result
+
+
+func _get_explicit_module_base_damage(module_definition) -> int:
+	if module_definition == null:
+		return 0
+	if module_definition is Dictionary:
+		return int(module_definition.get("module_base_damage", 0))
+	return int(module_definition.module_base_damage)
+
+
+func _get_definition_item_id(module_definition) -> StringName:
+	if module_definition == null:
+		return StringName()
+	if module_definition is Dictionary:
+		return StringName(String(module_definition.get("item_id", "")))
+	return module_definition.item_id
 
 
 func get_attack_base_damage_for_module(module_entry: Dictionary) -> int:
@@ -679,6 +744,7 @@ func get_shop_roll_context() -> Dictionary:
 		"owned_attack_module_ids": get_owned_attack_module_ids(),
 		"owned_function_module_ids": get_owned_function_module_ids(),
 		"luck": get_luck(),
+		"shop_locked_slots": get_current_shop_locked_slots(),
 	}
 
 
@@ -1360,7 +1426,10 @@ func _build_shop_item_snapshot(definition: Dictionary, slot_index: int = -1) -> 
 		var attack_purchase_state := can_add_or_synthesize_attack_module(StringName(item_id))
 		can_buy = can_afford and bool(attack_purchase_state.get("ok", false))
 		purchase_reason = String(attack_purchase_state.get("reason", ""))
+	var locked_item_id := get_shop_locked_item_id(slot_index)
 	var is_locked := is_shop_slot_locked(slot_index)
+	if is_locked and locked_item_id != StringName() and String(locked_item_id) != item_id:
+		is_locked = false
 	return {
 		"slot_index": slot_index,
 		"item_id": item_id,
@@ -1377,6 +1446,7 @@ func _build_shop_item_snapshot(definition: Dictionary, slot_index: int = -1) -> 
 		"can_afford": can_afford,
 		"can_buy": can_buy,
 		"is_locked": is_locked,
+		"locked_item_id": String(locked_item_id),
 		"can_lock": slot_index >= 0,
 		"purchase_reason": purchase_reason,
 	}

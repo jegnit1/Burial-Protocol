@@ -433,7 +433,8 @@ func _on_lock_pressed(index: int) -> void:
 		return
 	_selected_index = index
 	var entry: Dictionary = entries[index]
-	var locked := GameState.toggle_shop_slot_locked(index)
+	var item_id := StringName(String(entry.get("item_id", "")))
+	var locked := GameState.toggle_shop_slot_locked(index, item_id)
 	var action_text := "locked" if locked else "unlocked"
 	GameState.set_status_text("%s %s." % [String(entry.get("name", "Shop item")), action_text])
 	_refresh_ui()

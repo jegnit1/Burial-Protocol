@@ -126,7 +126,6 @@ func _get_attack_module_style_snapshot() -> Dictionary:
 			"attack_style": String(definition.attack_style),
 			"effect_style": String(definition.effect_style),
 			"module_base_damage": int(_game_state.call("get_module_base_damage", definition)),
-			"legacy_damage_multiplier": _round_to(float(definition.damage_multiplier), 3),
 			"base_shape_units": {
 				"x": _round_to(definition.base_shape_units.x, 3),
 				"y": _round_to(definition.base_shape_units.y, 3),
@@ -173,7 +172,6 @@ func _get_attack_module_damage_formula_snapshot() -> Dictionary:
 			grade_base_damage_by_grade[grade] = int(_game_state.call("get_attack_module_base_damage_for_grade", definition, grade))
 		var current_grade := String(definition.rank)
 		var current_grade_base_damage := int(grade_base_damage_by_grade.get(current_grade, d_grade_module_base_damage))
-		var legacy_base_damage := maxi(int(round(float(GC.PLAYER_ATTACK_DAMAGE) * float(definition.damage_multiplier))), 1)
 		var entry := {
 			"module_id": String(definition.module_id),
 			"grade": current_grade,
@@ -182,8 +180,6 @@ func _get_attack_module_damage_formula_snapshot() -> Dictionary:
 			"module_id": String(definition.module_id),
 			"module_type": String(definition.module_type),
 			"grade": current_grade,
-			"legacy_damage_multiplier": _round_to(float(definition.damage_multiplier), 3),
-			"legacy_converted_base_damage": legacy_base_damage,
 			"d_grade_module_base_damage": d_grade_module_base_damage,
 			"current_grade_module_base_damage": current_grade_base_damage,
 			"grade_base_damage_by_grade": grade_base_damage_by_grade,
@@ -195,10 +191,9 @@ func _get_attack_module_damage_formula_snapshot() -> Dictionary:
 			"ranged": "floor((grade_module_base_damage + ranged_attack_damage_flat) * global_damage_multiplier)",
 			"mechanic": "floor(grade_module_base_damage * global_damage_multiplier)",
 			"global_damage_multiplier": "1 + damage_percent",
-			"grade_base_damage": "Until grade-specific base damage data exists, fixed grade base = round(D-grade module_base_damage * legacy grade damage multiplier).",
-			"legacy_fallback": "D-grade module_base_damage missing -> round(PLAYER_ATTACK_DAMAGE * damage_multiplier)",
+			"grade_base_damage": "Use base_damage_by_grade[grade] when present, then module_base_damage, then fallback to 1 with a warning.",
 			"rank_grade_policy": "Attack module item rank is the equipped module grade.",
-			"laser_b_example": "laser_module rank B has fixed base round(2 * 1.35) = 3, so ranged +1 is floor((3 + 1) * 1.0) = 4.",
+			"laser_b_example": "laser_module rank B uses base_damage_by_grade.B when present, without applying grade_damage_mult.",
 		},
 		"items": rows,
 	}

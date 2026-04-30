@@ -65,7 +65,8 @@ func normalize_item_definition(item: Dictionary) -> Dictionary:
 	var normalized := item.duplicate(true)
 	ATTACK_MODULE_STYLE_RESOLVER.normalize_item_dictionary(normalized)
 	if String(normalized.get("item_category", "")) == "attack_module":
-		normalized["module_base_damage"] = _get_normalized_module_base_damage(normalized)
+		normalized["module_base_damage"] = int(normalized.get("module_base_damage", 0))
+		normalized["base_damage_by_grade"] = _normalize_base_damage_by_grade(normalized.get("base_damage_by_grade", {}))
 	var effect_type := String(normalized.get("effect_type", "none"))
 	var effect_values: Dictionary = {}
 	if normalized.get("effect_values", {}) is Dictionary:
@@ -92,12 +93,20 @@ func normalize_item_definition(item: Dictionary) -> Dictionary:
 	return normalized
 
 
-func _get_normalized_module_base_damage(item: Dictionary) -> int:
-	var explicit_base_damage := int(item.get("module_base_damage", 0))
-	if explicit_base_damage > 0:
-		return explicit_base_damage
-	var damage_multiplier := float(item.get("damage_multiplier", 1.0))
-	return maxi(int(round(float(GameConstants.PLAYER_ATTACK_DAMAGE) * damage_multiplier)), 1)
+func _normalize_base_damage_by_grade(raw_value: Variant) -> Dictionary:
+	var result: Dictionary = {}
+	if not raw_value is Dictionary:
+		return result
+	var raw_dictionary: Dictionary = raw_value
+	for raw_grade in raw_dictionary.keys():
+		var grade := String(raw_grade).strip_edges().to_upper()
+		if grade.is_empty():
+			continue
+		var damage := int(raw_dictionary[raw_grade])
+		if damage <= 0:
+			continue
+		result[grade] = damage
+	return result
 
 
 func _apply_damage_percent_display_text(item: Dictionary) -> void:
@@ -147,6 +156,11 @@ func roll_shop_item_ids(
 	context: Dictionary = {}
 ) -> PackedStringArray:
 	_rebuild_cache()
+	var rolled_ids := PackedStringArray()
+	var used_ids: Dictionary = {}
+	for _slot_index in range(desired_count):
+		rolled_ids.append("")
+	_apply_locked_shop_slots(rolled_ids, used_ids, desired_count, context)
 	var pool: Array[Dictionary] = []
 	for raw_item in get_all_items():
 		var item: Dictionary = raw_item
@@ -154,20 +168,71 @@ func roll_shop_item_ids(
 			continue
 		if _should_skip_item_for_roll(item, context):
 			continue
+		var item_id := String(item.get("item_id", ""))
+		if used_ids.has(item_id):
+			continue
 		pool.append(item)
-	var rolled_ids := PackedStringArray()
-	var used_ids: Dictionary = {}
-	while rolled_ids.size() < desired_count and not pool.is_empty():
+	while _has_empty_shop_roll_slot(rolled_ids) and not pool.is_empty():
 		var picked_index := _pick_weighted_index(rng, pool, context)
 		if picked_index < 0:
 			break
 		var picked_item: Dictionary = pool[picked_index]
-		var item_id := StringName(String(picked_item.get("item_id", "")))
-		if item_id != StringName() and not used_ids.has(item_id):
-			rolled_ids.append(String(item_id))
+		var item_id := String(picked_item.get("item_id", ""))
+		if not item_id.is_empty() and not used_ids.has(item_id):
+			var empty_slot_index := _find_empty_shop_roll_slot(rolled_ids)
+			if empty_slot_index < 0:
+				break
+			rolled_ids[empty_slot_index] = item_id
 			used_ids[item_id] = true
 		pool.remove_at(picked_index)
-	return rolled_ids
+	return _compact_shop_roll_ids(rolled_ids)
+
+
+func _apply_locked_shop_slots(
+	rolled_ids: PackedStringArray,
+	used_ids: Dictionary,
+	desired_count: int,
+	context: Dictionary
+) -> void:
+	if not context.has("shop_locked_slots") or not (context["shop_locked_slots"] is Dictionary):
+		return
+	var locked_slots: Dictionary = context["shop_locked_slots"]
+	for raw_slot_index in locked_slots.keys():
+		var slot_index := int(raw_slot_index)
+		if slot_index < 0 or slot_index >= desired_count:
+			continue
+		var raw_item_id = locked_slots[raw_slot_index]
+		if raw_item_id is bool:
+			continue
+		var item_id := String(raw_item_id)
+		if item_id.is_empty() or used_ids.has(item_id):
+			continue
+		var locked_item := get_item_definition(StringName(item_id))
+		if locked_item.is_empty() or not bool(locked_item.get("shop_enabled", true)):
+			continue
+		rolled_ids[slot_index] = item_id
+		used_ids[item_id] = true
+
+
+func _has_empty_shop_roll_slot(rolled_ids: PackedStringArray) -> bool:
+	return _find_empty_shop_roll_slot(rolled_ids) >= 0
+
+
+func _find_empty_shop_roll_slot(rolled_ids: PackedStringArray) -> int:
+	for slot_index in range(rolled_ids.size()):
+		if String(rolled_ids[slot_index]).is_empty():
+			return slot_index
+	return -1
+
+
+func _compact_shop_roll_ids(rolled_ids: PackedStringArray) -> PackedStringArray:
+	var compact_ids := PackedStringArray()
+	for raw_item_id in rolled_ids:
+		var item_id := String(raw_item_id)
+		if item_id.is_empty():
+			continue
+		compact_ids.append(item_id)
+	return compact_ids
 
 
 func _should_skip_item_for_roll(_item: Dictionary, _context: Dictionary) -> bool:

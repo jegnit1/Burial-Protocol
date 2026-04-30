@@ -1,0 +1,9 @@
+size_id	size_group	base_spawn_weight	normal_multiplier	hard_multiplier	extreme_multiplier	hell_multiplier	nightmare_multiplier	day_1_5_multiplier	day_6_10_multiplier	day_11_15_multiplier	day_16_20_multiplier	day_21_25_multiplier	day_26_30_multiplier	min_day_hint	notes
+size_1x1	tiny	1.0	1.0	0.95	0.9	0.85	0.8	1.0	1.0	0.95	0.9	0.85	0.8	1	v2 simulation; no hard min_stage gate
+size_1x2	tall_small	0.95	1.0	0.95	0.9	0.85	0.8	1.0	1.0	0.95	0.9	0.85	0.8	1	v2 simulation; no hard min_stage gate
+size_2x1	small	0.85	1.0	0.95	0.9	0.85	0.8	1.0	1.0	0.95	0.9	0.85	0.8	1	v2 simulation; no hard min_stage gate
+size_2x2	medium	0.55	1.0	1.2	1.35	1.5	1.7	0.15	0.4	0.75	1.0	1.0	1.0	6	v2 simulation; Normal early uses low multiplier instead of hard lock
+size_1x3	tall_small	0.55	1.0	0.95	0.9	0.85	0.8	0.08	0.2	0.55	0.85	1.0	1.0	6	v2 simulation; Normal can roll with low early weight
+size_3x1	wide_small	0.4	1.0	1.35	1.65	1.9	2.2	0.03	0.12	0.35	0.65	0.85	1.0	11	v2 simulation; wide pressure ramps by day
+size_1x4	event_like	0.3	1.0	1.8	2.4	3.0	3.6	0.001	0.001	0.001	0.003	0.005	0.008	0	height 4 is excluded by v2 general spawn hard rule
+size_4x1	wide_small	0.2	1.0	1.35	1.65	1.9	2.2	0.005	0.03	0.12	0.35	0.65	0.9	16	v2 simulation; wide pressure ramps by day

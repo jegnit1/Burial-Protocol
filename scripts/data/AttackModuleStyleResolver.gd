@@ -222,15 +222,13 @@ static func get_ranged_projectile_count(module_definition, attack_style: String 
 static func get_ranged_spread_angle(module_definition) -> float:
 	if module_definition == null:
 		return 0.0
-	if module_definition.spread_angle > 0.0:
-		return module_definition.spread_angle
-	return module_definition.projectile_spread_degrees
+	return maxf(module_definition.spread_angle, 0.0)
 
 
 static func get_ranged_pierce_count(module_definition) -> int:
 	if module_definition == null:
 		return 0
-	return max(module_definition.pierce_count, module_definition.projectile_pierce_count)
+	return max(module_definition.pierce_count, 0)
 
 
 static func is_ranged_hitscan(module_definition, attack_style: String = "") -> bool:
@@ -239,7 +237,7 @@ static func is_ranged_hitscan(module_definition, attack_style: String = "") -> b
 	var resolved_style := attack_style
 	if resolved_style.is_empty():
 		resolved_style = String(get_attack_style(module_definition))
-	return resolved_style == "laser" or module_definition.is_hitscan or module_definition.projectile_hit_scan
+	return resolved_style == "laser" or module_definition.is_hitscan
 
 
 static func get_ranged_projectile_visual_size(module_definition) -> Vector2:
@@ -247,21 +245,16 @@ static func get_ranged_projectile_visual_size(module_definition) -> Vector2:
 		return Vector2(18.0, 6.0)
 	if module_definition.projectile_visual_size.x > 0.0 and module_definition.projectile_visual_size.y > 0.0:
 		return module_definition.projectile_visual_size
-	return module_definition.projectile_size
+	return Vector2(18.0, 6.0)
 
 
 static func _normalize_ranged_item_dictionary(item: Dictionary, style_defaults: Dictionary) -> void:
 	item["range_units"] = float(item.get("range_units", item.get("range_width_u", 0.0)))
 	item["range_growth_scale"] = float(item.get("range_growth_scale", style_defaults.get("range_growth_scale", 1.0)))
 	item["projectile_count"] = int(item.get("projectile_count", style_defaults.get("projectile_count", 1)))
-	item["spread_angle"] = float(item.get("spread_angle", item.get("projectile_spread_degrees", style_defaults.get("spread_angle", 0.0))))
-	item["pierce_count"] = int(item.get("pierce_count", item.get("projectile_pierce_count", style_defaults.get("pierce_count", 0))))
-	item["is_hitscan"] = bool(item.get("is_hitscan", item.get("projectile_hit_scan", style_defaults.get("is_hitscan", false))))
-	item["projectile_visual_size_x"] = float(item.get("projectile_visual_size_x", item.get("projectile_size_x", style_defaults.get("projectile_visual_size_x", 18.0))))
-	item["projectile_visual_size_y"] = float(item.get("projectile_visual_size_y", item.get("projectile_size_y", style_defaults.get("projectile_visual_size_y", 6.0))))
+	item["spread_angle"] = float(item.get("spread_angle", style_defaults.get("spread_angle", 0.0)))
+	item["pierce_count"] = int(item.get("pierce_count", style_defaults.get("pierce_count", 0)))
+	item["is_hitscan"] = bool(item.get("is_hitscan", style_defaults.get("is_hitscan", false)))
+	item["projectile_visual_size_x"] = float(item.get("projectile_visual_size_x", style_defaults.get("projectile_visual_size_x", 18.0)))
+	item["projectile_visual_size_y"] = float(item.get("projectile_visual_size_y", style_defaults.get("projectile_visual_size_y", 6.0)))
 	item["range_width_u"] = float(item.get("range_width_u", item["range_units"]))
-	item["projectile_spread_degrees"] = float(item.get("projectile_spread_degrees", item["spread_angle"]))
-	item["projectile_pierce_count"] = int(item.get("projectile_pierce_count", item["pierce_count"]))
-	item["projectile_hit_scan"] = bool(item.get("projectile_hit_scan", item["is_hitscan"]))
-	item["projectile_size_x"] = float(item.get("projectile_size_x", item["projectile_visual_size_x"]))
-	item["projectile_size_y"] = float(item.get("projectile_size_y", item["projectile_visual_size_y"]))

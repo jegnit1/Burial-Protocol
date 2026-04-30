@@ -127,6 +127,7 @@ func _convert_shop_item_catalog(input_dir: String) -> Dictionary:
 
 func _build_attack_module_item_definition(row: Dictionary, errors: Array[String]):
 	var definition = SHOP_ITEM_DEFINITION_SCRIPT.new()
+	var base_damage_by_grade := _build_base_damage_by_grade(row, errors)
 	definition.apply_dictionary({
 		"item_id": _validation.get_required_string(row, "item_id", TSV_SCHEMA.ATTACK_MODULE_ITEMS_FILE, errors),
 		"name": _validation.get_required_string(row, "name", TSV_SCHEMA.ATTACK_MODULE_ITEMS_FILE, errors),
@@ -146,19 +147,28 @@ func _build_attack_module_item_definition(row: Dictionary, errors: Array[String]
 		"tags": Array(_validation.get_string_list(row, "tags")),
 		"module_type": _validation.get_required_string(row, "module_type", TSV_SCHEMA.ATTACK_MODULE_ITEMS_FILE, errors),
 		"attack_style": _validation.get_optional_string(row, "attack_style"),
+		"effect_style": _validation.get_optional_string(row, "effect_style"),
+		"base_shape_units_x": _validation.get_optional_float(row, "base_shape_units_x", 0.0),
+		"base_shape_units_y": _validation.get_optional_float(row, "base_shape_units_y", 0.0),
+		"range_growth_width_scale": _validation.get_optional_float(row, "range_growth_width_scale", 1.0),
+		"range_growth_height_scale": _validation.get_optional_float(row, "range_growth_height_scale", 0.1),
+		"hit_shape": _validation.get_optional_string(row, "hit_shape"),
+		"range_units": _validation.get_optional_float(row, "range_units", 0.0),
+		"range_growth_scale": _validation.get_optional_float(row, "range_growth_scale", 1.0),
 		"range_width_u": _validation.get_required_float(row, "range_width_u", TSV_SCHEMA.ATTACK_MODULE_ITEMS_FILE, errors),
 		"range_height_u": _validation.get_required_float(row, "range_height_u", TSV_SCHEMA.ATTACK_MODULE_ITEMS_FILE, errors),
-		"damage_multiplier": _validation.get_required_float(row, "damage_multiplier", TSV_SCHEMA.ATTACK_MODULE_ITEMS_FILE, errors),
+		"module_base_damage": _validation.get_required_int(row, "module_base_damage", TSV_SCHEMA.ATTACK_MODULE_ITEMS_FILE, errors),
+		"base_damage_by_grade": base_damage_by_grade,
 		"attack_speed_multiplier": _validation.get_required_float(row, "attack_speed_multiplier", TSV_SCHEMA.ATTACK_MODULE_ITEMS_FILE, errors),
 		"projectile_count": _validation.get_optional_int(row, "projectile_count", 1),
-		"projectile_spread_degrees": _validation.get_optional_float(row, "projectile_spread_degrees", 0.0),
-		"projectile_pierce_count": _validation.get_optional_int(row, "projectile_pierce_count", 0),
+		"spread_angle": _validation.get_optional_float(row, "spread_angle", 0.0),
+		"pierce_count": _validation.get_optional_int(row, "pierce_count", 0),
 		"projectile_speed": _validation.get_optional_float(row, "projectile_speed", 900.0),
 		"projectile_lifetime": _validation.get_optional_float(row, "projectile_lifetime", 1.2),
 		"projectile_max_distance": _validation.get_optional_float(row, "projectile_max_distance", 900.0),
-		"projectile_size_x": _validation.get_optional_float(row, "projectile_size_x", 18.0),
-		"projectile_size_y": _validation.get_optional_float(row, "projectile_size_y", 6.0),
-		"projectile_hit_scan": _validation.get_optional_bool(row, "projectile_hit_scan", false),
+		"projectile_visual_size_x": _validation.get_optional_float(row, "projectile_visual_size_x", 18.0),
+		"projectile_visual_size_y": _validation.get_optional_float(row, "projectile_visual_size_y", 6.0),
+		"is_hitscan": _validation.get_optional_bool(row, "is_hitscan", false),
 		"projectile_homing": _validation.get_optional_bool(row, "projectile_homing", false),
 		"mechanic_drone_count": _validation.get_optional_int(row, "mechanic_drone_count", 1),
 		"mechanic_targeting": _validation.get_optional_string(row, "mechanic_targeting"),
@@ -167,13 +177,23 @@ func _build_attack_module_item_definition(row: Dictionary, errors: Array[String]
 	return definition
 
 
+func _build_base_damage_by_grade(row: Dictionary, errors: Array[String]) -> Dictionary:
+	var base_damage_by_grade: Dictionary = {}
+	for grade in TSV_SCHEMA.ATTACK_MODULE_BASE_DAMAGE_GRADES:
+		var column := "base_damage_%s" % grade
+		var damage := _validation.get_required_int(row, column, TSV_SCHEMA.ATTACK_MODULE_ITEMS_FILE, errors)
+		if damage > 0:
+			base_damage_by_grade[grade] = damage
+	return base_damage_by_grade
+
+
 func _build_effect_item_definition(row: Dictionary, errors: Array[String]):
 	var file_label := TSV_SCHEMA.FUNCTION_MODULE_ITEMS_FILE
 	var item_category := _validation.get_required_string(row, "item_category", file_label, errors)
 	if item_category == "enhance_module":
 		file_label = TSV_SCHEMA.ENHANCE_MODULE_ITEMS_FILE
 	var definition = SHOP_ITEM_DEFINITION_SCRIPT.new()
-	definition.apply_dictionary({
+	var definition_data := {
 		"item_id": _validation.get_required_string(row, "item_id", file_label, errors),
 		"name": _validation.get_required_string(row, "name", file_label, errors),
 		"item_category": item_category,
@@ -191,7 +211,17 @@ func _build_effect_item_definition(row: Dictionary, errors: Array[String]):
 		"tags": Array(_validation.get_string_list(row, "tags")),
 		"effect_type": _validation.get_required_string(row, "effect_type", file_label, errors),
 		"effect_values": _validation.get_effect_values(row),
-	})
+	}
+	var conditions := _validation.get_dictionary_array_json(row, "conditions_json", file_label, errors)
+	var effects := _validation.get_dictionary_array_json(row, "effects_json", file_label, errors)
+	var apply_timing := _validation.get_optional_string(row, "apply_timing")
+	if not conditions.is_empty():
+		definition_data["conditions"] = conditions
+	if not effects.is_empty():
+		definition_data["effects"] = effects
+	if not apply_timing.is_empty():
+		definition_data["apply_timing"] = apply_timing
+	definition.apply_dictionary(definition_data)
 	return definition
 
 
