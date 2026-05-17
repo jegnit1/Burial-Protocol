@@ -7,6 +7,15 @@ const ATTACK_MODULE_STYLE_RESOLVER := preload("res://scripts/data/AttackModuleSt
 const CATEGORY_ATTACK_MODULE: StringName = &"attack_module"
 const CATEGORY_FUNCTION_MODULE: StringName = &"function_module"
 const CATEGORY_ENHANCE_MODULE: StringName = &"enhance_module"
+const ATTACK_MODULE_OFFER_SEPARATOR := "@"
+const ATTACK_MODULE_SHOP_GRADES := ["D", "C", "B", "A", "S"]
+const ATTACK_MODULE_FALLBACK_PRICES := {
+	"D": 15,
+	"C": 30,
+	"B": 60,
+	"A": 120,
+	"S": 240,
+}
 
 # 상점 랭크 분포는 현재 Day/Stage를 먼저 보고, 행운은 그 분포를 살짝 보정만 한다.
 const STAGE_RANK_WEIGHT_TABLE := [
@@ -42,6 +51,13 @@ func get_item_definition(item_id: StringName) -> Dictionary:
 	_rebuild_cache()
 	if _items_by_id.has(item_id):
 		return (_items_by_id[item_id] as Dictionary).duplicate(true)
+	var offer_data := parse_attack_module_offer_item_id(String(item_id))
+	if not offer_data.is_empty():
+		var module_id := StringName(String(offer_data.get("module_id", "")))
+		var grade := String(offer_data.get("grade", "D"))
+		if _items_by_id.has(module_id):
+			var base_item: Dictionary = _items_by_id[module_id]
+			return _build_attack_module_offer_definition(base_item, grade)
 	return {}
 
 
@@ -56,9 +72,33 @@ func get_items_by_category(category: StringName) -> Array[Dictionary]:
 	return items
 
 
+func get_reward_candidate_items_for_rank(rank: String) -> Array[Dictionary]:
+	_rebuild_cache()
+	var normalized_rank := rank.strip_edges().to_upper()
+	var candidates: Array[Dictionary] = []
+	for raw_item in get_all_items():
+		var item: Dictionary = raw_item
+		if not bool(item.get("shop_enabled", true)):
+			continue
+		var category := String(item.get("item_category", ""))
+		if category != String(CATEGORY_ATTACK_MODULE) and category != String(CATEGORY_FUNCTION_MODULE) and category != String(CATEGORY_ENHANCE_MODULE):
+			continue
+		if category == String(CATEGORY_ATTACK_MODULE):
+			var offer := _build_reward_attack_module_candidate(item, normalized_rank)
+			if not offer.is_empty():
+				candidates.append(offer)
+			continue
+		if String(item.get("rank", "D")).strip_edges().to_upper() == normalized_rank:
+			candidates.append(item)
+	return candidates
+
+
 func has_item(item_id: StringName) -> bool:
 	_rebuild_cache()
-	return _items_by_id.has(item_id)
+	if _items_by_id.has(item_id):
+		return true
+	var offer_data := parse_attack_module_offer_item_id(String(item_id))
+	return not offer_data.is_empty() and _items_by_id.has(StringName(String(offer_data.get("module_id", ""))))
 
 
 func normalize_item_definition(item: Dictionary) -> Dictionary:
@@ -67,6 +107,7 @@ func normalize_item_definition(item: Dictionary) -> Dictionary:
 	if String(normalized.get("item_category", "")) == "attack_module":
 		normalized["module_base_damage"] = int(normalized.get("module_base_damage", 0))
 		normalized["base_damage_by_grade"] = _normalize_base_damage_by_grade(normalized.get("base_damage_by_grade", {}))
+		normalized["price_by_grade"] = _normalize_price_by_grade(normalized.get("price_by_grade", {}))
 	var effect_type := String(normalized.get("effect_type", "none"))
 	var effect_values: Dictionary = {}
 	if normalized.get("effect_values", {}) is Dictionary:
@@ -106,6 +147,22 @@ func _normalize_base_damage_by_grade(raw_value: Variant) -> Dictionary:
 		if damage <= 0:
 			continue
 		result[grade] = damage
+	return result
+
+
+func _normalize_price_by_grade(raw_value: Variant) -> Dictionary:
+	var result: Dictionary = {}
+	if not raw_value is Dictionary:
+		return result
+	var raw_dictionary: Dictionary = raw_value
+	for raw_grade in raw_dictionary.keys():
+		var grade := String(raw_grade).strip_edges().to_upper()
+		if grade.is_empty():
+			continue
+		var price := int(raw_dictionary[raw_grade])
+		if price <= 0:
+			continue
+		result[grade] = price
 	return result
 
 
@@ -168,6 +225,17 @@ func roll_shop_item_ids(
 			continue
 		if _should_skip_item_for_roll(item, context):
 			continue
+		if String(item.get("item_category", "")) == String(CATEGORY_ATTACK_MODULE):
+			var module_id := String(item.get("item_id", ""))
+			if used_ids.has(_get_attack_module_used_key(module_id)):
+				continue
+			for grade in ATTACK_MODULE_SHOP_GRADES:
+				if not _can_offer_attack_module_grade(item, grade):
+					continue
+				var offer := _build_attack_module_offer_definition(item, grade)
+				if not offer.is_empty():
+					pool.append(offer)
+			continue
 		var item_id := String(item.get("item_id", ""))
 		if used_ids.has(item_id):
 			continue
@@ -178,12 +246,13 @@ func roll_shop_item_ids(
 			break
 		var picked_item: Dictionary = pool[picked_index]
 		var item_id := String(picked_item.get("item_id", ""))
-		if not item_id.is_empty() and not used_ids.has(item_id):
+		var used_key := _get_shop_roll_used_key(item_id)
+		if not item_id.is_empty() and not used_ids.has(used_key):
 			var empty_slot_index := _find_empty_shop_roll_slot(rolled_ids)
 			if empty_slot_index < 0:
 				break
 			rolled_ids[empty_slot_index] = item_id
-			used_ids[item_id] = true
+			used_ids[used_key] = true
 		pool.remove_at(picked_index)
 	return _compact_shop_roll_ids(rolled_ids)
 
@@ -205,13 +274,14 @@ func _apply_locked_shop_slots(
 		if raw_item_id is bool:
 			continue
 		var item_id := String(raw_item_id)
-		if item_id.is_empty() or used_ids.has(item_id):
+		var used_key := _get_shop_roll_used_key(item_id)
+		if item_id.is_empty() or used_ids.has(used_key):
 			continue
 		var locked_item := get_item_definition(StringName(item_id))
 		if locked_item.is_empty() or not bool(locked_item.get("shop_enabled", true)):
 			continue
 		rolled_ids[slot_index] = item_id
-		used_ids[item_id] = true
+		used_ids[used_key] = true
 
 
 func _has_empty_shop_roll_slot(rolled_ids: PackedStringArray) -> bool:
@@ -270,6 +340,78 @@ func _get_shop_weight(item: Dictionary, context: Dictionary) -> float:
 	if rank_weight <= 0.0:
 		return 0.0
 	return rank_weight * _get_luck_multiplier_for_rank(rank, luck) * _get_item_modifier_weight(item)
+
+
+static func make_attack_module_offer_item_id(module_id: String, grade: String) -> String:
+	return "%s%s%s" % [module_id, ATTACK_MODULE_OFFER_SEPARATOR, grade]
+
+
+static func parse_attack_module_offer_item_id(item_id: String) -> Dictionary:
+	var separator_index := item_id.rfind(ATTACK_MODULE_OFFER_SEPARATOR)
+	if separator_index <= 0 or separator_index >= item_id.length() - 1:
+		return {}
+	var module_id := item_id.substr(0, separator_index)
+	var grade := item_id.substr(separator_index + 1).strip_edges().to_upper()
+	if not ATTACK_MODULE_SHOP_GRADES.has(grade):
+		return {}
+	return {
+		"module_id": module_id,
+		"grade": grade,
+	}
+
+
+func _build_attack_module_offer_definition(base_item: Dictionary, grade: String) -> Dictionary:
+	var offer := base_item.duplicate(true)
+	var module_id := String(base_item.get("module_id", base_item.get("item_id", "")))
+	if module_id.is_empty():
+		return {}
+	var normalized_grade := grade.strip_edges().to_upper()
+	if not ATTACK_MODULE_SHOP_GRADES.has(normalized_grade):
+		normalized_grade = "D"
+	offer["module_id"] = module_id
+	offer["item_id"] = make_attack_module_offer_item_id(module_id, normalized_grade)
+	offer["rank"] = normalized_grade
+	offer["grade"] = normalized_grade
+	offer["price_gold"] = _get_attack_module_price_for_grade(base_item, normalized_grade)
+	offer["stackable"] = false
+	offer["max_stack"] = 1
+	offer["equip_slot"] = "attack_module"
+	offer["is_equippable"] = true
+	return offer
+
+
+func _can_offer_attack_module_grade(item: Dictionary, grade: String) -> bool:
+	var base_damage_by_grade: Dictionary = item.get("base_damage_by_grade", {})
+	if int(base_damage_by_grade.get(grade, 0)) <= 0:
+		return false
+	return _get_attack_module_price_for_grade(item, grade) > 0
+
+
+func _build_reward_attack_module_candidate(item: Dictionary, rank: String) -> Dictionary:
+	if _can_offer_attack_module_grade(item, rank):
+		return _build_attack_module_offer_definition(item, rank)
+	if String(item.get("rank", "D")).strip_edges().to_upper() == rank:
+		return item.duplicate(true)
+	return {}
+
+
+func _get_attack_module_price_for_grade(item: Dictionary, grade: String) -> int:
+	var price_by_grade: Dictionary = item.get("price_by_grade", {})
+	var price := int(price_by_grade.get(grade, 0))
+	if price > 0:
+		return price
+	return int(ATTACK_MODULE_FALLBACK_PRICES.get(grade, 15))
+
+
+func _get_shop_roll_used_key(item_id: String) -> String:
+	var offer_data := parse_attack_module_offer_item_id(item_id)
+	if offer_data.is_empty():
+		return item_id
+	return _get_attack_module_used_key(String(offer_data.get("module_id", "")))
+
+
+func _get_attack_module_used_key(module_id: String) -> String:
+	return "attack_module:%s" % module_id
 
 
 func _get_rank_weights_for_stage(stage_number: int) -> Dictionary:

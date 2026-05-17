@@ -7,6 +7,8 @@ const DAY_SHOP_UI_SCRIPT := preload("res://scenes/ui/DayShopUI.gd")
 const PAUSE_MENU_SCRIPT := preload("res://scenes/ui/PauseMenu.gd")
 const ATTACK_MODULE_PROJECTILE_SCRIPT := preload("res://scenes/projectiles/AttackModuleProjectile.gd")
 const ATTACK_MODULE_STYLE_RESOLVER := preload("res://scripts/data/AttackModuleStyleResolver.gd")
+const WALL_TREASURE_MANAGER_SCRIPT := preload("res://scripts/data/WallTreasureManager.gd")
+const TREASURE_REWARD_POPUP_SCENE := preload("res://scenes/ui/TreasureRewardPopup.tscn")
 const CAMERA_PLAYER_Y_OFFSET := 110.0
 const RANGED_PROJECTILE_LANE_GAP_UNITS := 0.26
 
@@ -44,6 +46,10 @@ var _current_shop_item_ids := PackedStringArray()
 var _has_shop_inventory_for_intermission := false
 var _last_mining_idle_status_text := ""
 var _last_mining_idle_status_time := -INF
+var _wall_treasure_manager: Node2D
+var _treasure_reward_popup: CanvasLayer
+var _active_treasure_marker_id := ""
+var _treasure_popup_was_paused := false
 
 var _current_day := 1
 var _day_time_remaining := 0.0
@@ -59,6 +65,7 @@ func _ready() -> void:
 	player.setup(world_grid, sand_field, blocks_root)
 	_ensure_projectiles_root()
 	_ensure_fade_overlay()
+	_setup_wall_treasure_manager()
 	_current_day = 1
 	_day_time_remaining = GameData.get_day_duration(_current_day)
 	GameState.current_day = _current_day
@@ -113,10 +120,15 @@ func _physics_process(delta: float) -> void:
 	if not _is_next_day_transitioning:
 		sand_field.step_simulation(player.get_body_rect())
 
-	if _is_intermission and not _shop_ui_open and not _is_next_day_transitioning:
-		_update_day_kiosk_prompt()
-		if Input.is_action_just_pressed("interact_action") and _is_player_near_day_kiosk():
-			_open_day_shop()
+	if not _shop_ui_open and not _is_next_day_transitioning and _treasure_reward_popup == null:
+		_update_treasure_interaction_prompt()
+		if _is_intermission:
+			_update_day_kiosk_prompt()
+		if Input.is_action_just_pressed("interact_action"):
+			if not _try_open_nearest_treasure_popup() and _is_intermission and _is_player_near_day_kiosk():
+				_open_day_shop()
+	else:
+		_hide_treasure_interaction_prompt()
 
 	_check_run_end_conditions()
 	if run_finished:
@@ -489,6 +501,8 @@ func _handle_mining_action(direction: Vector2) -> void:
 	var wall_hits := int(wall_result["hit_count"])
 	var wall_removed := int(wall_result["removed_count"])
 	if wall_hits > 0:
+		if _wall_treasure_manager != null:
+			_wall_treasure_manager.call("handle_mined_wall_subcells", wall_result.get("removed_subcells", []))
 		GameState.set_status_text(Locale.ltr("status_mine_wall") % [wall_hits, wall_removed])
 		return
 	_set_mining_idle_status(Locale.ltr("status_mine_nothing"))
@@ -652,7 +666,14 @@ func _update_day_kiosk_prompt() -> void:
 	var kiosk_ready := true
 	if _day_kiosk.has_method("is_interactable"):
 		kiosk_ready = bool(_day_kiosk.call("is_interactable"))
-	var can_interact := kiosk_ready and _is_player_near_day_kiosk() and not _shop_ui_open and not _is_next_day_transitioning
+	var can_interact := (
+		kiosk_ready
+		and _is_player_near_day_kiosk()
+		and not _shop_ui_open
+		and not _is_next_day_transitioning
+		and _treasure_reward_popup == null
+		and _get_nearest_interactable_treasure_marker() == null
+	)
 	if _day_kiosk.has_method("set_interaction_available"):
 		_day_kiosk.call("set_interaction_available", can_interact)
 
@@ -672,6 +693,111 @@ func _is_player_near_day_kiosk() -> bool:
 	if _day_kiosk.has_method("is_interactable") and not bool(_day_kiosk.call("is_interactable")):
 		return false
 	return player.global_position.distance_to(_day_kiosk.global_position) <= GameConstants.DAY_KIOSK_INTERACTION_RANGE
+
+
+func _update_treasure_interaction_prompt() -> void:
+	if _wall_treasure_manager == null:
+		return
+	_wall_treasure_manager.call(
+		"update_interaction_prompt",
+		_get_player_interaction_position(),
+		GameConstants.DAY_KIOSK_INTERACTION_RANGE,
+		not _shop_ui_open and not _is_next_day_transitioning and _treasure_reward_popup == null
+	)
+
+
+func _hide_treasure_interaction_prompt() -> void:
+	if _wall_treasure_manager == null:
+		return
+	_wall_treasure_manager.call("hide_interaction_prompt")
+
+
+func _get_nearest_interactable_treasure_marker():
+	if _wall_treasure_manager == null:
+		return null
+	return _wall_treasure_manager.call(
+		"get_nearest_interactable_marker",
+		_get_player_interaction_position(),
+		GameConstants.DAY_KIOSK_INTERACTION_RANGE
+	)
+
+
+func _get_player_interaction_position() -> Vector2:
+	return player.get_body_rect().get_center()
+
+
+func _try_open_nearest_treasure_popup() -> bool:
+	if _treasure_reward_popup != null or _shop_ui_open or _is_next_day_transitioning:
+		return false
+	var marker = _get_nearest_interactable_treasure_marker()
+	if marker == null:
+		return false
+	_open_treasure_reward_popup(marker)
+	return true
+
+
+func _open_treasure_reward_popup(marker) -> void:
+	if _treasure_reward_popup != null:
+		return
+	var reward_snapshot: Dictionary = _wall_treasure_manager.call("prepare_reward_for_marker", marker)
+	_hide_treasure_interaction_prompt()
+	_active_treasure_marker_id = String(marker.marker_id)
+	_treasure_popup_was_paused = get_tree().paused
+	_treasure_reward_popup = TREASURE_REWARD_POPUP_SCENE.instantiate() as CanvasLayer
+	add_child(_treasure_reward_popup)
+	if _treasure_reward_popup.has_method("setup"):
+		_treasure_reward_popup.call("setup", _wall_treasure_manager.call("get_marker_snapshot", marker), reward_snapshot)
+	if _treasure_reward_popup.has_signal("closed"):
+		_treasure_reward_popup.closed.connect(_on_treasure_reward_popup_closed)
+	if _treasure_reward_popup.has_signal("claim_requested"):
+		_treasure_reward_popup.claim_requested.connect(_on_treasure_reward_claim_requested)
+	if _treasure_reward_popup.has_signal("sell_requested"):
+		_treasure_reward_popup.sell_requested.connect(_on_treasure_reward_sell_requested)
+	get_tree().paused = true
+
+
+func _on_treasure_reward_popup_closed() -> void:
+	_treasure_reward_popup = null
+	_active_treasure_marker_id = ""
+	get_tree().paused = _treasure_popup_was_paused
+	_update_treasure_interaction_prompt()
+
+
+func _on_treasure_reward_claim_requested(reward_snapshot: Dictionary) -> void:
+	var item_id := String(reward_snapshot.get("item_id", ""))
+	var result := GameState.grant_shop_item_reward(StringName(item_id), "treasure_chest")
+	if not bool(result.get("ok", false)):
+		if _treasure_reward_popup != null and _treasure_reward_popup.has_method("show_result_message"):
+			_treasure_reward_popup.call("show_result_message", "Could not obtain reward: %s" % String(result.get("reason", "unknown")), true)
+		return
+	_consume_active_treasure_marker()
+	GameState.set_status_text("Treasure obtained: %s" % String(reward_snapshot.get("name", item_id)))
+	_close_treasure_reward_popup()
+
+
+func _on_treasure_reward_sell_requested(reward_snapshot: Dictionary) -> void:
+	var sell_price := int(reward_snapshot.get("sell_price", 0))
+	if sell_price > 0:
+		GameState.add_gold(sell_price)
+	_consume_active_treasure_marker()
+	GameState.set_status_text("Treasure sold: +%dG" % sell_price)
+	_close_treasure_reward_popup()
+
+
+func _consume_active_treasure_marker() -> void:
+	if _wall_treasure_manager == null or _active_treasure_marker_id.is_empty():
+		return
+	_wall_treasure_manager.call("consume_marker", _active_treasure_marker_id)
+
+
+func _close_treasure_reward_popup() -> void:
+	if _treasure_reward_popup == null or not is_instance_valid(_treasure_reward_popup):
+		_treasure_reward_popup = null
+		_active_treasure_marker_id = ""
+		get_tree().paused = _treasure_popup_was_paused
+		return
+	_treasure_reward_popup.queue_free()
+	_on_treasure_reward_popup_closed()
 
 
 func _open_day_shop() -> void:
@@ -812,6 +938,7 @@ func _restore_side_walls_preserving_sand() -> void:
 	var collected_count := extracted_cells.size()
 	var sand_after_extract := sand_field.get_sand_count()
 	world_grid.restore_mining_walls()
+	_generate_wall_treasure_markers()
 	var blocked_rects := _collect_transition_blocking_rects()
 	var placed_count := sand_field.redistribute_sand_cells_to_center(extracted_cells, blocked_rects)
 	if placed_count < extracted_cells.size():
@@ -883,6 +1010,19 @@ func _collect_transition_blocking_rects() -> Array[Rect2]:
 	return blocked_rects
 
 
+func _setup_wall_treasure_manager() -> void:
+	_wall_treasure_manager = WALL_TREASURE_MANAGER_SCRIPT.new() as Node2D
+	add_child(_wall_treasure_manager)
+	_wall_treasure_manager.call("setup")
+	_generate_wall_treasure_markers()
+
+
+func _generate_wall_treasure_markers() -> void:
+	if _wall_treasure_manager == null:
+		return
+	_wall_treasure_manager.call("generate_markers_for_wall_reset", rng)
+
+
 func _ensure_fade_overlay() -> void:
 	if _fade_overlay != null:
 		return
@@ -914,6 +1054,9 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _toggle_pause_menu() -> void:
+	if _treasure_reward_popup != null:
+		_close_treasure_reward_popup()
+		return
 	if _shop_ui_open:
 		_close_day_shop()
 		GameState.set_status_text("?곸젏???レ븯?듬땲?? ?ㅼ삤?ㅽ겕?먯꽌 ?ㅼ떆 ?????덉뒿?덈떎.")

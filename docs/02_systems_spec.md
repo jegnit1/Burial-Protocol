@@ -1,14 +1,14 @@
 # Burial Protocol - Systems Specification
 
-기준일: `2026-04-28`  
-기준 브랜치: `main`
+기준일: `2026-05-01`
+기준 브랜치: `visual-density-camera-hud`
 
 ---
 
 ## 0. 목적
 
 이 문서는 Burial Protocol의 실제 구현 기준 시스템 스펙을 하나로 통합한 문서다.
-기존의 `game_structure_spec`, `gameplay_systems_spec`, `attack_module_system_spec`, `block material/size draft`, `HUD/UI 문서`에 흩어져 있던 내용을 이 문서로 통합한다.
+기존의 `game_structure_spec`, `gameplay_systems_spec`, `block material/size draft`, `HUD/UI 문서`에 흩어져 있던 내용을 이 문서로 통합한다. 공격모듈 세부 구현 기준은 `06_attack_modules.md`를 canonical 문서로 둔다.
 
 이 문서는 Codex 또는 개발자가 기능을 수정할 때 우선 참고하는 메인 시스템 스펙이다.
 
@@ -417,6 +417,21 @@ intermission 진입 후 `3초` 유예가 지나면 채굴만 정지된다.
 
 치명타는 공격에만 적용되며 채굴에는 적용되지 않는다.
 
+### 7-7. 데미지 기준
+
+공격모듈 기본 데미지는 아래 우선순위로 선택한다.
+
+```text
+1. base_damage_by_grade[current_grade]
+2. module_base_damage
+3. 둘 다 없거나 0이면 warning 출력 후 1
+```
+
+공격모듈 직접 필드 `damage_multiplier`와 legacy projectile alias는 제거되었다.
+`effect_values.damage_multiplier`는 function/enhance 모듈 효과값으로만 남아 있으며 공격모듈 직접 데미지 필드가 아니다.
+
+최종 공격모듈 데미지에는 `grade_damage_mult`를 곱하지 않는다.
+
 ---
 
 ## 8. Block / Spawn
@@ -437,6 +452,8 @@ Runtime Block = Material x Size + optional Type
 
 ### 8-2. 스폰 흐름
 
+현재 라이브 스폰은 v1 흐름이다.
+
 1. 현재 난이도와 Day 확인
 2. `BlockCatalog`에서 유효 candidate 수집
 3. candidate weight 기반 랜덤 선택
@@ -444,6 +461,10 @@ Runtime Block = Material x Size + optional Type
 5. `BlockSpawnResolver`가 resolved definition 생성
 6. `BlockData`로 변환
 7. `FallingBlock` 생성
+
+v1의 candidate는 `Material x Size` 조합이며, `max_allowed_area`, `max_allowed_width`, `max_allowed_height` material gate가 실제 후보를 차단한다.
+
+v2 Spawn Pool + Weight Modifier 구조는 현재 시뮬레이션/비교 전용이다. `BlockSpawnV2Simulator.gd`와 `spawn_distribution_snapshot.gd`는 실제 `resolve_random_block()` 동작을 바꾸지 않는다.
 
 ### 8-3. 최종 HP
 
@@ -454,6 +475,7 @@ final_hp =
   x material_hp_multiplier
   x difficulty_hp_multiplier
   x type_hp_multiplier
+  x day_hp_multiplier
 ```
 
 기본값:
@@ -579,6 +601,9 @@ Day 1~29에서 시간이 끝나면 intermission으로 진입한다.
 - 구매 가능 여부 표시
 - 구매 처리
 - 구매 성공 시 현재 상점 목록에서 제거
+- 골드 지불 reroll
+- 슬롯별 lock
+- lock된 슬롯은 추가 보상이 아니라 5개 상점 슬롯 중 해당 슬롯을 보존
 - `Close`
 - `Next Day`
 
@@ -758,3 +783,49 @@ XP 획득:
 - 보물상자 등급별 보상 테이블
 - 크립 종류/효과/등장 조건
 - 최종 아트 적용
+---
+
+## 16. Treasure Chest 시스템
+
+기준일: `2026-05-17`
+
+### 16-1. 데이터와 생성
+
+- 관리 노드: `scripts/data/WallTreasureManager.gd`
+- marker 데이터: `scripts/data/TreasureChestMarkerData.gd`
+- marker는 2 x 2 wall subcell 영역이다.
+- marker는 좌우 벽 bounds 안에만 생성된다.
+- marker는 row 0에 걸치지 않는다.
+- marker끼리 subcell이 겹치지 않는다.
+- 현재 테스트/런타임 기본 생성 수는 6개다.
+- wall reset 시 `Main.gd`가 `generate_markers_for_wall_reset(rng)`를 호출한다.
+- 기존 v1 falling block spawn과 v2 spawn simulation은 treasure marker 생성과 분리되어 있다.
+
+### 16-2. 채굴과 reveal
+
+- `WorldGrid.try_mine_in_shape()`는 제거된 wall subcell 목록을 `removed_subcells`로 반환한다.
+- `Main.gd`는 wall mining 결과를 `WallTreasureManager.handle_mined_wall_subcells()`로 전달한다.
+- marker preview는 채굴 전에도 보이며, rarity별 색상을 사용한다.
+- 채굴된 subcell만 quadrant partial reveal로 표시된다.
+- 4개 quadrant가 모두 reveal되면 `is_fully_revealed = true`가 된다.
+- consumed marker는 preview, reveal, prompt, interaction 대상에서 제외된다.
+
+### 16-3. 상호작용과 popup
+
+- interact range는 현재 `GameConstants.DAY_KIOSK_INTERACTION_RANGE`를 재사용한다.
+- fully revealed이고 consumed가 아닌 marker만 상호작용 가능하다.
+- Treasure Chest와 Day Kiosk가 동시에 상호작용 가능하면 Treasure Chest가 우선한다.
+- `TreasureRewardPopup` open 시 tree pause 상태를 저장하고 `get_tree().paused = true`로 전환한다.
+- popup close 시 기존 pause 상태를 복구한다.
+- popup은 `PROCESS_MODE_WHEN_PAUSED`로 동작한다.
+
+### 16-4. reward 처리
+
+- reward는 popup open 시 marker의 `reward_seed`로 deterministic roll된다.
+- roll 결과는 marker의 `reward_item_id`, `reward_roll_rank`, `reward_rank`에 캐시된다.
+- reward rank 확률은 chest rarity별 table을 따른다.
+- `ShopItemCatalog.get_reward_candidate_items_for_rank(rank)`가 후보를 제공한다.
+- 후보가 없으면 낮은 rank 방향, 이후 높은 rank 방향으로 fallback한다.
+- 판매가는 유효 구매가의 60%를 floor 처리한다.
+- 획득은 `GameState.grant_shop_item_reward(item_id, "treasure_chest")`로 처리하며 gold를 차감하지 않는다.
+- 획득 또는 판매 성공 시 `WallTreasureManager.consume_marker(marker_id)`가 호출된다.

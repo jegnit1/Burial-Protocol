@@ -1,8 +1,8 @@
 # Burial Protocol - Game Design Document
 
-기준일: `2026-04-28`  
-기준 브랜치: `main`  
-엔진: Godot `4.6`  
+기준일: `2026-05-01`
+기준 브랜치: `visual-density-camera-hud`
+엔진: Godot `4.6`
 언어: GDScript
 
 ---
@@ -193,6 +193,8 @@ Burial Protocol의 핵심 감성은 아래 세 가지다.
 
 현재 공격모듈은 시각적으로 플레이어 주변을 공전하며, 실제 판정 기준은 캐릭터 위치를 사용한다.
 
+세부 데이터/스타일/데미지 계산 기준은 `06_attack_modules.md`를 따른다.
+
 ### 7-2. 장착 규칙
 
 | 항목 | 규칙 |
@@ -233,6 +235,9 @@ C 소드 + C 소드 = B 소드
 | `melee` | 좌클릭 기반 | 캐릭터 기준 근접 shape query |
 | `ranged` | 좌클릭 기반 | 투사체 또는 레이저 히트스캔 |
 | `mechanic` | 좌클릭 무관 | 자동 타겟팅/자동 공격 |
+
+현재 데미지는 `base_damage_by_grade[current_grade]`를 우선 사용하고, 없으면 `module_base_damage`, 둘 다 없으면 warning 후 `1`을 사용한다.
+공격모듈 직접 필드 `damage_multiplier` fallback은 제거되었다.
 
 ### 7-5. 공격 대상
 
@@ -300,6 +305,8 @@ Runtime Block = Material x Size + optional Type
 
 ### 9-2. 스폰 흐름
 
+현재 라이브 스폰은 v1 조합 roll 방식이다.
+
 1. 현재 난이도와 Day 확인
 2. `BlockCatalog`에서 유효한 spawn candidate 수집
 3. candidate weight 기반 랜덤 선택
@@ -307,6 +314,9 @@ Runtime Block = Material x Size + optional Type
 5. `BlockSpawnResolver`가 resolved definition 생성
 6. `BlockData`로 변환
 7. `FallingBlock` 생성
+
+v1에서는 material의 `max_allowed_area`, `max_allowed_width`, `max_allowed_height`가 size 후보를 실제로 차단한다.
+Spawn Pool + Weight Modifier 기반 v2 구조는 현재 `BlockSpawnV2Simulator.gd`와 스냅샷 리포트에서만 사용되며, 실제 게임 스폰으로 전환되지 않았다.
 
 ### 9-3. 최종 HP 공식
 
@@ -317,6 +327,7 @@ final_hp =
   x material_hp_multiplier
   x difficulty_hp_multiplier
   x type_hp_multiplier
+  x day_hp_multiplier
 ```
 
 기본값:
@@ -439,6 +450,9 @@ Day 1~29에서 시간이 끝나면 결과 화면으로 가지 않고 intermissio
 - 구매 가능 여부 표시
 - 골드 차감
 - 구매 성공 시 현재 상점 목록에서 제거
+- 골드 지불 reroll
+- 슬롯별 lock
+- lock된 슬롯은 reroll/다음 상점 롤에서 같은 슬롯의 한 자리를 차지하며 보존
 - `Close`
 - `Next Day`
 
@@ -654,3 +668,33 @@ user://profile.save
 - 모래는 단순 이펙트가 아니라 실패 조건과 전장 압박의 핵심이다.
 - Day 전환에서 벽과 모래는 기본 유지한다.
 - 메타 시스템은 placeholder 범위를 명확히 표시한다.
+
+---
+
+## 20. Treasure Chest 구현 기준
+
+기준일: `2026-05-17`
+
+Treasure Chest는 좌우 벽 채굴 루프에 붙는 보상 오브젝트다. 아직 creep 계열은 구현하지 않는다.
+
+플레이어가 알아야 하는 규칙:
+
+- 보물상자는 좌우 벽에 2 x 2 wall subcell 영역으로 배치된다.
+- 생성 직후부터 rarity별 preview glow/outline으로 위치를 미리 인지할 수 있다.
+- 벽 subcell을 채굴하면 해당 quadrant만 partial reveal로 추가 표시된다.
+- 4개 subcell이 모두 채굴되면 fully revealed 상태가 된다.
+- fully revealed 상태에서만 range 안 `E` 상호작용 prompt가 표시된다.
+- `E` 상호작용은 Treasure Chest가 Day Kiosk보다 우선한다.
+- reward popup이 열리면 게임이 pause되고, 닫으면 기존 pause 상태로 복구된다.
+- popup에서 보상을 획득하거나 판매하면 해당 marker는 consumed 처리되고 다시 상호작용할 수 없다.
+
+보상 규칙:
+
+- chest rarity는 `bronze`, `silver`, `gold`, `platinum`이다.
+- 테스트/현재 구현 기준 marker는 wall reset/run start 시 6개 생성된다.
+- reward는 popup open 시 marker의 `reward_seed`로 deterministic roll된다.
+- reward rank는 chest rarity별 확률표를 따른다.
+- reward item은 `ShopItemCatalog`에서 같은 rank 후보를 조회한다.
+- 후보가 없으면 낮은 rank 방향, 이후 높은 rank 방향으로 fallback한다.
+- 판매가는 `floor(GameState.get_effective_shop_item_price(definition) * 0.6)`이다.
+- 획득은 `GameState.grant_shop_item_reward()`를 사용하며 gold를 차감하지 않는다.

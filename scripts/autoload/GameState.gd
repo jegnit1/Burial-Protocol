@@ -16,6 +16,7 @@ signal shop_locked_slots_changed(locked_slots: Dictionary)
 const SAVE_FILE_PATH := "user://profile.save"
 const SAVE_VERSION := 1
 const ATTACK_MODULE_STYLE_RESOLVER := preload("res://scripts/data/AttackModuleStyleResolver.gd")
+const ATTACK_MODULE_DEFAULT_GRADE := "D"
 
 const DEFAULT_CURRENCIES := {
 	"gear": 0,
@@ -510,7 +511,7 @@ func get_attack_base_damage_for_module(module_entry: Dictionary) -> int:
 	var module_definition = get_attack_module_definition_from_entry(module_entry)
 	if module_definition == null:
 		return get_base_attack_damage()
-	var grade := String(module_entry.get("grade", module_definition.rank))
+	var grade := String(module_entry.get("grade", ATTACK_MODULE_DEFAULT_GRADE))
 	var module_base_damage := get_attack_module_base_damage_for_grade(module_definition, grade)
 	match String(module_definition.module_type):
 		"melee":
@@ -535,7 +536,7 @@ func get_mechanic_attack_module_damage(module_entry: Dictionary) -> int:
 	var module_definition = get_attack_module_definition_from_entry(module_entry)
 	if module_definition == null:
 		return maxi(int(floor(float(get_base_attack_damage()) * get_global_damage_multiplier())), 1)
-	var grade := String(module_entry.get("grade", module_definition.rank))
+	var grade := String(module_entry.get("grade", ATTACK_MODULE_DEFAULT_GRADE))
 	var base_damage := get_attack_module_base_damage_for_grade(module_definition, grade)
 	return maxi(int(floor(float(base_damage) * get_global_damage_multiplier())), 1)
 
@@ -546,7 +547,7 @@ func get_attack_module_cooldown_duration(module_entry: Dictionary) -> float:
 	if module_definition != null:
 		module_speed = maxf(module_definition.attack_speed_multiplier, 0.01)
 		module_speed *= _get_attack_module_grade_multiplier(
-			String(module_entry.get("grade", module_definition.rank)),
+			String(module_entry.get("grade", ATTACK_MODULE_DEFAULT_GRADE)),
 			GameConstants.ATTACK_MODULE_GRADE_SPEED_MULTIPLIERS
 		)
 	var module_type := _get_attack_module_type(module_entry)
@@ -611,7 +612,7 @@ func get_attack_module_entry_label(module_entry: Dictionary) -> String:
 	var fallback_grade := "D"
 	if module_definition != null:
 		module_name = module_definition.display_name
-		fallback_grade = String(module_definition.rank)
+		fallback_grade = ATTACK_MODULE_DEFAULT_GRADE
 	return "%s %s" % [module_name, String(module_entry.get("grade", fallback_grade))]
 
 
@@ -642,7 +643,7 @@ func _get_attack_module_shape_size_units_with_range_multiplier(module_entry: Dic
 	if module_definition == null:
 		return Vector2.ONE * stat_range_multiplier
 	var grade_multiplier := _get_attack_module_grade_multiplier(
-		String(module_entry.get("grade", module_definition.rank)),
+		String(module_entry.get("grade", ATTACK_MODULE_DEFAULT_GRADE)),
 		GameConstants.ATTACK_MODULE_GRADE_RANGE_MULTIPLIERS
 	)
 	var module_type := _get_attack_module_type(module_entry)
@@ -839,14 +840,16 @@ func purchase_shop_item(item_id: StringName) -> Dictionary:
 	if category != &"attack_module" and category != &"function_module" and category != &"enhance_module":
 		return {"ok": false, "reason": "unsupported_category"}
 	if category == &"attack_module":
-		var equip_result := can_add_or_synthesize_attack_module(item_id)
+		var module_id := _get_shop_attack_module_id(definition)
+		var grade := _get_shop_attack_module_grade(definition)
+		var equip_result := can_add_or_synthesize_attack_module(module_id, grade)
 		if not bool(equip_result.get("ok", false)):
 			return equip_result
 	if not try_spend_gold(price_gold):
 		return {"ok": false, "reason": "insufficient_gold"}
 	match String(category):
 		"attack_module":
-			return _register_owned_attack_module(item_id)
+			return _register_owned_attack_module(_get_shop_attack_module_id(definition), _get_shop_attack_module_grade(definition))
 		"function_module":
 			_register_function_module_purchase(definition)
 		"enhance_module":
@@ -855,14 +858,42 @@ func purchase_shop_item(item_id: StringName) -> Dictionary:
 	return {"ok": true, "reason": "purchased", "category": String(category)}
 
 
-func grant_attack_module(module_id: StringName, auto_equip := false) -> bool:
+func grant_shop_item_reward(item_id: StringName, source: String = "treasure_chest") -> Dictionary:
+	var definition := GameData.get_shop_item_definition(item_id)
+	if definition.is_empty():
+		return {"ok": false, "reason": "missing_definition", "source": source}
+	var validation := _validate_shop_item_can_be_granted(definition, item_id)
+	if not bool(validation.get("ok", false)):
+		validation["source"] = source
+		return validation
+	var category := StringName(String(definition.get("item_category", "")))
+	var result := {}
+	match String(category):
+		"attack_module":
+			result = _register_owned_attack_module(_get_shop_attack_module_id(definition), _get_shop_attack_module_grade(definition))
+		"function_module":
+			_register_function_module_purchase(definition)
+			run_items_changed.emit()
+			result = {"ok": true, "reason": "granted", "category": "function_module"}
+		"enhance_module":
+			_register_enhance_module_purchase(definition)
+			run_items_changed.emit()
+			result = {"ok": true, "reason": "granted", "category": "enhance_module"}
+	if bool(result.get("ok", false)):
+		result["source"] = source
+		result["item_id"] = String(item_id)
+		result["gold_spent"] = 0
+	return result
+
+
+func grant_attack_module(module_id: StringName, auto_equip := false, grade := ATTACK_MODULE_DEFAULT_GRADE) -> bool:
 	var module_definition = GameData.get_attack_module_definition(module_id)
 	if module_definition == null:
 		return false
 	owned_attack_module_ids.append(String(module_id))
 	owned_attack_modules_changed.emit(get_owned_attack_module_ids())
 	if auto_equip:
-		var entry := _make_attack_module_entry(module_id, String(module_definition.rank))
+		var entry := _make_attack_module_entry(module_id, grade)
 		equipped_attack_modules.append(entry)
 		_sync_primary_equipped_attack_module_id()
 		attack_module_changed.emit(equipped_attack_module_id)
@@ -876,16 +907,16 @@ func equip_attack_module(module_id: StringName) -> bool:
 	return is_attack_module_owned(module_id)
 
 
-func can_add_or_synthesize_attack_module(module_id: StringName) -> Dictionary:
+func can_add_or_synthesize_attack_module(module_id: StringName, grade: String = ATTACK_MODULE_DEFAULT_GRADE) -> Dictionary:
 	var module_definition = GameData.get_attack_module_definition(module_id)
 	if module_definition == null:
 		return {"ok": false, "reason": "missing_definition"}
-	var grade := String(module_definition.rank)
+	var normalized_grade := _normalize_attack_module_grade(grade)
 	if equipped_attack_modules.size() < GameConstants.ATTACK_MODULE_MAX_EQUIPPED:
 		return {"ok": true, "mode": "add"}
-	var merge_index := _find_first_synthesis_candidate(module_id, grade)
+	var merge_index := _find_first_synthesis_candidate(module_id, normalized_grade)
 	if merge_index >= 0:
-		var next_grade := _get_next_attack_module_grade(grade)
+		var next_grade := _get_next_attack_module_grade(normalized_grade)
 		if next_grade.is_empty():
 			return {"ok": false, "reason": "no_next_grade"}
 		return {"ok": true, "mode": "synthesize", "target_index": merge_index, "next_grade": next_grade}
@@ -1323,11 +1354,7 @@ func _reset_run_attack_modules() -> void:
 	var default_module_id := GameData.get_default_attack_module_id()
 	if default_module_id != StringName():
 		owned_attack_module_ids.append(String(default_module_id))
-		var default_definition = GameData.get_attack_module_definition(default_module_id)
-		var default_grade := "D"
-		if default_definition != null:
-			default_grade = String(default_definition.rank)
-		equipped_attack_modules.append(_make_attack_module_entry(default_module_id, default_grade))
+		equipped_attack_modules.append(_make_attack_module_entry(default_module_id, ATTACK_MODULE_DEFAULT_GRADE))
 	equipped_attack_module_id = default_module_id
 	owned_attack_modules_changed.emit(get_owned_attack_module_ids())
 	attack_module_changed.emit(equipped_attack_module_id)
@@ -1411,8 +1438,9 @@ func _build_shop_item_snapshot(definition: Dictionary, slot_index: int = -1) -> 
 	var stack_count := 0
 	match category:
 		"attack_module":
-			owned = is_attack_module_owned(StringName(item_id))
-			equipped = _has_equipped_attack_module(StringName(item_id))
+			var module_id := _get_shop_attack_module_id(definition)
+			owned = is_attack_module_owned(module_id)
+			equipped = _has_equipped_attack_module(module_id)
 		"function_module":
 			owned = is_function_module_owned(StringName(item_id))
 		"enhance_module":
@@ -1423,7 +1451,10 @@ func _build_shop_item_snapshot(definition: Dictionary, slot_index: int = -1) -> 
 	var can_buy := can_afford
 	var purchase_reason := ""
 	if category == "attack_module":
-		var attack_purchase_state := can_add_or_synthesize_attack_module(StringName(item_id))
+		var attack_purchase_state := can_add_or_synthesize_attack_module(
+			_get_shop_attack_module_id(definition),
+			_get_shop_attack_module_grade(definition)
+		)
 		can_buy = can_afford and bool(attack_purchase_state.get("ok", false))
 		purchase_reason = String(attack_purchase_state.get("reason", ""))
 	var locked_item_id := get_shop_locked_item_id(slot_index)
@@ -1433,9 +1464,11 @@ func _build_shop_item_snapshot(definition: Dictionary, slot_index: int = -1) -> 
 	return {
 		"slot_index": slot_index,
 		"item_id": item_id,
+		"module_id": String(definition.get("module_id", item_id)),
 		"item_category": category,
 		"name": String(definition.get("name", item_id)),
-		"rank": String(definition.get("rank", "D")),
+		"rank": String(definition.get("rank", _get_shop_attack_module_grade(definition))),
+		"grade": String(definition.get("grade", definition.get("rank", ATTACK_MODULE_DEFAULT_GRADE))),
 		"price_gold": price_gold,
 		"short_desc": String(definition.get("short_desc", "")),
 		"desc": String(definition.get("desc", "")),
@@ -1452,12 +1485,28 @@ func _build_shop_item_snapshot(definition: Dictionary, slot_index: int = -1) -> 
 	}
 
 
-func _register_owned_attack_module(module_id: StringName) -> Dictionary:
+func _validate_shop_item_can_be_granted(definition: Dictionary, item_id: StringName) -> Dictionary:
+	var category := StringName(String(definition.get("item_category", "")))
+	if category == &"function_module" and is_function_module_owned(item_id):
+		return {"ok": false, "reason": "already_owned"}
+	if category != &"attack_module" and category != &"function_module" and category != &"enhance_module":
+		return {"ok": false, "reason": "unsupported_category"}
+	if category == &"attack_module":
+		var equip_result := can_add_or_synthesize_attack_module(
+			_get_shop_attack_module_id(definition),
+			_get_shop_attack_module_grade(definition)
+		)
+		if not bool(equip_result.get("ok", false)):
+			return equip_result
+	return {"ok": true}
+
+
+func _register_owned_attack_module(module_id: StringName, grade: String = ATTACK_MODULE_DEFAULT_GRADE) -> Dictionary:
 	var module_definition = GameData.get_attack_module_definition(module_id)
 	if module_definition == null:
 		return {"ok": false, "reason": "missing_definition"}
-	var grade := String(module_definition.rank)
-	var equip_result := can_add_or_synthesize_attack_module(module_id)
+	var normalized_grade := _normalize_attack_module_grade(grade)
+	var equip_result := can_add_or_synthesize_attack_module(module_id, normalized_grade)
 	if not bool(equip_result.get("ok", false)):
 		return equip_result
 	owned_attack_module_ids.append(String(module_id))
@@ -1468,15 +1517,36 @@ func _register_owned_attack_module(module_id: StringName) -> Dictionary:
 		if target_index < 0 or target_index >= equipped_attack_modules.size():
 			return {"ok": false, "reason": "invalid_synthesis_target"}
 		var upgraded_entry := (equipped_attack_modules[target_index] as Dictionary).duplicate(true)
-		upgraded_entry["grade"] = String(equip_result.get("next_grade", grade))
+		upgraded_entry["grade"] = String(equip_result.get("next_grade", normalized_grade))
 		equipped_attack_modules[target_index] = upgraded_entry
 	else:
-		equipped_attack_modules.append(_make_attack_module_entry(module_id, grade))
+		equipped_attack_modules.append(_make_attack_module_entry(module_id, normalized_grade))
 	_sync_primary_equipped_attack_module_id()
 	owned_attack_modules_changed.emit(get_owned_attack_module_ids())
 	attack_module_changed.emit(equipped_attack_module_id)
 	run_items_changed.emit()
 	return {"ok": true, "reason": mode, "category": "attack_module"}
+
+
+func _get_shop_attack_module_id(definition: Dictionary) -> StringName:
+	var module_id := String(definition.get("module_id", ""))
+	if module_id.is_empty():
+		module_id = String(definition.get("item_id", ""))
+		var separator_index := module_id.rfind("@")
+		if separator_index > 0:
+			module_id = module_id.substr(0, separator_index)
+	return StringName(module_id)
+
+
+func _get_shop_attack_module_grade(definition: Dictionary) -> String:
+	return _normalize_attack_module_grade(String(definition.get("grade", definition.get("rank", ATTACK_MODULE_DEFAULT_GRADE))))
+
+
+func _normalize_attack_module_grade(grade: String) -> String:
+	var normalized := grade.strip_edges().to_upper()
+	if GameConstants.ATTACK_MODULE_GRADE_ORDER.has(normalized):
+		return normalized
+	return ATTACK_MODULE_DEFAULT_GRADE
 
 
 func _register_function_module_purchase(definition: Dictionary) -> void:

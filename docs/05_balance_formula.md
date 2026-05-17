@@ -1,7 +1,7 @@
 # Burial Protocol - Balance Formula Specification
 
-기준일: `2026-04-28`  
-기준 브랜치: `main`
+기준일: `2026-05-01`
+기준 브랜치: `visual-density-camera-hud`
 
 ---
 
@@ -98,25 +98,31 @@ base_dps = sword_module.module_base_damage / PLAYER_ATTACK_COOLDOWN
 base_dps = 10 / 0.30 ≈ 33.33
 ```
 
-공격모듈 피해는 module_base_damage 기반으로 계산한다.
+공격모듈 피해는 등급별 고정 기본데미지 기반으로 계산한다.
 
 ```text
 melee_damage =
-  floor((module_base_damage + melee_attack_damage_flat)
+  floor((grade_base_damage + melee_attack_damage_flat)
   x global_damage_multiplier)
 
 ranged_damage =
-  floor((module_base_damage + ranged_attack_damage_flat)
+  floor((grade_base_damage + ranged_attack_damage_flat)
   x global_damage_multiplier)
 
 mechanic_damage =
-  floor(module_base_damage
+  floor(grade_base_damage
   x global_damage_multiplier)
 ```
 
-`damage_multiplier`는 기존 데이터 호환용이다.
-`module_base_damage`가 없을 때만 `round(10 x damage_multiplier)`로 base damage를 계산한다.
-등급별 base damage 데이터가 아직 없으면, 기존 등급 피해 배율표는 최종 배율이 아니라 등급별 고정 `module_base_damage` 산정에만 사용한다.
+`grade_base_damage` 선택 우선순위:
+
+```text
+1. base_damage_by_grade[current_grade]
+2. module_base_damage
+3. 둘 다 없거나 0이면 warning 출력 후 1
+```
+
+공격모듈 직접 필드 `damage_multiplier`와 `round(10 x damage_multiplier)` fallback은 제거되었다.
 최종 데미지 단계에서 곱해지는 배율은 `global_damage_multiplier` 하나뿐이다.
 메카닉 모듈은 근거리/원거리 flat 공격력은 받지 않고, 전역 데미지 %만 받는다.
 
@@ -218,21 +224,11 @@ Nightmare Day 30 = 33.40x
 D / C / B / A / S
 ```
 
-현재 공격모듈 등급별 피해 계수는 최종 데미지 배율이 아니다.
-등급별 `module_base_damage` 데이터가 준비되기 전까지, D 기준 `module_base_damage`를 등급별 고정 기본데미지로 환산하는 마이그레이션 계수다.
+현재 공격모듈은 `base_damage_by_grade`에 D/C/B/A/S별 고정 기본데미지를 직접 가진다.
+이 값은 D 기준값에 grade damage multiplier를 곱한 결과가 아니라, 해당 등급에서 그대로 쓰는 데이터다.
 
-```text
-grade_module_base_damage =
-  round(d_grade_module_base_damage x legacy_grade_damage_factor)
-```
-
-| 등급 | base damage 환산 계수 |
-|---|---:|
-| D | `1.00` |
-| C | `1.15` |
-| B | `1.35` |
-| A | `1.60` |
-| S | `2.00` |
+`module_base_damage`는 `base_damage_by_grade`가 없거나 해당 등급 키가 없을 때 쓰는 fallback이다.
+`grade_damage_mult`는 최종 데미지 계산에 곱하지 않는다.
 
 현재 공격모듈 등급별 공격속도 배율:
 
@@ -261,13 +257,12 @@ grade_module_base_damage =
 - 빈 슬롯에 B급 공격모듈을 구매하면 B급 모듈로 장착된다.
 - 같은 `module_id`와 같은 `grade`를 다시 구매하면 합성 대상이 된다.
 - 최종 데미지 계산에서 grade damage multiplier를 곱하지 않는다.
-- 등급은 해당 grade의 고정 `module_base_damage`를 결정하는 데만 사용한다.
+- 등급은 `base_damage_by_grade[current_grade]` 선택에 사용한다.
 - 레벨업 카드 희귀도와 이름 체계를 섞지 않는다.
 - 공격모듈은 `D/C/B/A/S`, 레벨업 카드는 `Normal/Silver/Gold/Platinum`을 사용한다.
 
-예: `laser_module`은 B급 공격모듈이며 D 기준 `module_base_damage = 2`다.
-B급 고정 기본데미지는 `round(2 x 1.35) = 3`으로 산정한다.
-원거리 공격력 `+1`이면 `floor((3 + 1) x 1.0) = 4`가 정상이다.
+예: `laser_module`의 D/C/B/A/S 기본데미지는 `base_damage_by_grade`에 직접 정의된다.
+현재 스냅샷 기준 D등급은 `3`이며, 원거리 공격력 `+1`이면 `floor((3 + 1) x 1.0) = 4`가 정상이다.
 
 ---
 
@@ -423,6 +418,7 @@ D 기준값: `+1%p`
 
 Shop reroll only refreshes the current intermission shop list.
 It does not change item price tiering.
+Locked shop slots are preserved as part of the fixed shop item count; they are not added as extra offers.
 
 Formula:
 
@@ -755,3 +751,93 @@ Platinum 레벨업 카드가 떠도 S랭크 상점 아이템보다 강하면 안
 - 상점 S랭크 아이템의 가치가 Platinum 레벨업 카드보다 충분히 높은가
 - 채굴 카드가 전투 카드에 비해 너무 약하거나 강하지 않은가
 - 방어/체력 카드가 압착 피해 시스템과 맞는가
+---
+
+## 12. Treasure Chest 보상 확률과 가격
+
+기준일: `2026-05-17`
+
+### 12-1. Chest rarity
+
+현재 chest rarity roll:
+
+| Rarity | Chance |
+|---|---:|
+| Bronze | 70% |
+| Silver | 22% |
+| Gold | 7% |
+| Platinum | 1% |
+
+### 12-2. Reward rank
+
+Bronze:
+
+| Rank | Chance |
+|---|---:|
+| D | 80% |
+| C | 10% |
+| B | 6% |
+| A | 4% |
+| S | 0% |
+
+Silver:
+
+| Rank | Chance |
+|---|---:|
+| D | 70% |
+| C | 15% |
+| B | 10% |
+| A | 5% |
+| S | 0% |
+
+Gold:
+
+| Rank | Chance |
+|---|---:|
+| D | 55% |
+| C | 20% |
+| B | 10% |
+| A | 10% |
+| S | 5% |
+
+Platinum:
+
+| Rank | Chance |
+|---|---:|
+| D | 40% |
+| C | 25% |
+| B | 15% |
+| A | 10% |
+| S | 10% |
+
+### 12-3. Reward candidate fallback
+
+Reward item 후보는 `ShopItemCatalog`에서 rank가 일치하는 구현된 shop item으로 수집한다.
+후보가 없으면 아래 순서로 fallback한다.
+
+```text
+rolled rank
+-> lower ranks from nearest to D
+-> higher ranks from nearest to S
+-> no reward candidate warning
+```
+
+### 12-4. Sell price
+
+판매가는 유효 구매가의 60%를 floor 처리한다.
+
+```text
+sell_price = floor(GameState.get_effective_shop_item_price(definition) * 0.6)
+```
+
+현재 rank fallback 가격 기준:
+
+| Rank | Buy Fallback | Sell 60% |
+|---|---:|---:|
+| D | 15G | 9G |
+| C | 30G | 18G |
+| B | 60G | 36G |
+| A | 120G | 72G |
+| S | 240G | 144G |
+
+단, item definition에 `price_gold > 0`이면 해당 유효 구매가를 기준으로 판매가를 계산한다.

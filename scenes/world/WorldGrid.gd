@@ -127,6 +127,7 @@ func try_mine_in_shape(shape_data: Dictionary, mining_damage: int) -> Dictionary
 	var result := {
 		"hit_count": 0,
 		"removed_count": 0,
+		"removed_subcells": [],
 	}
 	if mining_damage <= 0:
 		return result
@@ -156,6 +157,7 @@ func try_mine_in_shape(shape_data: Dictionary, mining_damage: int) -> Dictionary
 					if remaining_hp == 0:
 						result["removed_count"] += 1
 						_active_subcell_count -= 1
+						result["removed_subcells"].append(_make_removed_subcell_entry(cell, sub_x, sub_y))
 					subcell_hps[subcell_index] = remaining_hp
 			if not changed:
 				continue
@@ -216,6 +218,18 @@ func _wall_cell_rect_collides(cell: Vector2i, rect: Rect2) -> bool:
 
 func _get_subcell_index(sub_x: int, sub_y: int) -> int:
 	return sub_y * GameConstants.WALL_SUBCELLS_PER_UNIT + sub_x
+
+
+func _make_removed_subcell_entry(cell: Vector2i, sub_x: int, sub_y: int) -> Dictionary:
+	return {
+		"cell": cell,
+		"cell_x": cell.x,
+		"cell_y": cell.y,
+		"sub_x": sub_x,
+		"sub_y": sub_y,
+		"subcell_x": cell.x * GameConstants.WALL_SUBCELLS_PER_UNIT + sub_x,
+		"subcell_y": cell.y * GameConstants.WALL_SUBCELLS_PER_UNIT + sub_y,
+	}
 
 
 func _packed_byte_array_is_empty(data: PackedByteArray) -> bool:

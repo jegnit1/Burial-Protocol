@@ -5,8 +5,8 @@
 이 문서는 Burial Protocol 코드베이스에서 현재 실제로 적용 중인 작업 기준을 정리한다.
 기획 희망사항이나 장기 아이디어가 아니라, 지금 실행 가능한 코드와 문서를 어떤 원칙으로 맞춰야 하는지 기록한다.
 
-기준일: `2026-04-28`
-기준 브랜치: `main`
+기준일: `2026-05-01`
+기준 브랜치: `visual-density-camera-hud`
 
 ---
 
@@ -46,12 +46,13 @@
 - `data/blocks/BlockCatalog.tres`
 - `data/stages/StageTable.tres`
 - `data/items/ShopItemCatalog.tres`
+- `data_tsv/*.tsv`
 
 ---
 
 ## 2. 현재 docs 구조
 
-현재 docs는 아래 8개 문서를 기준으로 유지한다.
+현재 docs는 아래 7개 canonical 문서와 `reports/` 결과물을 기준으로 유지한다.
 
 ```text
 docs/
@@ -61,8 +62,8 @@ docs/
   03_data_and_state_spec.md
   04_roadmap.md
   05_balance_formula.md
-  06_attack_module_style_spec.md
-  attack_module_system_spec.md
+  06_attack_modules.md
+  reports/
 ```
 
 각 문서 역할:
@@ -75,10 +76,11 @@ docs/
 | `03_data_and_state_spec.md` | 데이터 소유권, 저장/런타임 상태, signal 구조 |
 | `04_roadmap.md` | TODO, 미구현, 다음 작업 우선순위 |
 | `05_balance_formula.md` | 밸런스 수치 공식과 기준 예산 |
-| `06_attack_module_style_spec.md` | 공격모듈 공격 스타일/연출 스타일 스펙 |
-| `attack_module_system_spec.md` | 공격모듈 시스템 구현 기준 |
+| `06_attack_modules.md` | 공격모듈 시스템/데이터/스타일 통합 스펙 |
+| `reports/` | 조사/계측/스냅샷 결과. canonical 스펙보다 우선하지 않음 |
 
 문서를 새로 만들기 전에 먼저 위 문서 중 어디에 들어가야 하는지 판단한다.
+과거의 세부 공격모듈 문서였던 `06_attack_module_style_spec.md`, `attack_module_system_spec.md`는 `06_attack_modules.md`로 통합했다.
 
 ---
 
@@ -338,3 +340,28 @@ docs/
 - Day 종료 -> 상점 -> Next Day 루프를 안정화한다
 - 공격모듈/상점/블록 데이터 구조를 기획 확장 가능한 형태로 유지한다
 - 메타 시스템은 placeholder 범위를 명확히 유지한다
+---
+
+## 11. Treasure Chest 문서 기준
+
+기준일: `2026-05-17`
+
+Treasure Chest 기능의 canonical 반영 위치:
+
+- 기획/플레이 규칙: `docs/01_gdd.md`
+- 시스템 흐름: `docs/02_systems_spec.md`
+- marker/reward 상태 구조: `docs/03_data_and_state_spec.md`
+- 완료 상태와 TODO: `docs/04_roadmap.md`
+- rarity/rank/sell price 수치: `docs/05_balance_formula.md`
+- 구현 계획과 Phase 기록: `docs/treasure_chest_implementation_plan.md`
+
+Treasure Chest 관련 코드를 수정할 때 최소 확인 대상:
+
+- `scenes/main/Main.gd`
+- `scenes/world/WorldGrid.gd`
+- `scenes/ui/TreasureRewardPopup.gd`
+- `scripts/data/TreasureChestMarkerData.gd`
+- `scripts/data/WallTreasureManager.gd`
+- `scripts/data/ShopItemCatalog.gd`
+- `scripts/autoload/GameState.gd`
+- `scripts/tests/treasure_chest_snapshot.gd`

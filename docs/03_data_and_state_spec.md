@@ -1,7 +1,7 @@
 # Burial Protocol - Data and State Specification
 
-기준일: `2026-04-28`  
-기준 브랜치: `main`
+기준일: `2026-05-01`
+기준 브랜치: `visual-density-camera-hud`
 
 ---
 
@@ -106,6 +106,9 @@ Material은 블록의 재질/성질을 담당한다.
 - special result
 - 등장 제한
 
+현재 v1 라이브 스폰에서는 `max_allowed_area`, `max_allowed_width`, `max_allowed_height`가 material-size 조합 후보를 실제로 차단한다.
+v2 시뮬레이션에서는 이 material gate를 일반 스폰 size 필터로 사용하지 않는다.
+
 ### 4-2. Size
 
 Size는 블록의 물리 크기를 담당한다.
@@ -119,6 +122,7 @@ Size는 블록의 물리 크기를 담당한다.
 - 보상 배율
 - spawn weight
 - 등장 제한
+- v2 group/pressure/rule 확장 필드
 
 ### 4-3. Type
 
@@ -137,6 +141,9 @@ Type은 선택 affix/modifier다.
 `BlockSpawnResolver.gd`는 현재 난이도/Day/후보 weight를 바탕으로 최종 블록 정의를 만든다.
 
 결과물은 `BlockResolvedDefinition`이며, 이후 `BlockData.from_resolved_definition()`을 통해 런타임 블록 데이터로 변환된다.
+
+현재 실제 게임 스폰은 `BlockSpawnResolver.resolve_random_block()`의 v1 흐름이다.
+`BlockSpawnV2Simulator.gd`, `BlockSizeSpawnRuleData.gd`, `BlockMaterialSizeWeightRuleData.gd`는 비교/시뮬레이션 전용이며, live resolver 전환은 아직 하지 않았다.
 
 ---
 
@@ -185,6 +192,36 @@ Type은 선택 affix/modifier다.
 아이템 데이터에 `price_gold`가 없거나 0이면 `GameConstants.SHOP_ITEM_RANK_FALLBACK_PRICES`의 랭크별 기본 가격을 사용한다.
 최종 유효 가격 결정은 `GameState.get_effective_shop_item_price(item_id)`가 담당한다.
 구매 가능성 최종 판단은 `GameState.purchase_shop_item()`과 관련 helper가 담당한다.
+
+공격모듈 직접 데미지 필드:
+
+- `base_damage_by_grade`
+- `module_base_damage`
+
+공격모듈 데미지 우선순위:
+
+```text
+1. base_damage_by_grade[current_grade]
+2. module_base_damage
+3. 둘 다 없거나 0이면 warning 출력 후 1
+```
+
+공격모듈 직접 필드 `damage_multiplier`는 제거되었다.
+`function_module`/`enhance_module`의 `effect_values.damage_multiplier`는 별도 효과값이므로 유지한다.
+
+원거리 공격모듈 canonical projectile 필드:
+
+- `projectile_count`
+- `spread_angle`
+- `pierce_count`
+- `is_hitscan`
+- `projectile_speed`
+- `projectile_lifetime`
+- `projectile_max_distance`
+- `projectile_visual_size`
+- `projectile_homing`
+
+legacy alias인 `projectile_spread_degrees`, `projectile_pierce_count`, `projectile_hit_scan`, `projectile_size`는 사용하지 않는다.
 
 ---
 
@@ -494,6 +531,11 @@ if item_id == "side_breaker":
 - `current_day`
 - `day_time_remaining`
 - `run_cleared`
+- `current_shop_reroll_count`
+- `current_shop_locked_slots`
+
+상점 lock 상태는 현재 런/intermission 상태다.
+lock된 슬롯은 다음 shop roll에서 같은 슬롯의 한 자리를 차지하며 보존되고, 추가 상품으로 붙지 않는다.
 
 경험치/레벨 필드:
 
@@ -763,3 +805,71 @@ HUD는 필요한 값만 Player getter를 통해 읽는다.
 - `Player` 고유 상태를 저장 상태로 잘못 문서화하지 않았는가
 - 새 signal이 있다면 소비처와 함께 적었는가
 - 새 조건부 아이템이 아이템 ID 하드코딩 없이 condition/effect/apply_timing 구조로 표현되는가
+---
+
+## 19. Treasure Chest 데이터와 상태
+
+기준일: `2026-05-17`
+
+### 19-1. Marker 데이터
+
+`TreasureChestMarkerData.gd`는 wall treasure 1개를 표현한다.
+
+주요 필드:
+
+- `marker_id`
+- `chest_rarity`: `bronze`, `silver`, `gold`, `platinum`
+- `wall_side`: `left` 또는 `right`
+- `origin_subcell_x`, `origin_subcell_y`
+- `width_subcells = 2`
+- `height_subcells = 2`
+- `revealed_cells`: local key `"x,y"` -> bool
+- `is_fully_revealed`
+- `reward_seed`
+- `reward_item_id`
+- `reward_roll_rank`
+- `reward_rank`
+- `consumed`
+
+`is_interaction_available()`은 `is_fully_revealed and not consumed`일 때만 true다.
+
+### 19-2. Manager 상태
+
+`WallTreasureManager.gd`는 marker 배열과 visual/prompt 상태를 소유한다.
+
+주요 API:
+
+- `generate_markers_for_wall_reset(rng, count = 6)`
+- `handle_mined_wall_subcells(removed_subcells)`
+- `get_nearest_interactable_marker(player_position, interaction_range)`
+- `update_interaction_prompt(player_position, interaction_range, enabled)`
+- `prepare_reward_for_marker(marker)`
+- `consume_marker(marker_id)`
+- `get_marker_snapshots()`
+- `get_visual_debug_snapshot()`
+
+`WorldGrid.gd`는 treasure reward나 popup을 알지 않고, 제거된 wall subcell 좌표만 반환한다.
+`Main.gd`는 mining 결과 전달, interaction 우선순위, popup open/close, reward claim/sell 연결만 담당한다.
+
+### 19-3. Reward 데이터
+
+Reward snapshot은 popup 표시와 획득/판매 처리에 사용된다.
+
+주요 필드:
+
+- `ok`
+- `marker_id`
+- `chest_rarity`
+- `rolled_rank`
+- `rank`
+- `fallback_used`
+- `item_id`
+- `name`
+- `item_category`
+- `short_desc`
+- `desc`
+- `buy_price`
+- `sell_price`
+
+`GameState.grant_shop_item_reward()`는 기존 shop slot, reroll, lock 상태를 변경하지 않는다.
+지원 category는 `attack_module`, `function_module`, `enhance_module`이다.

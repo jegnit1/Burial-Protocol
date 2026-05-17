@@ -208,7 +208,7 @@ const BLOCK_SPAWN_Y_OFFSET := 16.0
 const SAND_CELLS_PER_UNIT := 6
 # 모래 시뮬레이션 셀 1칸의 픽셀 크기.
 const SAND_CELL_SIZE := float(CELL_SIZE) / float(SAND_CELLS_PER_UNIT)
-const WALL_SUBCELLS_PER_UNIT := 4
+const WALL_SUBCELLS_PER_UNIT := 2
 const WALL_SUBCELL_SIZE := float(CELL_SIZE) / float(WALL_SUBCELLS_PER_UNIT)
 # 한 번의 계산에서 연쇄적으로 이어질 수 있는 모래 밀기 최대 횟수.
 const SAND_PUSH_CHAIN_LIMIT := 9
