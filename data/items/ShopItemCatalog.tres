@@ -1,7 +1,7 @@
-[gd_resource type="Resource" script_class="ShopItemResourceCatalog" format=3]
+[gd_resource type="Resource" script_class="ShopItemResourceCatalog" format=3 uid="uid://0kil6aafslxv"]
 
-[ext_resource type="Script" path="res://scripts/data/ShopItemDefinition.gd" id="1_eikcl"]
-[ext_resource type="Script" path="res://scripts/data/ShopItemResourceCatalog.gd" id="2_010nu"]
+[ext_resource type="Script" uid="uid://cpjurrehrgdxv" path="res://scripts/data/ShopItemDefinition.gd" id="1_eikcl"]
+[ext_resource type="Script" uid="uid://b12p36pwjt3np" path="res://scripts/data/ShopItemResourceCatalog.gd" id="2_010nu"]
 
 [sub_resource type="Resource" id="Resource_eikcl"]
 script = ExtResource("1_eikcl")
@@ -24,6 +24,13 @@ base_damage_by_grade = {
 "D": 10,
 "S": 30
 }
+price_by_grade = {
+"A": 1900,
+"B": 930,
+"C": 375,
+"D": 150,
+"S": 4000
+}
 projectile_visual_size = Vector2(18, 6)
 icon_path = "res://assets/ui/items/attack_modules/sword_module.png"
 world_visual_scene_path = "res://scenes/player/modules/SwordModuleVisual.tscn"
@@ -35,7 +42,6 @@ desc = "가장 표준적인 1U x 1U 범위를 가진 기본 공격 모듈이다.
 script = ExtResource("1_eikcl")
 item_id = &"dagger_module"
 name = "단검 모듈"
-rank = "C"
 equip_slot = "attack_module"
 is_equippable = true
 module_type = &"melee"
@@ -53,6 +59,13 @@ base_damage_by_grade = {
 "D": 9,
 "S": 27
 }
+price_by_grade = {
+"A": 1900,
+"B": 930,
+"C": 375,
+"D": 150,
+"S": 4000
+}
 attack_speed_multiplier = 1.4
 projectile_visual_size = Vector2(18, 6)
 icon_path = "res://assets/ui/items/attack_modules/dagger_module.png"
@@ -65,7 +78,6 @@ desc = "범위는 짧지만 공격속도가 높아 빠르게 블록을 정리하
 script = ExtResource("1_eikcl")
 item_id = &"lance_module"
 name = "랜스 모듈"
-rank = "B"
 equip_slot = "attack_module"
 is_equippable = true
 module_type = &"melee"
@@ -83,6 +95,13 @@ base_damage_by_grade = {
 "D": 13,
 "S": 39
 }
+price_by_grade = {
+"A": 1900,
+"B": 930,
+"C": 375,
+"D": 150,
+"S": 4000
+}
 attack_speed_multiplier = 0.85
 projectile_visual_size = Vector2(18, 6)
 icon_path = "res://assets/ui/items/attack_modules/lance_module.png"
@@ -95,7 +114,6 @@ desc = "세로 범위는 좁지만 전방으로 긴 리치를 제공해 먼 블�
 script = ExtResource("1_eikcl")
 item_id = &"axe_module"
 name = "도끼 모듈"
-rank = "A"
 equip_slot = "attack_module"
 is_equippable = true
 module_type = &"melee"
@@ -112,6 +130,13 @@ base_damage_by_grade = {
 "D": 17,
 "S": 51
 }
+price_by_grade = {
+"A": 1900,
+"B": 930,
+"C": 375,
+"D": 150,
+"S": 4000
+}
 attack_speed_multiplier = 0.8
 projectile_visual_size = Vector2(18, 6)
 icon_path = "res://assets/ui/items/attack_modules/axe_module.png"
@@ -124,7 +149,6 @@ desc = "위아래 범위를 넓게 커버하며 묵직한 타격을 가하는 �
 script = ExtResource("1_eikcl")
 item_id = &"greatsword_module"
 name = "대검 모듈"
-rank = "S"
 equip_slot = "attack_module"
 is_equippable = true
 module_type = &"melee"
@@ -141,6 +165,13 @@ base_damage_by_grade = {
 "C": 36,
 "D": 24,
 "S": 72
+}
+price_by_grade = {
+"A": 1900,
+"B": 930,
+"C": 375,
+"D": 150,
+"S": 4000
 }
 attack_speed_multiplier = 0.65
 projectile_visual_size = Vector2(18, 6)
@@ -170,6 +201,13 @@ base_damage_by_grade = {
 "D": 5,
 "S": 15
 }
+price_by_grade = {
+"A": 1900,
+"B": 930,
+"C": 375,
+"D": 150,
+"S": 4000
+}
 attack_speed_multiplier = 0.85
 projectile_visual_size = Vector2(18, 6)
 icon_path = "res://assets/ui/items/attack_modules/bow_module.png"
@@ -198,6 +236,13 @@ base_damage_by_grade = {
 "D": 4,
 "S": 12
 }
+price_by_grade = {
+"A": 1900,
+"B": 930,
+"C": 375,
+"D": 150,
+"S": 4000
+}
 attack_speed_multiplier = 0.7
 projectile_count = 3
 spread_angle = 26.0
@@ -215,7 +260,6 @@ desc = "여러 투사체를 넓은 각도로 동시에 발사하는 테스트 �
 script = ExtResource("1_eikcl")
 item_id = &"pierce_module"
 name = "관통 모듈"
-rank = "C"
 equip_slot = "attack_module"
 is_equippable = true
 module_type = &"ranged"
@@ -231,6 +275,13 @@ base_damage_by_grade = {
 "C": 6,
 "D": 4,
 "S": 12
+}
+price_by_grade = {
+"A": 1900,
+"B": 930,
+"C": 375,
+"D": 150,
+"S": 4000
 }
 attack_speed_multiplier = 0.6
 pierce_count = 2
@@ -248,7 +299,6 @@ desc = "첫 블록 명중 후에도 추가 블록까지 관통 가능한 테스�
 script = ExtResource("1_eikcl")
 item_id = &"laser_module"
 name = "레이저 모듈"
-rank = "B"
 equip_slot = "attack_module"
 is_equippable = true
 module_type = &"ranged"
@@ -264,6 +314,13 @@ base_damage_by_grade = {
 "C": 5,
 "D": 3,
 "S": 9
+}
+price_by_grade = {
+"A": 1900,
+"B": 930,
+"C": 375,
+"D": 150,
+"S": 4000
 }
 attack_speed_multiplier = 0.6
 projectile_count = 0
@@ -295,6 +352,13 @@ base_damage_by_grade = {
 "C": 9,
 "D": 6,
 "S": 18
+}
+price_by_grade = {
+"A": 1900,
+"B": 930,
+"C": 375,
+"D": 150,
+"S": 4000
 }
 attack_speed_multiplier = 0.55
 projectile_visual_size = Vector2(18, 6)

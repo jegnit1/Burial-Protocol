@@ -1,11 +1,702 @@
-[gd_resource type="Resource" script_class="BlockCatalog" format=3]
+[gd_resource type="Resource" script_class="BlockCatalog" format=3 uid="uid://b0kfji5mdphil"]
 
-[ext_resource type="Script" path="res://scripts/data/BlockCatalog.gd" id="1_catalog"]
-[ext_resource type="Script" path="res://scripts/data/BlockMaterialData.gd" id="2_material"]
-[ext_resource type="Script" path="res://scripts/data/BlockSizeData.gd" id="3_size"]
-[ext_resource type="Script" path="res://scripts/data/BlockTypeDefinition.gd" id="5_type"]
+[ext_resource type="Script" uid="uid://00s7anp6a73y" path="res://scripts/data/BlockCatalog.gd" id="1_catalog"]
+[ext_resource type="Script" uid="uid://bsq6xoseps74v" path="res://scripts/data/BlockMaterialSizeWeightRuleData.gd" id="1_u3on1"]
+[ext_resource type="Script" uid="uid://cicnvplg7ohe7" path="res://scripts/data/BlockMaterialData.gd" id="2_material"]
+[ext_resource type="Script" uid="uid://djov2k6blms6i" path="res://scripts/data/BlockSizeSpawnRuleData.gd" id="3_gtkrb"]
+[ext_resource type="Script" uid="uid://durr5wncwalgm" path="res://scripts/data/BlockSizeData.gd" id="3_size"]
+[ext_resource type="Script" uid="uid://dmc18osygbhv3" path="res://scripts/data/BlockTypeDefinition.gd" id="5_type"]
 
-[sub_resource type="Resource" id="Resource_o1k74"]
+[sub_resource type="Resource" id="Resource_u3on1"]
+script = ExtResource("1_u3on1")
+rule_id = &"wood_tiny"
+material_id = &"wood"
+size_group = "tiny"
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_gtkrb"]
+script = ExtResource("1_u3on1")
+rule_id = &"wood_small"
+material_id = &"wood"
+size_group = "small"
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_fwkum"]
+script = ExtResource("1_u3on1")
+rule_id = &"wood_medium"
+material_id = &"wood"
+size_group = "medium"
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_3oy47"]
+script = ExtResource("1_u3on1")
+rule_id = &"wood_wide_small"
+material_id = &"wood"
+size_group = "wide_small"
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_m7plc"]
+script = ExtResource("1_u3on1")
+rule_id = &"wood_wide_medium"
+material_id = &"wood"
+size_group = "wide_medium"
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_ci4w0"]
+script = ExtResource("1_u3on1")
+rule_id = &"wood_wide_large"
+material_id = &"wood"
+size_group = "wide_large"
+weight_multiplier = 0.35
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_e0c4j"]
+script = ExtResource("1_u3on1")
+rule_id = &"wood_tall_small"
+material_id = &"wood"
+size_group = "tall_small"
+weight_multiplier = 0.9
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_kaa8a"]
+script = ExtResource("1_u3on1")
+rule_id = &"wood_tall_medium"
+material_id = &"wood"
+size_group = "tall_medium"
+weight_multiplier = 0.75
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_uf52m"]
+script = ExtResource("1_u3on1")
+rule_id = &"wood_large"
+material_id = &"wood"
+size_group = "large"
+weight_multiplier = 0.45
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_ujker"]
+script = ExtResource("1_u3on1")
+rule_id = &"wood_huge"
+material_id = &"wood"
+size_group = "huge"
+weight_multiplier = 0.12
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_c5u3c"]
+script = ExtResource("1_u3on1")
+rule_id = &"wood_event_like"
+material_id = &"wood"
+size_group = "event_like"
+weight_multiplier = 0.02
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_0wav6"]
+script = ExtResource("1_u3on1")
+rule_id = &"rock_tiny"
+material_id = &"rock"
+size_group = "tiny"
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_djeim"]
+script = ExtResource("1_u3on1")
+rule_id = &"rock_small"
+material_id = &"rock"
+size_group = "small"
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_fkl0g"]
+script = ExtResource("1_u3on1")
+rule_id = &"rock_medium"
+material_id = &"rock"
+size_group = "medium"
+weight_multiplier = 0.95
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_1dmua"]
+script = ExtResource("1_u3on1")
+rule_id = &"rock_wide_small"
+material_id = &"rock"
+size_group = "wide_small"
+weight_multiplier = 0.75
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_mf2r4"]
+script = ExtResource("1_u3on1")
+rule_id = &"rock_wide_medium"
+material_id = &"rock"
+size_group = "wide_medium"
+weight_multiplier = 0.55
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_yja1p"]
+script = ExtResource("1_u3on1")
+rule_id = &"rock_wide_large"
+material_id = &"rock"
+size_group = "wide_large"
+weight_multiplier = 0.25
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_w0phl"]
+script = ExtResource("1_u3on1")
+rule_id = &"rock_tall_small"
+material_id = &"rock"
+size_group = "tall_small"
+weight_multiplier = 0.9
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_61ovh"]
+script = ExtResource("1_u3on1")
+rule_id = &"rock_tall_medium"
+material_id = &"rock"
+size_group = "tall_medium"
+weight_multiplier = 0.7
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_b0mhj"]
+script = ExtResource("1_u3on1")
+rule_id = &"rock_large"
+material_id = &"rock"
+size_group = "large"
+weight_multiplier = 0.55
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_j0ia0"]
+script = ExtResource("1_u3on1")
+rule_id = &"rock_huge"
+material_id = &"rock"
+size_group = "huge"
+weight_multiplier = 0.18
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_6qjt6"]
+script = ExtResource("1_u3on1")
+rule_id = &"rock_event_like"
+material_id = &"rock"
+size_group = "event_like"
+weight_multiplier = 0.03
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_4lmd0"]
+script = ExtResource("1_u3on1")
+rule_id = &"marble_tiny"
+material_id = &"marble"
+size_group = "tiny"
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_0ualg"]
+script = ExtResource("1_u3on1")
+rule_id = &"marble_small"
+material_id = &"marble"
+size_group = "small"
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_t5w58"]
+script = ExtResource("1_u3on1")
+rule_id = &"marble_medium"
+material_id = &"marble"
+size_group = "medium"
+weight_multiplier = 1.05
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_igqa5"]
+script = ExtResource("1_u3on1")
+rule_id = &"marble_wide_small"
+material_id = &"marble"
+size_group = "wide_small"
+weight_multiplier = 0.65
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_b736x"]
+script = ExtResource("1_u3on1")
+rule_id = &"marble_wide_medium"
+material_id = &"marble"
+size_group = "wide_medium"
+weight_multiplier = 0.4
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_66l2x"]
+script = ExtResource("1_u3on1")
+rule_id = &"marble_wide_large"
+material_id = &"marble"
+size_group = "wide_large"
+weight_multiplier = 0.18
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_2fqby"]
+script = ExtResource("1_u3on1")
+rule_id = &"marble_tall_small"
+material_id = &"marble"
+size_group = "tall_small"
+weight_multiplier = 0.75
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_ol6yr"]
+script = ExtResource("1_u3on1")
+rule_id = &"marble_tall_medium"
+material_id = &"marble"
+size_group = "tall_medium"
+weight_multiplier = 0.55
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_2lpny"]
+script = ExtResource("1_u3on1")
+rule_id = &"marble_large"
+material_id = &"marble"
+size_group = "large"
+weight_multiplier = 0.35
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_ac30p"]
+script = ExtResource("1_u3on1")
+rule_id = &"marble_huge"
+material_id = &"marble"
+size_group = "huge"
+weight_multiplier = 0.1
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_6n7du"]
+script = ExtResource("1_u3on1")
+rule_id = &"marble_event_like"
+material_id = &"marble"
+size_group = "event_like"
+weight_multiplier = 0.02
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_25xtj"]
+script = ExtResource("1_u3on1")
+rule_id = &"cement_tiny"
+material_id = &"cement"
+size_group = "tiny"
+weight_multiplier = 0.9
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_m1xgd"]
+script = ExtResource("1_u3on1")
+rule_id = &"cement_small"
+material_id = &"cement"
+size_group = "small"
+weight_multiplier = 0.9
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_e37qn"]
+script = ExtResource("1_u3on1")
+rule_id = &"cement_medium"
+material_id = &"cement"
+size_group = "medium"
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_oxwai"]
+script = ExtResource("1_u3on1")
+rule_id = &"cement_wide_small"
+material_id = &"cement"
+size_group = "wide_small"
+weight_multiplier = 1.1
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_e1loe"]
+script = ExtResource("1_u3on1")
+rule_id = &"cement_wide_medium"
+material_id = &"cement"
+size_group = "wide_medium"
+weight_multiplier = 1.1
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_s7hng"]
+script = ExtResource("1_u3on1")
+rule_id = &"cement_wide_large"
+material_id = &"cement"
+size_group = "wide_large"
+weight_multiplier = 0.45
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_5gudq"]
+script = ExtResource("1_u3on1")
+rule_id = &"cement_tall_small"
+material_id = &"cement"
+size_group = "tall_small"
+weight_multiplier = 0.9
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_q7jtr"]
+script = ExtResource("1_u3on1")
+rule_id = &"cement_tall_medium"
+material_id = &"cement"
+size_group = "tall_medium"
+weight_multiplier = 0.75
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_bpk7g"]
+script = ExtResource("1_u3on1")
+rule_id = &"cement_large"
+material_id = &"cement"
+size_group = "large"
+weight_multiplier = 0.75
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_n7y1s"]
+script = ExtResource("1_u3on1")
+rule_id = &"cement_huge"
+material_id = &"cement"
+size_group = "huge"
+weight_multiplier = 0.25
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_0xc2m"]
+script = ExtResource("1_u3on1")
+rule_id = &"cement_event_like"
+material_id = &"cement"
+size_group = "event_like"
+weight_multiplier = 0.05
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_omk10"]
+script = ExtResource("1_u3on1")
+rule_id = &"steel_tiny"
+material_id = &"steel"
+size_group = "tiny"
+weight_multiplier = 0.8
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_jd1ps"]
+script = ExtResource("1_u3on1")
+rule_id = &"steel_small"
+material_id = &"steel"
+size_group = "small"
+weight_multiplier = 0.8
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_ptxlb"]
+script = ExtResource("1_u3on1")
+rule_id = &"steel_medium"
+material_id = &"steel"
+size_group = "medium"
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_8javq"]
+script = ExtResource("1_u3on1")
+rule_id = &"steel_wide_small"
+material_id = &"steel"
+size_group = "wide_small"
+weight_multiplier = 1.3
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_ehrgq"]
+script = ExtResource("1_u3on1")
+rule_id = &"steel_wide_medium"
+material_id = &"steel"
+size_group = "wide_medium"
+weight_multiplier = 1.3
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_lx004"]
+script = ExtResource("1_u3on1")
+rule_id = &"steel_wide_large"
+material_id = &"steel"
+size_group = "wide_large"
+weight_multiplier = 0.75
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_1e50j"]
+script = ExtResource("1_u3on1")
+rule_id = &"steel_tall_small"
+material_id = &"steel"
+size_group = "tall_small"
+weight_multiplier = 0.65
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_k0shu"]
+script = ExtResource("1_u3on1")
+rule_id = &"steel_tall_medium"
+material_id = &"steel"
+size_group = "tall_medium"
+weight_multiplier = 0.5
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_pspfs"]
+script = ExtResource("1_u3on1")
+rule_id = &"steel_large"
+material_id = &"steel"
+size_group = "large"
+weight_multiplier = 0.9
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_5l4q2"]
+script = ExtResource("1_u3on1")
+rule_id = &"steel_huge"
+material_id = &"steel"
+size_group = "huge"
+weight_multiplier = 0.35
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_aqmcl"]
+script = ExtResource("1_u3on1")
+rule_id = &"steel_event_like"
+material_id = &"steel"
+size_group = "event_like"
+weight_multiplier = 0.08
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_ut23u"]
+script = ExtResource("1_u3on1")
+rule_id = &"bomb_tiny"
+material_id = &"bomb"
+size_group = "tiny"
+weight_multiplier = 0.8
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_vsjct"]
+script = ExtResource("1_u3on1")
+rule_id = &"bomb_small"
+material_id = &"bomb"
+size_group = "small"
+weight_multiplier = 0.8
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_tc3if"]
+script = ExtResource("1_u3on1")
+rule_id = &"bomb_medium"
+material_id = &"bomb"
+size_group = "medium"
+weight_multiplier = 0.15
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_5bi2l"]
+script = ExtResource("1_u3on1")
+rule_id = &"bomb_wide_small"
+material_id = &"bomb"
+size_group = "wide_small"
+weight_multiplier = 0.08
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_aiypr"]
+script = ExtResource("1_u3on1")
+rule_id = &"bomb_wide_medium"
+material_id = &"bomb"
+size_group = "wide_medium"
+weight_multiplier = 0.04
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_fay2j"]
+script = ExtResource("1_u3on1")
+rule_id = &"bomb_wide_large"
+material_id = &"bomb"
+size_group = "wide_large"
+weight_multiplier = 0.02
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_fu4ho"]
+script = ExtResource("1_u3on1")
+rule_id = &"bomb_tall_small"
+material_id = &"bomb"
+size_group = "tall_small"
+weight_multiplier = 0.1
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_474bw"]
+script = ExtResource("1_u3on1")
+rule_id = &"bomb_tall_medium"
+material_id = &"bomb"
+size_group = "tall_medium"
+weight_multiplier = 0.06
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_0i3it"]
+script = ExtResource("1_u3on1")
+rule_id = &"bomb_large"
+material_id = &"bomb"
+size_group = "large"
+weight_multiplier = 0.03
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_h4h57"]
+script = ExtResource("1_u3on1")
+rule_id = &"bomb_huge"
+material_id = &"bomb"
+size_group = "huge"
+weight_multiplier = 0.005
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_w0bih"]
+script = ExtResource("1_u3on1")
+rule_id = &"bomb_event_like"
+material_id = &"bomb"
+size_group = "event_like"
+weight_multiplier = 0.001
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_saumt"]
+script = ExtResource("1_u3on1")
+rule_id = &"glass_tiny"
+material_id = &"glass"
+size_group = "tiny"
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_8jhyl"]
+script = ExtResource("1_u3on1")
+rule_id = &"glass_small"
+material_id = &"glass"
+size_group = "small"
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_ixiy7"]
+script = ExtResource("1_u3on1")
+rule_id = &"glass_medium"
+material_id = &"glass"
+size_group = "medium"
+weight_multiplier = 0.8
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_5hyf2"]
+script = ExtResource("1_u3on1")
+rule_id = &"glass_wide_small"
+material_id = &"glass"
+size_group = "wide_small"
+weight_multiplier = 0.45
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_ofs0k"]
+script = ExtResource("1_u3on1")
+rule_id = &"glass_wide_medium"
+material_id = &"glass"
+size_group = "wide_medium"
+weight_multiplier = 0.25
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_wuy0b"]
+script = ExtResource("1_u3on1")
+rule_id = &"glass_wide_large"
+material_id = &"glass"
+size_group = "wide_large"
+weight_multiplier = 0.08
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_k3s5i"]
+script = ExtResource("1_u3on1")
+rule_id = &"glass_tall_small"
+material_id = &"glass"
+size_group = "tall_small"
+weight_multiplier = 0.45
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_tg153"]
+script = ExtResource("1_u3on1")
+rule_id = &"glass_tall_medium"
+material_id = &"glass"
+size_group = "tall_medium"
+weight_multiplier = 0.3
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_y8r8u"]
+script = ExtResource("1_u3on1")
+rule_id = &"glass_large"
+material_id = &"glass"
+size_group = "large"
+weight_multiplier = 0.15
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_bnukg"]
+script = ExtResource("1_u3on1")
+rule_id = &"glass_huge"
+material_id = &"glass"
+size_group = "huge"
+weight_multiplier = 0.02
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_s3wb0"]
+script = ExtResource("1_u3on1")
+rule_id = &"glass_event_like"
+material_id = &"glass"
+size_group = "event_like"
+weight_multiplier = 0.005
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_8si87"]
+script = ExtResource("1_u3on1")
+rule_id = &"gold_tiny"
+material_id = &"gold"
+size_group = "tiny"
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_ye8r0"]
+script = ExtResource("1_u3on1")
+rule_id = &"gold_small"
+material_id = &"gold"
+size_group = "small"
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_7t0l1"]
+script = ExtResource("1_u3on1")
+rule_id = &"gold_medium"
+material_id = &"gold"
+size_group = "medium"
+weight_multiplier = 0.45
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_vmrfv"]
+script = ExtResource("1_u3on1")
+rule_id = &"gold_wide_small"
+material_id = &"gold"
+size_group = "wide_small"
+weight_multiplier = 0.12
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_cxd4n"]
+script = ExtResource("1_u3on1")
+rule_id = &"gold_wide_medium"
+material_id = &"gold"
+size_group = "wide_medium"
+weight_multiplier = 0.08
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_0qr4q"]
+script = ExtResource("1_u3on1")
+rule_id = &"gold_wide_large"
+material_id = &"gold"
+size_group = "wide_large"
+weight_multiplier = 0.03
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_eb4lq"]
+script = ExtResource("1_u3on1")
+rule_id = &"gold_tall_small"
+material_id = &"gold"
+size_group = "tall_small"
+weight_multiplier = 0.18
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_64so4"]
+script = ExtResource("1_u3on1")
+rule_id = &"gold_tall_medium"
+material_id = &"gold"
+size_group = "tall_medium"
+weight_multiplier = 0.1
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_ekp7c"]
+script = ExtResource("1_u3on1")
+rule_id = &"gold_large"
+material_id = &"gold"
+size_group = "large"
+weight_multiplier = 0.05
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_j5av0"]
+script = ExtResource("1_u3on1")
+rule_id = &"gold_huge"
+material_id = &"gold"
+size_group = "huge"
+weight_multiplier = 0.005
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_flk7m"]
+script = ExtResource("1_u3on1")
+rule_id = &"gold_event_like"
+material_id = &"gold"
+size_group = "event_like"
+weight_multiplier = 0.001
+notes = "v2 simulation affinity multiplier; never hard-blocks a size."
+
+[sub_resource type="Resource" id="Resource_py5ub"]
 script = ExtResource("2_material")
 material_id = &"wood"
 display_name = "나무"
@@ -15,7 +706,7 @@ max_allowed_area = 4
 max_allowed_width = 2
 max_allowed_height = 4
 
-[sub_resource type="Resource" id="Resource_1e1yw"]
+[sub_resource type="Resource" id="Resource_qoie4"]
 script = ExtResource("2_material")
 material_id = &"rock"
 display_name = "바위"
@@ -28,7 +719,7 @@ max_allowed_area = 4
 max_allowed_width = 2
 max_allowed_height = 3
 
-[sub_resource type="Resource" id="Resource_u3on1"]
+[sub_resource type="Resource" id="Resource_f7k56"]
 script = ExtResource("2_material")
 material_id = &"marble"
 display_name = "대리석"
@@ -42,7 +733,7 @@ max_allowed_area = 4
 max_allowed_width = 2
 max_allowed_height = 2
 
-[sub_resource type="Resource" id="Resource_gtkrb"]
+[sub_resource type="Resource" id="Resource_1slel"]
 script = ExtResource("2_material")
 material_id = &"cement"
 display_name = "시멘트"
@@ -56,7 +747,7 @@ max_allowed_area = 4
 max_allowed_width = 2
 max_allowed_height = 4
 
-[sub_resource type="Resource" id="Resource_fwkum"]
+[sub_resource type="Resource" id="Resource_byn61"]
 script = ExtResource("2_material")
 material_id = &"steel"
 display_name = "강철"
@@ -70,7 +761,7 @@ max_allowed_area = 4
 max_allowed_width = 4
 max_allowed_height = 2
 
-[sub_resource type="Resource" id="Resource_3oy47"]
+[sub_resource type="Resource" id="Resource_xudx3"]
 script = ExtResource("2_material")
 material_id = &"bomb"
 display_name = "폭탄"
@@ -85,7 +776,7 @@ max_allowed_area = 1
 max_allowed_width = 1
 max_allowed_height = 1
 
-[sub_resource type="Resource" id="Resource_m7plc"]
+[sub_resource type="Resource" id="Resource_t78gt"]
 script = ExtResource("2_material")
 material_id = &"glass"
 display_name = "유리"
@@ -96,7 +787,7 @@ max_allowed_area = 4
 max_allowed_width = 2
 max_allowed_height = 2
 
-[sub_resource type="Resource" id="Resource_ci4w0"]
+[sub_resource type="Resource" id="Resource_mum4w"]
 script = ExtResource("2_material")
 material_id = &"gold"
 display_name = "황금"
@@ -112,13 +803,139 @@ max_allowed_area = 2
 max_allowed_width = 2
 max_allowed_height = 2
 
-[sub_resource type="Resource" id="Resource_e0c4j"]
+[sub_resource type="Resource" id="Resource_6duq0"]
+script = ExtResource("3_gtkrb")
+size_id = &"size_1x1"
+size_group = "tiny"
+hard_multiplier = 0.95
+extreme_multiplier = 0.9
+hell_multiplier = 0.85
+nightmare_multiplier = 0.8
+day_11_15_multiplier = 0.95
+day_16_20_multiplier = 0.9
+day_21_25_multiplier = 0.85
+day_26_30_multiplier = 0.8
+notes = "v2 simulation rule; size min_stage/min_difficulty are not hard gates here."
+
+[sub_resource type="Resource" id="Resource_1vkrp"]
+script = ExtResource("3_gtkrb")
+size_id = &"size_1x2"
+size_group = "tall_small"
+base_spawn_weight = 0.95
+hard_multiplier = 0.95
+extreme_multiplier = 0.9
+hell_multiplier = 0.85
+nightmare_multiplier = 0.8
+day_11_15_multiplier = 0.95
+day_16_20_multiplier = 0.9
+day_21_25_multiplier = 0.85
+day_26_30_multiplier = 0.8
+notes = "v2 simulation rule; size min_stage/min_difficulty are not hard gates here."
+
+[sub_resource type="Resource" id="Resource_d1dn6"]
+script = ExtResource("3_gtkrb")
+size_id = &"size_2x1"
+size_group = "small"
+base_spawn_weight = 0.85
+hard_multiplier = 0.95
+extreme_multiplier = 0.9
+hell_multiplier = 0.85
+nightmare_multiplier = 0.8
+day_11_15_multiplier = 0.95
+day_16_20_multiplier = 0.9
+day_21_25_multiplier = 0.85
+day_26_30_multiplier = 0.8
+notes = "v2 simulation rule; size min_stage/min_difficulty are not hard gates here."
+
+[sub_resource type="Resource" id="Resource_p81d2"]
+script = ExtResource("3_gtkrb")
+size_id = &"size_2x2"
+size_group = "medium"
+base_spawn_weight = 0.55
+hard_multiplier = 1.2
+extreme_multiplier = 1.35
+hell_multiplier = 1.5
+nightmare_multiplier = 1.7
+day_1_5_multiplier = 0.15
+day_6_10_multiplier = 0.4
+day_11_15_multiplier = 0.75
+min_day_hint = 6
+notes = "v2 simulation rule; size min_stage/min_difficulty are not hard gates here."
+
+[sub_resource type="Resource" id="Resource_h6rvx"]
+script = ExtResource("3_gtkrb")
+size_id = &"size_1x3"
+size_group = "tall_small"
+base_spawn_weight = 0.55
+hard_multiplier = 0.95
+extreme_multiplier = 0.9
+hell_multiplier = 0.85
+nightmare_multiplier = 0.8
+day_11_15_multiplier = 0.95
+day_16_20_multiplier = 0.9
+day_21_25_multiplier = 0.85
+day_26_30_multiplier = 0.8
+notes = "v2 simulation rule; size min_stage/min_difficulty are not hard gates here."
+
+[sub_resource type="Resource" id="Resource_8k6xk"]
+script = ExtResource("3_gtkrb")
+size_id = &"size_3x1"
+size_group = "wide_small"
+base_spawn_weight = 0.4
+hard_multiplier = 1.35
+extreme_multiplier = 1.65
+hell_multiplier = 1.9
+nightmare_multiplier = 2.2
+day_1_5_multiplier = 0.03
+day_6_10_multiplier = 0.12
+day_11_15_multiplier = 0.35
+day_16_20_multiplier = 0.65
+day_21_25_multiplier = 0.85
+min_day_hint = 11
+notes = "v2 simulation rule; size min_stage/min_difficulty are not hard gates here."
+
+[sub_resource type="Resource" id="Resource_4egb8"]
+script = ExtResource("3_gtkrb")
+size_id = &"size_1x4"
+size_group = "event_like"
+base_spawn_weight = 0.3
+hard_multiplier = 1.8
+extreme_multiplier = 2.4
+hell_multiplier = 3.0
+nightmare_multiplier = 3.6
+day_1_5_multiplier = 0.001
+day_6_10_multiplier = 0.001
+day_11_15_multiplier = 0.001
+day_16_20_multiplier = 0.003
+day_21_25_multiplier = 0.005
+day_26_30_multiplier = 0.005
+min_day_hint = 0
+notes = "v2 simulation rule; size min_stage/min_difficulty are not hard gates here."
+
+[sub_resource type="Resource" id="Resource_1umy4"]
+script = ExtResource("3_gtkrb")
+size_id = &"size_4x1"
+size_group = "wide_small"
+base_spawn_weight = 0.2
+hard_multiplier = 1.35
+extreme_multiplier = 1.65
+hell_multiplier = 1.9
+nightmare_multiplier = 2.2
+day_1_5_multiplier = 0.03
+day_6_10_multiplier = 0.12
+day_11_15_multiplier = 0.35
+day_16_20_multiplier = 0.65
+day_21_25_multiplier = 0.85
+min_day_hint = 11
+notes = "v2 simulation rule; size min_stage/min_difficulty are not hard gates here."
+
+[sub_resource type="Resource" id="Resource_o7xa1"]
 script = ExtResource("3_size")
 size_id = &"size_1x1"
 min_difficulty = &""
 tags = PackedStringArray("starter", "compact")
 
-[sub_resource type="Resource" id="Resource_kaa8a"]
+[sub_resource type="Resource" id="Resource_pijrr"]
 script = ExtResource("3_size")
 size_id = &"size_1x2"
 height_u = 2
@@ -130,7 +947,7 @@ min_difficulty = &""
 min_stage = 2
 tags = PackedStringArray("tall", "area2")
 
-[sub_resource type="Resource" id="Resource_uf52m"]
+[sub_resource type="Resource" id="Resource_nyhgv"]
 script = ExtResource("3_size")
 size_id = &"size_2x1"
 width_u = 2
@@ -142,7 +959,7 @@ min_difficulty = &""
 min_stage = 4
 tags = PackedStringArray("wide", "area2")
 
-[sub_resource type="Resource" id="Resource_ujker"]
+[sub_resource type="Resource" id="Resource_itfb3"]
 script = ExtResource("3_size")
 size_id = &"size_2x2"
 width_u = 2
@@ -155,7 +972,7 @@ min_difficulty = &"hard"
 min_stage = 12
 tags = PackedStringArray("big", "area4")
 
-[sub_resource type="Resource" id="Resource_c5u3c"]
+[sub_resource type="Resource" id="Resource_dtsa1"]
 script = ExtResource("3_size")
 size_id = &"size_1x3"
 height_u = 3
@@ -167,7 +984,7 @@ min_difficulty = &"hard"
 min_stage = 14
 tags = PackedStringArray("tall", "area3")
 
-[sub_resource type="Resource" id="Resource_0wav6"]
+[sub_resource type="Resource" id="Resource_2ri1l"]
 script = ExtResource("3_size")
 size_id = &"size_3x1"
 width_u = 3
@@ -179,7 +996,7 @@ min_difficulty = &"hard"
 min_stage = 16
 tags = PackedStringArray("wide", "area3")
 
-[sub_resource type="Resource" id="Resource_djeim"]
+[sub_resource type="Resource" id="Resource_8ryes"]
 script = ExtResource("3_size")
 size_id = &"size_1x4"
 height_u = 4
@@ -191,7 +1008,7 @@ min_difficulty = &"hard"
 min_stage = 20
 tags = PackedStringArray("tall", "area4")
 
-[sub_resource type="Resource" id="Resource_fkl0g"]
+[sub_resource type="Resource" id="Resource_4l0an"]
 script = ExtResource("3_size")
 size_id = &"size_4x1"
 width_u = 4
@@ -203,7 +1020,7 @@ min_difficulty = &"hard"
 min_stage = 22
 tags = PackedStringArray("wide", "area4")
 
-[sub_resource type="Resource" id="Resource_1dmua"]
+[sub_resource type="Resource" id="Resource_ifvvx"]
 script = ExtResource("5_type")
 id = &"boss"
 display_name = "boss"
@@ -215,6 +1032,8 @@ hp_multiplier = 3.0
 script = ExtResource("1_catalog")
 default_block_base_id = &"glass"
 default_block_size_id = &"size_1x1"
-block_materials = Array[Resource]([SubResource("Resource_o1k74"), SubResource("Resource_1e1yw"), SubResource("Resource_u3on1"), SubResource("Resource_gtkrb"), SubResource("Resource_fwkum"), SubResource("Resource_3oy47"), SubResource("Resource_m7plc"), SubResource("Resource_ci4w0")])
-block_sizes = Array[Resource]([SubResource("Resource_e0c4j"), SubResource("Resource_kaa8a"), SubResource("Resource_uf52m"), SubResource("Resource_ujker"), SubResource("Resource_c5u3c"), SubResource("Resource_0wav6"), SubResource("Resource_djeim"), SubResource("Resource_fkl0g")])
-block_types = Array[Resource]([SubResource("Resource_1dmua")])
+block_materials = Array[Resource]([SubResource("Resource_py5ub"), SubResource("Resource_qoie4"), SubResource("Resource_f7k56"), SubResource("Resource_1slel"), SubResource("Resource_byn61"), SubResource("Resource_xudx3"), SubResource("Resource_t78gt"), SubResource("Resource_mum4w")])
+block_sizes = Array[Resource]([SubResource("Resource_o7xa1"), SubResource("Resource_pijrr"), SubResource("Resource_nyhgv"), SubResource("Resource_itfb3"), SubResource("Resource_dtsa1"), SubResource("Resource_2ri1l"), SubResource("Resource_8ryes"), SubResource("Resource_4l0an")])
+block_types = Array[Resource]([SubResource("Resource_ifvvx")])
+block_size_spawn_rules = Array[Resource]([SubResource("Resource_6duq0"), SubResource("Resource_1vkrp"), SubResource("Resource_d1dn6"), SubResource("Resource_p81d2"), SubResource("Resource_h6rvx"), SubResource("Resource_8k6xk"), SubResource("Resource_4egb8"), SubResource("Resource_1umy4")])
+block_material_size_weight_rules = Array[Resource]([SubResource("Resource_u3on1"), SubResource("Resource_gtkrb"), SubResource("Resource_fwkum"), SubResource("Resource_3oy47"), SubResource("Resource_m7plc"), SubResource("Resource_ci4w0"), SubResource("Resource_e0c4j"), SubResource("Resource_kaa8a"), SubResource("Resource_uf52m"), SubResource("Resource_ujker"), SubResource("Resource_c5u3c"), SubResource("Resource_0wav6"), SubResource("Resource_djeim"), SubResource("Resource_fkl0g"), SubResource("Resource_1dmua"), SubResource("Resource_mf2r4"), SubResource("Resource_yja1p"), SubResource("Resource_w0phl"), SubResource("Resource_61ovh"), SubResource("Resource_b0mhj"), SubResource("Resource_j0ia0"), SubResource("Resource_6qjt6"), SubResource("Resource_4lmd0"), SubResource("Resource_0ualg"), SubResource("Resource_t5w58"), SubResource("Resource_igqa5"), SubResource("Resource_b736x"), SubResource("Resource_66l2x"), SubResource("Resource_2fqby"), SubResource("Resource_ol6yr"), SubResource("Resource_2lpny"), SubResource("Resource_ac30p"), SubResource("Resource_6n7du"), SubResource("Resource_25xtj"), SubResource("Resource_m1xgd"), SubResource("Resource_e37qn"), SubResource("Resource_oxwai"), SubResource("Resource_e1loe"), SubResource("Resource_s7hng"), SubResource("Resource_5gudq"), SubResource("Resource_q7jtr"), SubResource("Resource_bpk7g"), SubResource("Resource_n7y1s"), SubResource("Resource_0xc2m"), SubResource("Resource_omk10"), SubResource("Resource_jd1ps"), SubResource("Resource_ptxlb"), SubResource("Resource_8javq"), SubResource("Resource_ehrgq"), SubResource("Resource_lx004"), SubResource("Resource_1e50j"), SubResource("Resource_k0shu"), SubResource("Resource_pspfs"), SubResource("Resource_5l4q2"), SubResource("Resource_aqmcl"), SubResource("Resource_ut23u"), SubResource("Resource_vsjct"), SubResource("Resource_tc3if"), SubResource("Resource_5bi2l"), SubResource("Resource_aiypr"), SubResource("Resource_fay2j"), SubResource("Resource_fu4ho"), SubResource("Resource_474bw"), SubResource("Resource_0i3it"), SubResource("Resource_h4h57"), SubResource("Resource_w0bih"), SubResource("Resource_saumt"), SubResource("Resource_8jhyl"), SubResource("Resource_ixiy7"), SubResource("Resource_5hyf2"), SubResource("Resource_ofs0k"), SubResource("Resource_wuy0b"), SubResource("Resource_k3s5i"), SubResource("Resource_tg153"), SubResource("Resource_y8r8u"), SubResource("Resource_bnukg"), SubResource("Resource_s3wb0"), SubResource("Resource_8si87"), SubResource("Resource_ye8r0"), SubResource("Resource_7t0l1"), SubResource("Resource_vmrfv"), SubResource("Resource_cxd4n"), SubResource("Resource_0qr4q"), SubResource("Resource_eb4lq"), SubResource("Resource_64so4"), SubResource("Resource_ekp7c"), SubResource("Resource_j5av0"), SubResource("Resource_flk7m")])

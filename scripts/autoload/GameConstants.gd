@@ -54,7 +54,8 @@ const PLAYER_WALL_CLIMB_TOP_LIMIT_Y := WORLD_PLAYABLE_TOP_Y + float(CELL_SIZE) *
 const BLOCK_SPAWN_MIN_CAMERA_TOP_Y := WORLD_PLAYABLE_TOP_Y
 
 # 월드 기준 플레이어의 충돌/표시 크기.
-const PLAYER_SIZE := Vector2(128.0, 128.0)
+const PLAYER_SIZE := Vector2(float(CELL_SIZE), float(CELL_SIZE))
+const PLAYER_VISUAL_SIZE := Vector2(float(CELL_SIZE), float(CELL_SIZE))
 # 샤프트 하단부 근처의 플레이어 시작 위치.
 const PLAYER_SPAWN_POSITION := Vector2(
 	WORLD_ORIGIN.x + CELL_SIZE * (WORLD_COLUMNS * 0.5),

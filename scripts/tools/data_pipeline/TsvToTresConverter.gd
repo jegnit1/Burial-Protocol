@@ -128,18 +128,19 @@ func _convert_shop_item_catalog(input_dir: String) -> Dictionary:
 func _build_attack_module_item_definition(row: Dictionary, errors: Array[String]):
 	var definition = SHOP_ITEM_DEFINITION_SCRIPT.new()
 	var base_damage_by_grade := _build_base_damage_by_grade(row, errors)
+	var price_by_grade := _build_price_by_grade(row, errors)
 	definition.apply_dictionary({
 		"item_id": _validation.get_required_string(row, "item_id", TSV_SCHEMA.ATTACK_MODULE_ITEMS_FILE, errors),
 		"name": _validation.get_required_string(row, "name", TSV_SCHEMA.ATTACK_MODULE_ITEMS_FILE, errors),
 		"item_category": _validation.get_required_string(row, "item_category", TSV_SCHEMA.ATTACK_MODULE_ITEMS_FILE, errors),
-		"rank": _validation.get_required_string(row, "rank", TSV_SCHEMA.ATTACK_MODULE_ITEMS_FILE, errors),
-		"price_gold": _validation.get_required_int(row, "price_gold", TSV_SCHEMA.ATTACK_MODULE_ITEMS_FILE, errors),
+		"rank": "D",
+		"price_gold": 0,
 		"shop_enabled": _validation.get_required_bool(row, "shop_enabled", TSV_SCHEMA.ATTACK_MODULE_ITEMS_FILE, errors),
 		"shop_spawn_weight": _validation.get_required_float(row, "shop_spawn_weight", TSV_SCHEMA.ATTACK_MODULE_ITEMS_FILE, errors),
-		"stackable": _validation.get_required_bool(row, "stackable", TSV_SCHEMA.ATTACK_MODULE_ITEMS_FILE, errors),
-		"max_stack": _validation.get_required_int(row, "max_stack", TSV_SCHEMA.ATTACK_MODULE_ITEMS_FILE, errors),
-		"equip_slot": _validation.get_optional_string(row, "equip_slot"),
-		"is_equippable": _validation.get_required_bool(row, "is_equippable", TSV_SCHEMA.ATTACK_MODULE_ITEMS_FILE, errors),
+		"stackable": false,
+		"max_stack": 1,
+		"equip_slot": "attack_module",
+		"is_equippable": true,
 		"default_start_module": _validation.get_required_bool(row, "default_start_module", TSV_SCHEMA.ATTACK_MODULE_ITEMS_FILE, errors),
 		"icon_path": _validation.get_optional_string(row, "icon_path"),
 		"short_desc": _validation.get_required_string(row, "short_desc", TSV_SCHEMA.ATTACK_MODULE_ITEMS_FILE, errors),
@@ -152,13 +153,14 @@ func _build_attack_module_item_definition(row: Dictionary, errors: Array[String]
 		"base_shape_units_y": _validation.get_optional_float(row, "base_shape_units_y", 0.0),
 		"range_growth_width_scale": _validation.get_optional_float(row, "range_growth_width_scale", 1.0),
 		"range_growth_height_scale": _validation.get_optional_float(row, "range_growth_height_scale", 0.1),
-		"hit_shape": _validation.get_optional_string(row, "hit_shape"),
+		"hit_shape": "rectangle",
 		"range_units": _validation.get_optional_float(row, "range_units", 0.0),
 		"range_growth_scale": _validation.get_optional_float(row, "range_growth_scale", 1.0),
 		"range_width_u": _validation.get_required_float(row, "range_width_u", TSV_SCHEMA.ATTACK_MODULE_ITEMS_FILE, errors),
 		"range_height_u": _validation.get_required_float(row, "range_height_u", TSV_SCHEMA.ATTACK_MODULE_ITEMS_FILE, errors),
-		"module_base_damage": _validation.get_required_int(row, "module_base_damage", TSV_SCHEMA.ATTACK_MODULE_ITEMS_FILE, errors),
+		"module_base_damage": int(base_damage_by_grade.get("D", 0)),
 		"base_damage_by_grade": base_damage_by_grade,
+		"price_by_grade": price_by_grade,
 		"attack_speed_multiplier": _validation.get_required_float(row, "attack_speed_multiplier", TSV_SCHEMA.ATTACK_MODULE_ITEMS_FILE, errors),
 		"projectile_count": _validation.get_optional_int(row, "projectile_count", 1),
 		"spread_angle": _validation.get_optional_float(row, "spread_angle", 0.0),
@@ -170,8 +172,8 @@ func _build_attack_module_item_definition(row: Dictionary, errors: Array[String]
 		"projectile_visual_size_y": _validation.get_optional_float(row, "projectile_visual_size_y", 6.0),
 		"is_hitscan": _validation.get_optional_bool(row, "is_hitscan", false),
 		"projectile_homing": _validation.get_optional_bool(row, "projectile_homing", false),
-		"mechanic_drone_count": _validation.get_optional_int(row, "mechanic_drone_count", 1),
-		"mechanic_targeting": _validation.get_optional_string(row, "mechanic_targeting"),
+		"mechanic_drone_count": 1,
+		"mechanic_targeting": "nearest",
 		"world_visual_scene_path": _validation.get_required_string(row, "world_visual_scene_path", TSV_SCHEMA.ATTACK_MODULE_ITEMS_FILE, errors),
 	})
 	return definition
@@ -185,6 +187,16 @@ func _build_base_damage_by_grade(row: Dictionary, errors: Array[String]) -> Dict
 		if damage > 0:
 			base_damage_by_grade[grade] = damage
 	return base_damage_by_grade
+
+
+func _build_price_by_grade(row: Dictionary, errors: Array[String]) -> Dictionary:
+	var price_by_grade: Dictionary = {}
+	for grade in TSV_SCHEMA.ATTACK_MODULE_BASE_DAMAGE_GRADES:
+		var column := "price_%s" % grade
+		var price := _validation.get_required_int(row, column, TSV_SCHEMA.ATTACK_MODULE_ITEMS_FILE, errors)
+		if price > 0:
+			price_by_grade[grade] = price
+	return price_by_grade
 
 
 func _build_effect_item_definition(row: Dictionary, errors: Array[String]):

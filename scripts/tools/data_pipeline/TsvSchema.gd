@@ -154,6 +154,19 @@ const ITEM_COMMON_HEADERS := [
 	"tags",
 ]
 
+const ATTACK_MODULE_ITEM_BASE_HEADERS := [
+	"item_id",
+	"name",
+	"item_category",
+	"shop_enabled",
+	"shop_spawn_weight",
+	"default_start_module",
+	"icon_path",
+	"short_desc",
+	"desc",
+	"tags",
+]
+
 const EFFECT_HEADERS := [
 	"effect_damage_multiplier",
 	"effect_sand_remove_interval_sec",
@@ -214,9 +227,8 @@ const EFFECT_COLUMN_TO_KEY := {
 
 
 static func get_attack_module_item_headers() -> Array:
-	var headers := ITEM_COMMON_HEADERS.duplicate()
+	var headers := ATTACK_MODULE_ITEM_BASE_HEADERS.duplicate()
 	headers.append_array([
-		"default_start_module",
 		"module_type",
 		"attack_style",
 		"effect_style",
@@ -224,17 +236,20 @@ static func get_attack_module_item_headers() -> Array:
 		"base_shape_units_y",
 		"range_growth_width_scale",
 		"range_growth_height_scale",
-		"hit_shape",
 		"range_units",
 		"range_growth_scale",
 		"range_width_u",
 		"range_height_u",
-		"module_base_damage",
 		"base_damage_D",
 		"base_damage_C",
 		"base_damage_B",
 		"base_damage_A",
 		"base_damage_S",
+		"price_D",
+		"price_C",
+		"price_B",
+		"price_A",
+		"price_S",
 		"attack_speed_multiplier",
 		"projectile_count",
 		"spread_angle",
@@ -246,8 +261,6 @@ static func get_attack_module_item_headers() -> Array:
 		"projectile_visual_size_y",
 		"is_hitscan",
 		"projectile_homing",
-		"mechanic_drone_count",
-		"mechanic_targeting",
 		"world_visual_scene_path",
 	])
 	return headers

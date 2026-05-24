@@ -50,8 +50,8 @@ WORLD_ROWS = 200
 금지:
 
 ```text
-- assets/main_idle.png 교체
-- assets/main_run.png 교체
+- assets/characters/player/main_idle.png 교체
+- assets/characters/player/main_run.png 교체
 - Player.tscn의 애니메이션 프레임 구조 변경
 - PLAYER_SIZE 변경
 - 플레이어 충돌 박스 변경

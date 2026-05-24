@@ -443,7 +443,7 @@ if all size effective weights <= 0:
 권장 출력:
 
 ```text
-docs/reports/block_spawn_distribution_snapshot.md
+docs/reports/spawn_distribution_snapshot.md
 docs/reports/block_spawn_distribution_diff_v1_v2.md
 ```
 

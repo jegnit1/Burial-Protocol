@@ -428,18 +428,18 @@ func _validate_item_rows(file_label: String, rows: Array, expected_category: Str
 			errors.append(_location(file_label, row, "item_category") + "must be %s." % str(expected_category))
 		if not item_category.is_empty() and not VALID_ITEM_CATEGORIES.has(item_category):
 			errors.append(_location(file_label, row, "item_category") + "must be attack_module/function_module/enhance_module.")
-		var rank := get_required_string(row, "rank", file_label, errors)
-		if not rank.is_empty() and not VALID_ITEM_RANKS.has(rank):
-			errors.append(_location(file_label, row, "rank") + "must be one of D/C/B/A/S.")
-		get_required_int(row, "price_gold", file_label, errors)
 		get_required_bool(row, "shop_enabled", file_label, errors)
 		get_required_float(row, "shop_spawn_weight", file_label, errors)
-		get_required_bool(row, "stackable", file_label, errors)
-		get_required_int(row, "max_stack", file_label, errors)
-		get_required_bool(row, "is_equippable", file_label, errors)
 		get_required_string(row, "short_desc", file_label, errors)
 		get_required_string(row, "desc", file_label, errors)
 		if str(expected_category) == "function_module" or str(expected_category) == "enhance_module":
+			var rank := get_required_string(row, "rank", file_label, errors)
+			if not rank.is_empty() and not VALID_ITEM_RANKS.has(rank):
+				errors.append(_location(file_label, row, "rank") + "must be one of D/C/B/A/S.")
+			get_required_int(row, "price_gold", file_label, errors)
+			get_required_bool(row, "stackable", file_label, errors)
+			get_required_int(row, "max_stack", file_label, errors)
+			get_required_bool(row, "is_equippable", file_label, errors)
 			get_dictionary_array_json(row, "conditions_json", file_label, errors)
 			get_dictionary_array_json(row, "effects_json", file_label, errors)
 			var apply_timing := get_optional_string(row, "apply_timing")
@@ -453,14 +453,13 @@ func _validate_item_rows(file_label: String, rows: Array, expected_category: Str
 				get_required_float(row, "base_shape_units_y", file_label, errors)
 				get_required_float(row, "range_growth_width_scale", file_label, errors)
 				get_required_float(row, "range_growth_height_scale", file_label, errors)
-				get_required_string(row, "hit_shape", file_label, errors)
 				get_required_float(row, "range_units", file_label, errors)
 				get_required_float(row, "range_growth_scale", file_label, errors)
 				get_required_float(row, "range_width_u", file_label, errors)
 				get_required_float(row, "range_height_u", file_label, errors)
-				get_required_int(row, "module_base_damage", file_label, errors)
 				for grade in TSV_SCHEMA.ATTACK_MODULE_BASE_DAMAGE_GRADES:
 					get_required_int(row, "base_damage_%s" % grade, file_label, errors)
+					get_required_int(row, "price_%s" % grade, file_label, errors)
 				get_required_float(row, "attack_speed_multiplier", file_label, errors)
 				get_required_string(row, "world_visual_scene_path", file_label, errors)
 			"function_module":

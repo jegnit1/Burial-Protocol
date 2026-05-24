@@ -29,6 +29,7 @@ const ATTACK_MODULE_STYLE_RESOLVER := preload("res://scripts/data/AttackModuleSt
 @export var range_height_u := 0.0
 @export var module_base_damage := 0
 @export var base_damage_by_grade: Dictionary = {}
+@export var price_by_grade: Dictionary = {}
 @export var attack_speed_multiplier := 1.0
 @export var projectile_count := 1
 @export var spread_angle := 0.0
@@ -97,6 +98,7 @@ func to_dictionary() -> Dictionary:
 		"range_height_u": range_height_u,
 		"module_base_damage": module_base_damage,
 		"base_damage_by_grade": base_damage_by_grade.duplicate(true),
+		"price_by_grade": price_by_grade.duplicate(true),
 		"attack_speed_multiplier": attack_speed_multiplier,
 		"projectile_count": projectile_count,
 		"spread_angle": spread_angle,
@@ -156,6 +158,7 @@ func apply_dictionary(data: Dictionary) -> void:
 	range_height_u = float(style_data.get("range_height_u", 0.0))
 	module_base_damage = int(data.get("module_base_damage", 0))
 	base_damage_by_grade = _normalize_base_damage_by_grade(data.get("base_damage_by_grade", {}))
+	price_by_grade = _normalize_price_by_grade(data.get("price_by_grade", {}))
 	attack_speed_multiplier = float(data.get("attack_speed_multiplier", 1.0))
 	projectile_count = int(style_data.get("projectile_count", 1))
 	spread_angle = float(style_data.get("spread_angle", 0.0))
@@ -210,4 +213,20 @@ func _normalize_base_damage_by_grade(raw_value: Variant) -> Dictionary:
 		if damage <= 0:
 			continue
 		result[grade] = damage
+	return result
+
+
+func _normalize_price_by_grade(raw_value: Variant) -> Dictionary:
+	var result: Dictionary = {}
+	if not raw_value is Dictionary:
+		return result
+	var raw_dictionary: Dictionary = raw_value
+	for raw_grade in raw_dictionary.keys():
+		var grade := String(raw_grade).strip_edges().to_upper()
+		if grade.is_empty():
+			continue
+		var price := int(raw_dictionary[raw_grade])
+		if price <= 0:
+			continue
+		result[grade] = price
 	return result

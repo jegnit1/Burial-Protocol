@@ -433,7 +433,17 @@ func _build_shop_item_rows_by_category() -> Dictionary:
 
 
 func _build_attack_module_item_row(definition: Dictionary) -> Dictionary:
-	var row := _build_common_item_row(definition)
+	var row := {
+		"item_id": str(definition.get("item_id", "")),
+		"name": str(definition.get("name", "")),
+		"item_category": str(definition.get("item_category", "attack_module")),
+		"shop_enabled": bool(definition.get("shop_enabled", true)),
+		"shop_spawn_weight": float(definition.get("shop_spawn_weight", -1.0)),
+		"icon_path": str(definition.get("icon_path", "")),
+		"short_desc": str(definition.get("short_desc", "")),
+		"desc": str(definition.get("desc", "")),
+		"tags": TSV_SCHEMA.join_list(Array(definition.get("tags", []))),
+	}
 	row["default_start_module"] = bool(definition.get("default_start_module", false))
 	row["module_type"] = str(definition.get("module_type", ""))
 	row["attack_style"] = str(definition.get("attack_style", "slash"))
@@ -442,15 +452,16 @@ func _build_attack_module_item_row(definition: Dictionary) -> Dictionary:
 	row["base_shape_units_y"] = float(definition.get("base_shape_units_y", definition.get("range_height_u", 0.0)))
 	row["range_growth_width_scale"] = float(definition.get("range_growth_width_scale", 1.0))
 	row["range_growth_height_scale"] = float(definition.get("range_growth_height_scale", 0.1))
-	row["hit_shape"] = str(definition.get("hit_shape", "rectangle"))
 	row["range_units"] = float(definition.get("range_units", definition.get("range_width_u", 0.0)))
 	row["range_growth_scale"] = float(definition.get("range_growth_scale", 1.0))
 	row["range_width_u"] = float(definition.get("range_width_u", 0.0))
 	row["range_height_u"] = float(definition.get("range_height_u", 0.0))
-	row["module_base_damage"] = int(definition.get("module_base_damage", 0))
 	var base_damage_by_grade: Dictionary = definition.get("base_damage_by_grade", {})
 	for grade in TSV_SCHEMA.ATTACK_MODULE_BASE_DAMAGE_GRADES:
 		row["base_damage_%s" % grade] = int(base_damage_by_grade.get(grade, 0))
+	var price_by_grade: Dictionary = definition.get("price_by_grade", {})
+	for grade in TSV_SCHEMA.ATTACK_MODULE_BASE_DAMAGE_GRADES:
+		row["price_%s" % grade] = int(price_by_grade.get(grade, _get_attack_module_default_price_for_grade(grade)))
 	row["attack_speed_multiplier"] = float(definition.get("attack_speed_multiplier", 1.0))
 	row["projectile_count"] = int(definition.get("projectile_count", 1))
 	row["spread_angle"] = float(definition.get("spread_angle", 0.0))
@@ -462,10 +473,23 @@ func _build_attack_module_item_row(definition: Dictionary) -> Dictionary:
 	row["projectile_visual_size_y"] = float(definition.get("projectile_visual_size_y", 6.0))
 	row["is_hitscan"] = bool(definition.get("is_hitscan", false))
 	row["projectile_homing"] = bool(definition.get("projectile_homing", false))
-	row["mechanic_drone_count"] = int(definition.get("mechanic_drone_count", 1))
-	row["mechanic_targeting"] = str(definition.get("mechanic_targeting", "nearest"))
 	row["world_visual_scene_path"] = str(definition.get("world_visual_scene_path", ""))
 	return row
+
+
+func _get_attack_module_default_price_for_grade(grade: String) -> int:
+	match grade:
+		"D":
+			return 15
+		"C":
+			return 30
+		"B":
+			return 60
+		"A":
+			return 120
+		"S":
+			return 240
+	return 15
 
 
 func _build_effect_item_row(definition: Dictionary) -> Dictionary:

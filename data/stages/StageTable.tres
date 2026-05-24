@@ -1,7 +1,7 @@
-[gd_resource type="Resource" script_class="StageTable" format=3]
+[gd_resource type="Resource" script_class="StageTable" format=3 uid="uid://3i1qbnslpd04"]
 
-[ext_resource type="Script" path="res://scripts/data/StageTable.gd" id="1_table"]
-[ext_resource type="Script" path="res://scripts/data/StageDayDefinition.gd" id="2_day"]
+[ext_resource type="Script" uid="uid://ciwnhi17lk0ac" path="res://scripts/data/StageTable.gd" id="1_table"]
+[ext_resource type="Script" uid="uid://clqgjko7htuge" path="res://scripts/data/StageDayDefinition.gd" id="2_day"]
 
 [sub_resource type="Resource" id="Resource_tnqps"]
 script = ExtResource("2_day")
@@ -10,54 +10,54 @@ special_rules = PackedStringArray()
 [sub_resource type="Resource" id="Resource_5xiit"]
 script = ExtResource("2_day")
 day_number = 2
-block_hp_multiplier = 1.05
+block_hp_multiplier = 1.5
 special_rules = PackedStringArray()
 
 [sub_resource type="Resource" id="Resource_mtawy"]
 script = ExtResource("2_day")
 day_number = 3
-block_hp_multiplier = 1.1
+block_hp_multiplier = 2.0
 special_rules = PackedStringArray()
 
 [sub_resource type="Resource" id="Resource_0qbjx"]
 script = ExtResource("2_day")
 day_number = 4
-block_hp_multiplier = 1.15
+block_hp_multiplier = 2.5
 special_rules = PackedStringArray()
 
 [sub_resource type="Resource" id="Resource_nfkna"]
 script = ExtResource("2_day")
 day_number = 5
 day_type = &"rush"
-block_hp_multiplier = 1.2
+block_hp_multiplier = 3.0
 spawn_interval_multiplier = 0.5
 special_rules = PackedStringArray()
 
 [sub_resource type="Resource" id="Resource_efwns"]
 script = ExtResource("2_day")
 day_number = 6
-block_hp_multiplier = 1.25
+block_hp_multiplier = 3.5
 spawn_interval_multiplier = 0.9
 special_rules = PackedStringArray()
 
 [sub_resource type="Resource" id="Resource_8midy"]
 script = ExtResource("2_day")
 day_number = 7
-block_hp_multiplier = 1.3
+block_hp_multiplier = 4.0
 spawn_interval_multiplier = 0.85
 special_rules = PackedStringArray()
 
 [sub_resource type="Resource" id="Resource_eidbu"]
 script = ExtResource("2_day")
 day_number = 8
-block_hp_multiplier = 1.35
+block_hp_multiplier = 4.5
 spawn_interval_multiplier = 0.8
 special_rules = PackedStringArray()
 
 [sub_resource type="Resource" id="Resource_637ai"]
 script = ExtResource("2_day")
 day_number = 9
-block_hp_multiplier = 1.4
+block_hp_multiplier = 5.0
 spawn_interval_multiplier = 0.75
 special_rules = PackedStringArray()
 
@@ -65,7 +65,7 @@ special_rules = PackedStringArray()
 script = ExtResource("2_day")
 day_number = 10
 day_type = &"boss"
-block_hp_multiplier = 1.45
+block_hp_multiplier = 5.0
 boss_block_base_id = &"marble"
 boss_block_size_id = &"size_2x1"
 boss_block_type_id = &"boss"
@@ -75,28 +75,28 @@ special_rules = PackedStringArray()
 [sub_resource type="Resource" id="Resource_51b5s"]
 script = ExtResource("2_day")
 day_number = 11
-block_hp_multiplier = 1.5
+block_hp_multiplier = 5.2
 spawn_interval_multiplier = 0.75
 special_rules = PackedStringArray()
 
 [sub_resource type="Resource" id="Resource_nf7kd"]
 script = ExtResource("2_day")
 day_number = 12
-block_hp_multiplier = 1.55
+block_hp_multiplier = 5.4
 spawn_interval_multiplier = 0.7
 special_rules = PackedStringArray()
 
 [sub_resource type="Resource" id="Resource_y2ov0"]
 script = ExtResource("2_day")
 day_number = 13
-block_hp_multiplier = 1.6
+block_hp_multiplier = 5.6
 spawn_interval_multiplier = 0.65
 special_rules = PackedStringArray()
 
 [sub_resource type="Resource" id="Resource_y8ef4"]
 script = ExtResource("2_day")
 day_number = 14
-block_hp_multiplier = 1.65
+block_hp_multiplier = 5.8
 spawn_interval_multiplier = 0.6
 special_rules = PackedStringArray()
 
@@ -104,35 +104,35 @@ special_rules = PackedStringArray()
 script = ExtResource("2_day")
 day_number = 15
 day_type = &"rush"
-block_hp_multiplier = 1.7
+block_hp_multiplier = 6.0
 spawn_interval_multiplier = 0.5
 special_rules = PackedStringArray()
 
 [sub_resource type="Resource" id="Resource_q57bp"]
 script = ExtResource("2_day")
 day_number = 16
-block_hp_multiplier = 1.75
+block_hp_multiplier = 6.2
 spawn_interval_multiplier = 0.6
 special_rules = PackedStringArray()
 
 [sub_resource type="Resource" id="Resource_foqlq"]
 script = ExtResource("2_day")
 day_number = 17
-block_hp_multiplier = 1.8
+block_hp_multiplier = 6.4
 spawn_interval_multiplier = 0.57
 special_rules = PackedStringArray()
 
 [sub_resource type="Resource" id="Resource_iyb8a"]
 script = ExtResource("2_day")
 day_number = 18
-block_hp_multiplier = 1.85
+block_hp_multiplier = 6.6
 spawn_interval_multiplier = 0.54
 special_rules = PackedStringArray()
 
 [sub_resource type="Resource" id="Resource_ad4a4"]
 script = ExtResource("2_day")
 day_number = 19
-block_hp_multiplier = 1.9
+block_hp_multiplier = 6.8
 spawn_interval_multiplier = 0.52
 special_rules = PackedStringArray()
 
@@ -140,7 +140,7 @@ special_rules = PackedStringArray()
 script = ExtResource("2_day")
 day_number = 20
 day_type = &"boss"
-block_hp_multiplier = 1.95
+block_hp_multiplier = 7.0
 boss_block_base_id = &"steel"
 boss_block_size_id = &"size_2x1"
 boss_block_type_id = &"boss"
@@ -150,28 +150,28 @@ special_rules = PackedStringArray()
 [sub_resource type="Resource" id="Resource_5bb2u"]
 script = ExtResource("2_day")
 day_number = 21
-block_hp_multiplier = 2.0
+block_hp_multiplier = 7.2
 spawn_interval_multiplier = 0.52
 special_rules = PackedStringArray()
 
 [sub_resource type="Resource" id="Resource_yhfti"]
 script = ExtResource("2_day")
 day_number = 22
-block_hp_multiplier = 2.05
+block_hp_multiplier = 7.4
 spawn_interval_multiplier = 0.5
 special_rules = PackedStringArray()
 
 [sub_resource type="Resource" id="Resource_j6tbm"]
 script = ExtResource("2_day")
 day_number = 23
-block_hp_multiplier = 2.1
+block_hp_multiplier = 7.6
 spawn_interval_multiplier = 0.48
 special_rules = PackedStringArray()
 
 [sub_resource type="Resource" id="Resource_u15ju"]
 script = ExtResource("2_day")
 day_number = 24
-block_hp_multiplier = 2.15
+block_hp_multiplier = 7.8
 spawn_interval_multiplier = 0.46
 special_rules = PackedStringArray()
 
@@ -179,35 +179,35 @@ special_rules = PackedStringArray()
 script = ExtResource("2_day")
 day_number = 25
 day_type = &"rush"
-block_hp_multiplier = 2.2
+block_hp_multiplier = 8.0
 spawn_interval_multiplier = 0.45
 special_rules = PackedStringArray()
 
 [sub_resource type="Resource" id="Resource_dn7pg"]
 script = ExtResource("2_day")
 day_number = 26
-block_hp_multiplier = 2.25
+block_hp_multiplier = 8.2
 spawn_interval_multiplier = 0.48
 special_rules = PackedStringArray()
 
 [sub_resource type="Resource" id="Resource_af2xy"]
 script = ExtResource("2_day")
 day_number = 27
-block_hp_multiplier = 2.3
+block_hp_multiplier = 8.4
 spawn_interval_multiplier = 0.46
 special_rules = PackedStringArray()
 
 [sub_resource type="Resource" id="Resource_v6li8"]
 script = ExtResource("2_day")
 day_number = 28
-block_hp_multiplier = 2.35
+block_hp_multiplier = 8.6
 spawn_interval_multiplier = 0.44
 special_rules = PackedStringArray()
 
 [sub_resource type="Resource" id="Resource_hokgd"]
 script = ExtResource("2_day")
 day_number = 29
-block_hp_multiplier = 2.4
+block_hp_multiplier = 8.8
 spawn_interval_multiplier = 0.42
 special_rules = PackedStringArray()
 
@@ -215,7 +215,7 @@ special_rules = PackedStringArray()
 script = ExtResource("2_day")
 day_number = 30
 day_type = &"boss"
-block_hp_multiplier = 2.5
+block_hp_multiplier = 9.0
 boss_block_base_id = &"steel"
 boss_block_size_id = &"size_2x1"
 boss_block_type_id = &"boss"

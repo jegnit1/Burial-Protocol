@@ -20,7 +20,7 @@ const ATTACK_MODULE_STRIKE_DURATION := 0.12
 const DAMAGE_POPUP_SCRIPT := preload("res://scenes/ui/DamagePopup.gd")
 # 스프라이트 시각 영역에 맞게 충돌 박스를 줄이는 inset (픽셀).
 # x: 좌우 각각 줄임. y는 반드시 0 — y를 바꾸면 바닥/블록 감지가 깨짐.
-const COLLISION_INSET := Vector2(28.0, 0.0)
+const COLLISION_INSET := Vector2.ZERO
 
 var world_grid: WorldGrid
 var sand_field: SandField
@@ -492,6 +492,18 @@ func _update_sprite_visuals(horizontal_motion: float) -> void:
 			animated_sprite.scale = animated_sprite_base_scale * Vector2(1.08, 0.92)
 	else:
 		animated_sprite.scale = animated_sprite_base_scale
+	_align_sprite_to_body_bottom()
+
+
+func _align_sprite_to_body_bottom() -> void:
+	if animated_sprite == null or animated_sprite.sprite_frames == null:
+		return
+	var frame_texture := animated_sprite.sprite_frames.get_frame_texture(animated_sprite.animation, animated_sprite.frame)
+	if frame_texture == null:
+		return
+	var visual_height := frame_texture.get_size().y * absf(animated_sprite.scale.y)
+	var body := _get_body_local_rect()
+	animated_sprite.position = Vector2(0.0, body.end.y - visual_height * 0.5)
 
 
 func _is_invulnerability_flash_visible() -> bool:
@@ -541,8 +553,8 @@ func _get_sprite_fit_scale() -> Vector2:
 	if frame_size.x <= 0.0 or frame_size.y <= 0.0:
 		return Vector2.ONE
 	return Vector2(
-		GameConstants.PLAYER_SIZE.x / frame_size.x,
-		GameConstants.PLAYER_SIZE.y / frame_size.y
+		GameConstants.PLAYER_VISUAL_SIZE.x / frame_size.x,
+		GameConstants.PLAYER_VISUAL_SIZE.y / frame_size.y
 	)
 
 
