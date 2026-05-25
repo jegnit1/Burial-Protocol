@@ -1,143 +1,143 @@
-﻿# Burial Protocol - Treasure Chest 1차 구현 계획서
+# Burial Protocol - Treasure Chest 1�� ���� ��ȹ��
 
-작성일: 2026-05-01  
-목적: 채굴 확장용 보물상자 시스템을 한 번에 구현하지 않고, 안전하게 단계별로 구현하기 위한 작업 계획서다.
-
----
-
-## 0. 문서 성격
-
-이 문서는 **구현 지시용 계획서**다.
-
-이번 계획의 목표는 아래와 같다.
-
-1. 보물상자 1차 구현 범위를 명확히 한다.
-2. 벽 subcell 기반 보물상자 marker 구조를 확정한다.
-3. partial reveal, fully reveal, E 상호작용, reward popup, reward grant를 단계별로 나눈다.
-4. Codex 작업을 Phase 단위로 쪼갤 수 있게 한다.
-5. 기존 코어 루프, v1 블록 스폰, v2 시뮬레이션, 공격모듈 밸런스가 깨지지 않게 한다.
-
-이번 계획서 자체는 코드 수정, 씬 수정, `.tres` 수정, TSV 수정, 밸런스 수치 변경을 요구하지 않는다.
+�ۼ���: 2026-05-01
+����: ä�� Ȯ��� �������� �ý����� �� ���� �������� �ʰ�, �����ϰ� �ܰ躰�� �����ϱ� ���� �۾� ��ȹ����.
 
 ---
 
-## 1. 기존 문서 기준
+## 0. ���� ����
 
-보물상자는 기존 `docs/02_systems_spec.md`의 Mining 확장 항목에 이미 방향성이 있다.
+�� ������ **���� ���ÿ� ��ȹ��**��.
 
-기존 방향:
+�̹� ��ȹ�� ��ǥ�� �Ʒ��� ����.
 
-- 좌우 벽 내부 특수 객체는 `Treasure Chest`와 `Creep` 두 계열로 나뉜다.
-- `Treasure Chest`는 보상형 특수 객체다.
-- 채굴로 노출된 뒤 `E` 상호작용으로 획득한다.
-- `Creep`은 리스크형 특수 객체이며, 1차 구현 범위에서는 제외한다.
-- 보물상자는 벽 내부의 빛나는 벽블록으로 예고된다.
-- 채굴 후 월드 오브젝트로 노출된다.
-- 보상 팝업 중 게임은 일시정지된다.
-- 보상은 `D~S` 등급 보상 아이템 체계를 따른다.
+1. �������� 1�� ���� ������ ��Ȯ�� �Ѵ�.
+2. �� subcell ��� �������� marker ������ Ȯ���Ѵ�.
+3. partial reveal, fully reveal, E ��ȣ�ۿ�, reward popup, reward grant�� �ܰ躰�� ������.
+4. Codex �۾��� Phase ������ �ɰ� �� �ְ� �Ѵ�.
+5. ���� �ھ� ����, v1 ��� ����, v2 �ùķ��̼�, ���ݸ�� �뷱���� ������ �ʰ� �Ѵ�.
 
-기존 문서의 `Normal / Silver / Gold / Platinum` 보물상자 명칭은 이번 1차 구현에서 `Bronze / Silver / Gold / Platinum`으로 정리한다.
+�̹� ��ȹ�� ��ü�� �ڵ� ����, �� ����, `.tres` ����, TSV ����, �뷱�� ��ġ ������ �䱸���� �ʴ´�.
 
 ---
 
-## 2. 1차 구현 범위
+## 1. ���� ���� ����
 
-### 포함
+�������ڴ� ���� `docs/02_systems_spec.md`�� Mining Ȯ�� �׸� �̹� ���⼺�� �ִ�.
 
-- 보물상자만 구현한다.
-- 벽 내부 treasure marker 구조를 만든다.
-- 벽 reset 시점에 treasure marker를 생성한다.
-- 보물상자는 1U 크기이며, 현재 `WALL_SUBCELLS_PER_UNIT = 2` 기준으로 `2 x 2 wall subcell`을 차지한다.
-- 2 x 2 중 채굴된 subcell만큼 보물상자 일부가 보인다.
-- 2 x 2 네 칸이 모두 채굴되어야 fully revealed 상태가 된다.
-- fully revealed 상태에서만 `E` 상호작용 가능하다.
-- 상호작용 시 `TreasureRewardPopup`을 띄운다.
-- 보상 아이템을 `획득`하거나 `판매`할 수 있다.
-- 판매가는 해당 아이템 유효 구매가의 60%다.
-- 골드 차감 없이 아이템을 지급하는 helper를 추가한다.
-- 최소 회귀 테스트 또는 snapshot 테스트를 추가한다.
+���� ����:
 
-### 제외
+- �¿� �� ���� Ư�� ��ü�� `Treasure Chest`�� `Creep` �� �迭�� ������.
+- `Treasure Chest`�� ������ Ư�� ��ü��.
+- ä���� ����� �� `E` ��ȣ�ۿ����� ȹ���Ѵ�.
+- `Creep`�� ����ũ�� Ư�� ��ü�̸�, 1�� ���� ���������� �����Ѵ�.
+- �������ڴ� �� ������ ������ ��������� ����ȴ�.
+- ä�� �� ���� ������Ʈ�� ����ȴ�.
+- ���� �˾� �� ������ �Ͻ������ȴ�.
+- ������ `D~S` ��� ���� ������ ü�踦 ������.
 
-- 크립 구현
-- 복잡한 보상 연출
-- 보물상자 전용 완성 아트
-- 보물상자 등급별 정교한 위치 bias
-- 보물상자 전용 신규 아이템 대량 추가
-- 모래삭제 보상/XP 보상/골드주머니 보상 신규 구현
-- wall reset 아이템 구현
-- 기존 v1 블록 스폰 변경
-- v2 Spawn Pool live 전환
-- StageTable 수치 조정
-- 공격모듈 밸런스 조정
+���� ������ `Normal / Silver / Gold / Platinum` �������� ��Ī�� �̹� 1�� �������� `Bronze / Silver / Gold / Platinum`���� �����Ѵ�.
 
 ---
 
-## 3. 확정 기획
+## 2. 1�� ���� ����
 
-### 3-1. WALL_SUBCELLS_PER_UNIT
+### ����
 
-현재 기준:
+- �������ڸ� �����Ѵ�.
+- �� ���� treasure marker ������ �����.
+- �� reset ������ treasure marker�� �����Ѵ�.
+- �������ڴ� 1U ũ���̸�, �¿� ���� 1U wall cell �ϳ��� ��Ȯ�� ���� ��ġ�� �����Ѵ�.
+- ����� 1U�� ������ ä���Ǹ� �ش� ��ġ�� �������ڰ� �����Ѵ�.
+- 2 x 2 �� ĭ�� ��� ä���Ǿ�� fully revealed ���°� �ȴ�.
+- fully revealed ���¿����� `E` ��ȣ�ۿ� �����ϴ�.
+- ��ȣ�ۿ� �� `TreasureRewardPopup`�� ����.
+- ���� �������� `ȹ��`�ϰų� `�Ǹ�`�� �� �ִ�.
+- �ǸŰ��� �ش� ������ ��ȿ ���Ű��� 60%��.
+- ��� ���� ���� �������� �����ϴ� helper�� �߰��Ѵ�.
+- �ּ� ȸ�� �׽�Ʈ �Ǵ� snapshot �׽�Ʈ�� �߰��Ѵ�.
+
+### ����
+
+- ũ�� ����
+- ������ ���� ����
+- �������� ���� �ϼ� ��Ʈ
+- �������� ��޺� ������ ��ġ bias
+- �������� ���� �ű� ������ �뷮 �߰�
+- �𷡻��� ����/XP ����/����ָӴ� ���� �ű� ����
+- wall reset ������ ����
+- ���� v1 ��� ���� ����
+- v2 Spawn Pool live ��ȯ
+- StageTable ��ġ ����
+- ���ݸ�� �뷱�� ����
+
+---
+
+## 3. Ȯ�� ��ȹ
+
+### 3-1. Treasure wall cell alignment
+
+���� ����:
 
 ```text
-WALL_SUBCELLS_PER_UNIT = 2
+Treasure marker size = 1U wall cell
 ```
 
-의미:
+�ǹ�:
 
 ```text
-1U 벽 영역 = 2 x 2 wall subcell
+1U �� ���� = 1 treasure marker ��ġ
 ```
 
-따라서 캐릭터가 벽 안으로 완전히 들어가려면 최소 2 x 2 = 4개 subcell을 채굴해야 한다.
+���� ĳ���Ͱ� �� ������ ������ ������ �ּ� 2 x 2 = 4�� subcell�� ä���ؾ� �Ѵ�.
 
-보물상자도 1U 크기이므로, 보물상자 하나는 정확히 2 x 2 wall subcell을 차지한다.
+�������ڵ� 1U ũ���̹Ƿ�, �������� �ϳ��� ��Ȯ�� 1U wall cell �ϳ��� �����Ѵ�.
 
-### 3-2. 보물상자 크기
+### 3-2. �������� ũ��
 
 ```text
 Treasure Chest world size = 1U x 1U
-Treasure marker size = 2 x 2 wall subcells
+Treasure marker size = 1 x 1 wall cell
 ```
 
-보물상자는 반드시 wall subcell grid에 정렬되어 배치되어야 한다.
+�������ڴ� �ݵ�� wall cell grid�� ���ĵǾ� ��ġ�Ǿ�� �Ѵ�.
 
 ### 3-3. Partial reveal
 
-2 x 2 marker 중 채굴된 칸만큼 보물상자 일부가 보여야 한다.
+2 x 2 marker �� ä���� ĭ��ŭ �������� �Ϻΰ� ������ �Ѵ�.
 
-예:
+��:
 
 ```text
-1칸 채굴: 보물상자 1/4 표시
-2칸 채굴: 보물상자 2/4 표시
-3칸 채굴: 보물상자 3/4 표시
-4칸 채굴: 보물상자 전체 표시 + fully revealed
+1ĭ ä��: �������� 1/4 ǥ��
+2ĭ ä��: �������� 2/4 ǥ��
+3ĭ ä��: �������� 3/4 ǥ��
+4ĭ ä��: �������� ��ü ǥ�� + fully revealed
 ```
 
-fully revealed 전에는 `E` 상호작용이 불가능하다.
+fully revealed ������ `E` ��ȣ�ۿ��� �Ұ����ϴ�.
 
 ### 3-4. Fully revealed
 
-아래 조건을 만족하면 fully revealed다.
+�Ʒ� ������ �����ϸ� fully revealed��.
 
 ```text
-marker가 차지하는 2 x 2 wall subcell 4칸이 모두 채굴됨
+marker�� ��ġ�� 1U wall cell�� ������ ä����
 ```
 
-fully revealed 후:
+fully revealed ��:
 
-- 상호작용 안내를 띄울 수 있다.
-- `E` 입력으로 보상 팝업을 열 수 있다.
-- 획득 또는 판매 후 consumed 처리한다.
+- ��ȣ�ۿ� �ȳ��� ��� �� �ִ�.
+- `E` �Է����� ���� �˾��� �� �� �ִ�.
+- ȹ�� �Ǵ� �Ǹ� �� consumed ó���Ѵ�.
 
 ---
 
-## 4. 보물상자 rarity
+## 4. �������� rarity
 
-기존 `Normal` 명칭은 사용하지 않고 `Bronze`를 사용한다.
+���� `Normal` ��Ī�� ������� �ʰ� `Bronze`�� ����Ѵ�.
 
-보물상자 rarity:
+�������� rarity:
 
 | Rarity | ID |
 |---|---|
@@ -146,9 +146,9 @@ fully revealed 후:
 | Gold | `gold` |
 | Platinum | `platinum` |
 
-### 4-1. 보물상자 rarity 출현 확률
+### 4-1. �������� rarity ���� Ȯ��
 
-초기값은 레벨업 카드 희귀도 확률과 동일하게 사용한다.
+�ʱⰪ�� ������ ī�� ��͵� Ȯ���� �����ϰ� ����Ѵ�.
 
 | Chest Rarity | Chance |
 |---|---:|
@@ -157,17 +157,17 @@ fully revealed 후:
 | Gold | 7% |
 | Platinum | 1% |
 
-주의:
+����:
 
-- 초기값만 레벨업 카드 희귀도와 동일하다.
-- 코드 구조상 레벨업 카드와 보물상자 rarity가 강결합되면 안 된다.
-- 나중에 보물상자 전용 확률로 분리 조정 가능해야 한다.
+- �ʱⰪ�� ������ ī�� ��͵��� �����ϴ�.
+- �ڵ� ������ ������ ī��� �������� rarity�� �����յǸ� �� �ȴ�.
+- ���߿� �������� ���� Ȯ���� �и� ���� �����ؾ� �Ѵ�.
 
 ---
 
-## 5. 보상 rank 확률
+## 5. ���� rank Ȯ��
 
-보물상자 rarity를 먼저 roll하고, 해당 rarity에 따라 reward rank를 roll한다.
+�������� rarity�� ���� roll�ϰ�, �ش� rarity�� ���� reward rank�� roll�Ѵ�.
 
 ### 5-1. Bronze chest
 
@@ -211,57 +211,57 @@ fully revealed 후:
 
 ---
 
-## 6. 보상 후보
+## 6. ���� �ĺ�
 
-1차 구현에서는 현재 `ShopItemCatalog`에 존재하는 아이템만 보상 후보로 사용한다.
+1�� ���������� ���� `ShopItemCatalog`�� �����ϴ� �����۸� ���� �ĺ��� ����Ѵ�.
 
-포함 카테고리:
+���� ī�װ��:
 
 - `attack_module`
 - `function_module`
 - `enhance_module`
 
-규칙:
+��Ģ:
 
 1. chest rarity roll
 2. reward rank roll
-3. `ShopItemCatalog`에서 해당 rank와 일치하는 아이템 후보 수집
-4. 구현되지 않은 아이템은 후보에 포함하지 않음
-5. 후보 중 하나를 weighted 또는 uniform roll
-6. reward popup에 표시
+3. `ShopItemCatalog`���� �ش� rank�� ��ġ�ϴ� ������ �ĺ� ����
+4. �������� ���� �������� �ĺ��� �������� ����
+5. �ĺ� �� �ϳ��� weighted �Ǵ� uniform roll
+6. reward popup�� ǥ��
 
-후보가 없을 때 fallback:
+�ĺ��� ���� �� fallback:
 
-- 1차 구현에서는 인접 rank 또는 하위 rank fallback을 허용한다.
-- fallback 발생 시 warning을 남긴다.
-- fallback 규칙은 구현 시 명확히 주석 처리한다.
+- 1�� ���������� ���� rank �Ǵ� ���� rank fallback�� ����Ѵ�.
+- fallback �߻� �� warning�� �����.
+- fallback ��Ģ�� ���� �� ��Ȯ�� �ּ� ó���Ѵ�.
 
-추천 fallback 순서:
+��õ fallback ����:
 
 ```text
-roll_rank 후보 없음
-→ 같은 chest rarity에서 낮은 rank 방향으로 검색
-→ 그래도 없으면 높은 rank 방향 검색
-→ 그래도 없으면 reward 실패 처리 + warning
+roll_rank �ĺ� ����
+�� ���� chest rarity���� ���� rank �������� �˻�
+�� �׷��� ������ ���� rank ���� �˻�
+�� �׷��� ������ reward ���� ó�� + warning
 ```
 
 ---
 
-## 7. 판매가 공식
+## 7. �ǸŰ� ����
 
-판매가는 해당 아이템의 유효 구매가의 60%다.
+�ǸŰ��� �ش� �������� ��ȿ ���Ű��� 60%��.
 
 ```text
 sell_price = floor(GameState.get_effective_shop_item_price(item_id) * 0.6)
 ```
 
-주의:
+����:
 
-- `price_gold > 0`인 아이템은 해당 값을 기준으로 한다.
-- `price_gold == 0`이면 rank fallback 가격을 기준으로 한다.
-- item lookup 실패 또는 유효 가격 0인 경우 rank fallback 가격을 다시 확인한다.
+- `price_gold > 0`�� �������� �ش� ���� �������� �Ѵ�.
+- `price_gold == 0`�̸� rank fallback ������ �������� �Ѵ�.
+- item lookup ���� �Ǵ� ��ȿ ���� 0�� ��� rank fallback ������ �ٽ� Ȯ���Ѵ�.
 
-현재 rank fallback 가격 기준 예시:
+���� rank fallback ���� ���� ����:
 
 | Rank | Buy Fallback | Sell 60% |
 |---|---:|---:|
@@ -273,24 +273,24 @@ sell_price = floor(GameState.get_effective_shop_item_price(item_id) * 0.6)
 
 ---
 
-## 8. 무료 아이템 지급 helper
+## 8. ���� ������ ���� helper
 
-보물상자 보상은 상점 구매가 아니므로 골드를 차감하면 안 된다.
+�������� ������ ���� ���Ű� �ƴϹǷ� ��带 �����ϸ� �� �ȴ�.
 
-권장 함수:
+���� �Լ�:
 
 ```gdscript
 GameState.grant_shop_item_reward(item_id: String, source: String = "treasure_chest") -> Dictionary
 ```
 
-역할:
+����:
 
-- 골드 차감 없이 상점 아이템 효과를 지급한다.
-- 기존 `purchase_shop_item()`의 “아이템 적용” 로직을 재사용한다.
-- 상점 목록 제거, reroll, lock 상태 변경은 하지 않는다.
-- 결과를 Dictionary로 반환한다.
+- ��� ���� ���� ���� ������ ȿ���� �����Ѵ�.
+- ���� `purchase_shop_item()`�� �������� ���롱 ������ �����Ѵ�.
+- ���� ��� ����, reroll, lock ���� ������ ���� �ʴ´�.
+- ����� Dictionary�� ��ȯ�Ѵ�.
 
-권장 반환 형태:
+���� ��ȯ ����:
 
 ```gdscript
 {
@@ -304,47 +304,47 @@ GameState.grant_shop_item_reward(item_id: String, source: String = "treasure_che
 }
 ```
 
-카테고리별 처리:
+ī�װ���� ó��:
 
-| Category | 처리 |
+| Category | ó�� |
 |---|---|
-| `attack_module` | 기존 구매와 같은 장착/합성 규칙 적용. 골드 차감 없음 |
-| `function_module` | 현재 런 효과 등록 |
-| `enhance_module` | 즉시 스탯 적용 또는 stack 증가 |
+| `attack_module` | ���� ���ſ� ���� ����/�ռ� ��Ģ ����. ��� ���� ���� |
+| `function_module` | ���� �� ȿ�� ��� |
+| `enhance_module` | ��� ���� ���� �Ǵ� stack ���� |
 
-주의:
+����:
 
-- 기존 `purchase_shop_item()`을 복사해서 분기 늘리는 방식은 피한다.
-- 가능하면 내부 공통 helper로 “아이템 적용” 부분을 분리한다.
-- 기존 상점 구매 동작이 바뀌면 안 된다.
+- ���� `purchase_shop_item()`�� �����ؼ� �б� �ø��� ����� ���Ѵ�.
+- �����ϸ� ���� ���� helper�� �������� ���롱 �κ��� �и��Ѵ�.
+- ���� ���� ���� ������ �ٲ�� �� �ȴ�.
 
 ---
 
-## 9. Treasure marker 저장 구조
+## 9. Treasure marker ���� ����
 
-### 9-1. 개념
+### 9-1. ����
 
-Treasure marker는 아직 월드에 노출되지 않은 “벽 내부 숨김 정보”다.
+Treasure marker�� ���� ���忡 ������� ���� ���� ���� ���� ��������.
 
-보물상자 object와 marker는 다르다.
+�������� object�� marker�� �ٸ���.
 
-| 구분 | 의미 |
+| ���� | �ǹ� |
 |---|---|
-| Treasure Marker | 벽 안에 숨겨진 2 x 2 subcell 정보 |
-| Treasure Visual | 채굴된 quadrant만큼 보이는 partial visual |
-| Treasure Chest / Popup | fully revealed 후 상호작용 가능한 보상 UI 흐름 |
+| Treasure Marker | �� �ȿ� ������ 2 x 2 subcell ���� |
+| Treasure Visual | ä���� quadrant��ŭ ���̴� partial visual |
+| Treasure Chest / Popup | fully revealed �� ��ȣ�ۿ� ������ ���� UI �帧 |
 
-### 9-2. 권장 marker 필드
+### 9-2. ���� marker �ʵ�
 
 ```gdscript
 {
     "marker_id": "treasure_0001",
     "chest_rarity": "silver",
     "wall_side": "left",
-    "origin_subcell_x": 0,
-    "origin_subcell_y": 12,
-    "width_subcells": 2,
-    "height_subcells": 2,
+    "origin_cell_x": 0,
+    "origin_cell_y": 12,
+    "width_cells": 1,
+    "height_cells": 1,
     "revealed_cells": {
         "0,0": false,
         "1,0": false,
@@ -358,126 +358,126 @@ Treasure marker는 아직 월드에 노출되지 않은 “벽 내부 숨김 정
 }
 ```
 
-### 9-3. 좌표 기준
+### 9-3. ��ǥ ����
 
-- `origin_subcell_x`, `origin_subcell_y`는 marker의 좌상단 subcell 좌표다.
-- marker는 `2 x 2` 영역을 차지한다.
-- `origin_subcell_y`가 row 0에 걸쳐 상자 상단 quadrant가 유효하지 않게 되는 배치는 금지한다.
-- 더 안전하게는 `2 x 2` 모든 subcell이 wall bounds 안에 들어오는지만 검사한다.
+- `origin_cell_x`, `origin_cell_y`�� marker�� ��ġ�� 1U wall cell ��ǥ��.
+- marker�� `2 x 2` ������ �����Ѵ�.
+- `origin_cell_y`�� row 0�� ��ġ�� ��ġ�� �����Ѵ�.
+- �� �����ϰԴ� `2 x 2` ��� subcell�� wall bounds �ȿ� ���������� �˻��Ѵ�.
 
 ---
 
-## 10. Marker 저장 위치 후보
+## 10. Marker ���� ��ġ �ĺ�
 
-### 후보 A. `Main.gd`가 저장
+### �ĺ� A. `Main.gd`�� ����
 
-장점:
+����:
 
-- 구현이 빠르다.
-- Day/run 흐름과 연결하기 쉽다.
-- popup, interaction, reward 지급까지 한 곳에서 연결하기 쉽다.
+- ������ ������.
+- Day/run �帧�� �����ϱ� ����.
+- popup, interaction, reward ���ޱ��� �� ������ �����ϱ� ����.
 
-단점:
+����:
 
-- `Main.gd`가 이미 무겁다.
-- 벽 좌표/채굴 상태와 관련된 책임이 `Main.gd`로 더 몰린다.
-- 크립까지 확장하면 관리가 복잡해진다.
+- `Main.gd`�� �̹� ���̴�.
+- �� ��ǥ/ä�� ���¿� ���õ� å���� `Main.gd`�� �� �����.
+- ũ������ Ȯ���ϸ� ������ ����������.
 
-### 후보 B. `WorldGrid.gd`가 저장
+### �ĺ� B. `WorldGrid.gd`�� ����
 
-장점:
+����:
 
-- 벽 subcell 상태와 가장 가깝다.
-- 채굴 완료 시 marker 갱신이 쉽다.
-- 좌표계 일관성이 높다.
+- �� subcell ���¿� ���� ������.
+- ä�� �Ϸ� �� marker ������ ����.
+- ��ǥ�� �ϰ����� ���.
 
-단점:
+����:
 
-- `WorldGrid.gd`가 treasure reward, popup, item grant까지 알면 책임이 과해진다.
-- UI/보상과 연결되면 world simulation 역할이 흐려진다.
+- `WorldGrid.gd`�� treasure reward, popup, item grant���� �˸� å���� ��������.
+- UI/����� ����Ǹ� world simulation ������ �������.
 
-### 후보 C. 별도 `TreasureChestManager.gd` 또는 `WallTreasureManager.gd`
+### �ĺ� C. ���� `TreasureChestManager.gd` �Ǵ� `WallTreasureManager.gd`
 
-장점:
+����:
 
-- 책임 분리가 가장 좋다.
-- marker 생성, reveal, consumed 상태, reward roll을 독립 관리할 수 있다.
-- 추후 Creep까지 `WallHiddenObjectManager` 형태로 확장하기 쉽다.
-- `Main.gd`와 `WorldGrid.gd`의 비대화를 줄인다.
+- å�� �и��� ���� ����.
+- marker ����, reveal, consumed ����, reward roll�� ���� ������ �� �ִ�.
+- ���� Creep���� `WallHiddenObjectManager` ���·� Ȯ���ϱ� ����.
+- `Main.gd`�� `WorldGrid.gd`�� ���ȭ�� ���δ�.
 
-단점:
+����:
 
-- 초반 구현 파일이 늘어난다.
-- `Main.gd`, `WorldGrid.gd`, UI와 연결 지점이 필요하다.
+- �ʹ� ���� ������ �þ��.
+- `Main.gd`, `WorldGrid.gd`, UI�� ���� ������ �ʿ��ϴ�.
 
-### 최종 추천
+### ���� ��õ
 
-1차 구현 추천은 **별도 Manager 생성**이다.
+1�� ���� ��õ�� **���� Manager ����**�̴�.
 
-권장 이름:
+���� �̸�:
 
 ```text
 scenes/world/WallTreasureManager.gd
 ```
 
-또는:
+�Ǵ�:
 
 ```text
 scripts/systems/WallTreasureManager.gd
 ```
 
-역할:
+����:
 
-- wall reset 시 marker 생성
-- marker bounds/overlap 검사
-- mined subcell 입력을 받아 partial reveal 갱신
-- fully revealed 여부 계산
-- 상호작용 가능한 marker 조회
-- reward roll 요청
-- consumed 처리
+- wall reset �� marker ����
+- marker bounds/overlap �˻�
+- mined subcell �Է��� �޾� partial reveal ����
+- fully revealed ���� ���
+- ��ȣ�ۿ� ������ marker ��ȸ
+- reward roll ��û
+- consumed ó��
 
-`WorldGrid.gd`는 벽 subcell 채굴 상태를 유지하고, `Main.gd`는 Manager와 UI/interaction을 연결하는 역할만 갖는 것이 좋다.
+`WorldGrid.gd`�� �� subcell ä�� ���¸� �����ϰ�, `Main.gd`�� Manager�� UI/interaction�� �����ϴ� ���Ҹ� ���� ���� ����.
 
 ---
 
-## 11. Marker 배치 규칙
+## 11. Marker ��ġ ��Ģ
 
-벽 reset 시 treasure marker를 생성한다.
+�� reset �� treasure marker�� �����Ѵ�.
 
-현재는 게임 시작 시 wall reset이 발생하므로 런 시작 시 생성된다.
-추후 벽/채굴 현황 reset 아이템이 생기면 같은 marker 생성 함수를 재사용해야 한다.
+����� ���� ���� �� wall reset�� �߻��ϹǷ� �� ���� �� �����ȴ�.
+���� ��/ä�� ��Ȳ reset �������� ����� ���� marker ���� �Լ��� �����ؾ� �Ѵ�.
 
-### 11-1. 기본 배치 조건
+### 11-1. �⺻ ��ġ ����
 
-- 좌우 벽에만 생성한다.
-- 중앙 전장에는 생성하지 않는다.
-- marker는 `2 x 2 wall subcell`이다.
-- `2 x 2` 영역이 모두 wall bounds 안에 있어야 한다.
-- row 0에 걸치는 배치는 금지한다.
-- 이미 채굴된 subcell에는 배치하지 않는다.
-- 다른 marker와 겹치면 안 된다.
-- 벽 subcell grid에 정렬되어야 한다.
+- �¿� ������ �����Ѵ�.
+- �߾� ���忡�� �������� �ʴ´�.
+- marker�� `1 x 1 wall cell`�̴�.
+- `2 x 2` ������ ��� wall bounds �ȿ� �־�� �Ѵ�.
+- row 0�� ��ġ�� ��ġ�� �����Ѵ�.
+- �̹� ä���� subcell���� ��ġ���� �ʴ´�.
+- �ٸ� marker�� ��ġ�� �� �ȴ�.
+- �� subcell grid�� ���ĵǾ�� �Ѵ�.
 
-### 11-2. 1차 생성 개수
+### 11-2. 1�� ���� ����
 
-테스트용 기본값:
-
-```text
-런 시작 시 좌우 벽 합산 총 6개 생성
-```
-
-추천 분배:
+�׽�Ʈ�� �⺻��:
 
 ```text
-left wall: 3개
-right wall: 3개
+�� ���� �� �¿� �� �ջ� �� 6�� ����
 ```
 
-이 값은 1차 테스트용이며, 추후 Day/difficulty/깊이/높이 bias를 반영해 조정한다.
+��õ �й�:
+
+```text
+left wall: 3��
+right wall: 3��
+```
+
+�� ���� 1�� �׽�Ʈ���̸�, ���� Day/difficulty/����/���� bias�� �ݿ��� �����Ѵ�.
 
 ### 11-3. rarity roll
 
-각 marker 생성 시 chest rarity를 roll한다.
+�� marker ���� �� chest rarity�� roll�Ѵ�.
 
 ```text
 bronze 70%
@@ -488,68 +488,68 @@ platinum 1%
 
 ---
 
-## 12. Partial reveal visual 계획
+## 12. Partial reveal visual ��ȹ
 
-### 후보 A. 1U chest texture를 2 x 2 조각으로 나누기
+### �ĺ� A. 1U chest texture�� 2 x 2 �������� ������
 
-장점:
+����:
 
-- 최종 아트와 가장 잘 맞는다.
-- 실제 보물상자가 점점 드러나는 느낌이 좋다.
+- ���� ��Ʈ�� ���� �� �´´�.
+- ���� �������ڰ� ���� �巯���� ������ ����.
 
-단점:
+����:
 
-- 1차에서 texture atlas/region 설정이 번거롭다.
-- 아직 아트가 없으면 구현이 임시화된다.
+- 1������ texture atlas/region ������ ���ŷӴ�.
+- ���� ��Ʈ�� ������ ������ �ӽ�ȭ�ȴ�.
 
-### 후보 B. quadrant sprite 4개 표시
+### �ĺ� B. quadrant sprite 4�� ǥ��
 
-장점:
+����:
 
-- 아트 교체가 쉽다.
-- 각 subcell과 visual quadrant를 1:1로 매핑하기 쉽다.
-- 1차/최종 모두 쓸 수 있는 구조다.
+- ��Ʈ ��ü�� ����.
+- �� subcell�� visual quadrant�� 1:1�� �����ϱ� ����.
+- 1��/���� ��� �� �� �ִ� ������.
 
-단점:
+����:
 
-- 임시 sprite가 필요하다.
+- �ӽ� sprite�� �ʿ��ϴ�.
 
-### 후보 C. 임시 ColorRect 4개 표시
+### �ĺ� C. �ӽ� ColorRect 4�� ǥ��
 
-장점:
+����:
 
-- 가장 빠르게 검증 가능하다.
-- 아트 없이도 partial reveal 구조를 테스트할 수 있다.
+- ���� ������ ���� �����ϴ�.
+- ��Ʈ ���̵� partial reveal ������ �׽�Ʈ�� �� �ִ�.
 
-단점:
+����:
 
-- 실제 게임 느낌은 부족하다.
-- 추후 sprite 교체가 필요하다.
+- ���� ���� ������ �����ϴ�.
+- ���� sprite ��ü�� �ʿ��ϴ�.
 
-### 최종 추천
+### ���� ��õ
 
-**Phase 2에서는 C 또는 B로 시작**한다.
+**Phase 2������ C �Ǵ� B�� ����**�Ѵ�.
 
-권장:
+����:
 
 ```text
-구조는 B처럼 quadrant 4개 Node로 만들고,
-초기 표시만 ColorRect 또는 임시 TextureRect로 처리한다.
+������ Bó�� quadrant 4�� Node�� �����,
+�ʱ� ǥ�ø� ColorRect �Ǵ� �ӽ� TextureRect�� ó���Ѵ�.
 ```
 
-즉, 나중에 실제 1U 보물상자 sprite를 4 quadrant로 교체할 수 있게 만든다.
+��, ���߿� ���� 1U �������� sprite�� 4 quadrant�� ��ü�� �� �ְ� �����.
 
 ---
 
-## 13. Fully revealed 판정
+## 13. Fully revealed ����
 
-판정 공식:
+���� ����:
 
 ```text
 is_fully_revealed = revealed_subcell_count == 4
 ```
 
-또는:
+�Ǵ�:
 
 ```text
 for each local cell in 2 x 2:
@@ -558,327 +558,327 @@ for each local cell in 2 x 2:
 return true
 ```
 
-상태 변화:
+���� ��ȭ:
 
 ```text
 hidden / partial
-→ fully_revealed
-→ popup_opened
-→ consumed
+�� fully_revealed
+�� popup_opened
+�� consumed
 ```
 
-규칙:
+��Ģ:
 
-- fully revealed 전에는 interaction 안내 없음.
-- fully revealed 전에는 E 입력 무시.
-- consumed 후에는 visual 제거 또는 비활성 표시.
-- consumed 후 재상호작용 금지.
+- fully revealed ������ interaction �ȳ� ����.
+- fully revealed ������ E �Է� ����.
+- consumed �Ŀ��� visual ���� �Ǵ� ��Ȱ�� ǥ��.
+- consumed �� ���ȣ�ۿ� ����.
 
 ---
 
-## 14. E 상호작용 계획
+## 14. E ��ȣ�ۿ� ��ȹ
 
-### 14-1. 기존 입력과 충돌
+### 14-1. ���� �Է°� �浹
 
-현재 `E`는 키오스크 상호작용에 사용된다.
+���� `E`�� Ű����ũ ��ȣ�ۿ뿡 ���ȴ�.
 
-보물상자도 `E`를 사용하므로, interaction 우선순위가 필요하다.
+�������ڵ� `E`�� ����ϹǷ�, interaction �켱������ �ʿ��ϴ�.
 
-권장 우선순위:
+���� �켱����:
 
 ```text
 1. fully revealed treasure chest
 2. Day kiosk
 ```
 
-단, 기존 interaction 구조에서 키오스크 우선이 더 안전하면 기존 구조를 우선하고, 보물상자는 별도 nearest-interactable 방식으로 붙인다.
+��, ���� interaction �������� Ű����ũ �켱�� �� �����ϸ� ���� ������ �켱�ϰ�, �������ڴ� ���� nearest-interactable ������� ���δ�.
 
 ### 14-2. Interaction range
 
-권장:
+����:
 
 ```text
 TREASURE_INTERACTION_RANGE = 1.5U ~ 2U
 ```
 
-1차에서는 키오스크 interaction range `2U`를 재사용해도 된다.
+1�������� Ű����ũ interaction range `2U`�� �����ص� �ȴ�.
 
-### 14-3. 흐름
+### 14-3. �帧
 
 ```text
 Player presses E
-→ Main checks nearest fully revealed unconsumed treasure
-→ if found: open TreasureRewardPopup
-→ else: existing kiosk interaction flow
+�� Main checks nearest fully revealed unconsumed treasure
+�� if found: open TreasureRewardPopup
+�� else: existing kiosk interaction flow
 ```
 
 ---
 
-## 15. TreasureRewardPopup 계획
+## 15. TreasureRewardPopup ��ȹ
 
-새 UI 후보:
+�� UI �ĺ�:
 
 ```text
 scenes/ui/TreasureRewardPopup.tscn
 scenes/ui/TreasureRewardPopup.gd
 ```
 
-### 15-1. 최소 표시 항목
+### 15-1. �ּ� ǥ�� �׸�
 
-- 보물상자 rarity
-- reward item 이름
+- �������� rarity
+- reward item �̸�
 - reward item rank
 - reward item category
-- reward item short_desc 또는 desc
-- 판매가
-- `획득` 버튼
-- `판매` 버튼
+- reward item short_desc �Ǵ� desc
+- �ǸŰ�
+- `ȹ��` ��ư
+- `�Ǹ�` ��ư
 
-### 15-2. 동작
+### 15-2. ����
 
-팝업 open:
+�˾� open:
 
-- 게임 pause
-- reward item 표시
-- 획득/판매 선택 대기
+- ���� pause
+- reward item ǥ��
+- ȹ��/�Ǹ� ���� ���
 
-획득:
+ȹ��:
 
-- `GameState.grant_shop_item_reward(item_id, "treasure_chest")` 호출
-- 성공 시 marker consumed
+- `GameState.grant_shop_item_reward(item_id, "treasure_chest")` ȣ��
+- ���� �� marker consumed
 - popup close
-- pause 해제
+- pause ����
 
-판매:
+�Ǹ�:
 
-- item 지급 없음
-- `sell_price`만큼 gold 지급
+- item ���� ����
+- `sell_price`��ŭ gold ����
 - marker consumed
 - popup close
-- pause 해제
+- pause ����
 
-주의:
+����:
 
-- LevelUpUI, DayShopUI, PauseMenu와 pause 처리가 충돌하지 않아야 한다.
-- popup 중 중복 입력 방지.
+- LevelUpUI, DayShopUI, PauseMenu�� pause ó���� �浹���� �ʾƾ� �Ѵ�.
+- popup �� �ߺ� �Է� ����.
 
 ---
 
-## 16. Reward roll 계획
+## 16. Reward roll ��ȹ
 
-### 16-1. Reward roll 시점
+### 16-1. Reward roll ����
 
-두 가지 방식이 있다.
+�� ���� ����� �ִ�.
 
-A. marker 생성 시 reward까지 미리 roll  
-B. popup open 시 reward roll
+A. marker ���� �� reward���� �̸� roll
+B. popup open �� reward roll
 
-추천은 **B. popup open 시 reward roll**이다.
+��õ�� **B. popup open �� reward roll**�̴�.
 
-이유:
+����:
 
-- 현재 ShopItemCatalog 상태를 최신으로 반영하기 쉽다.
-- marker에는 reward seed만 저장해도 된다.
-- 구현이 단순하다.
+- ���� ShopItemCatalog ���¸� �ֽ����� �ݿ��ϱ� ����.
+- marker���� reward seed�� �����ص� �ȴ�.
+- ������ �ܼ��ϴ�.
 
-다만 deterministic 테스트가 필요하면 marker 생성 시 `reward_seed`를 저장한다.
+�ٸ� deterministic �׽�Ʈ�� �ʿ��ϸ� marker ���� �� `reward_seed`�� �����Ѵ�.
 
-### 16-2. Roll 순서
+### 16-2. Roll ����
 
 ```text
-1. marker.chest_rarity 확인
-2. rarity별 reward rank 확률로 rank roll
-3. ShopItemCatalog에서 해당 rank 후보 수집
-4. 후보 중 item roll
-5. popup 표시
+1. marker.chest_rarity Ȯ��
+2. rarity�� reward rank Ȯ���� rank roll
+3. ShopItemCatalog���� �ش� rank �ĺ� ����
+4. �ĺ� �� item roll
+5. popup ǥ��
 ```
 
 ---
 
-## 17. Phase별 구현 계획
+## 17. Phase�� ���� ��ȹ
 
-## Phase 1. Marker 데이터 구조와 생성
+## Phase 1. Marker ������ ������ ����
 
-목표:
+��ǥ:
 
-- 보물상자 marker를 생성하고 관리할 수 있게 한다.
-- 아직 wall mining, partial visual, popup은 구현하지 않는다.
+- �������� marker�� �����ϰ� ������ �� �ְ� �Ѵ�.
+- ���� wall mining, partial visual, popup�� �������� �ʴ´�.
 
-수정/추가 예상 파일:
+����/�߰� ���� ����:
 
-- `scenes/world/WallTreasureManager.gd` 또는 적절한 manager 파일
-- `scenes/main/Main.gd` 연결 최소화
-- 필요 시 `GameConstants.gd`에 treasure 관련 상수 추가
+- `scenes/world/WallTreasureManager.gd` �Ǵ� ������ manager ����
+- `scenes/main/Main.gd` ���� �ּ�ȭ
+- �ʿ� �� `GameConstants.gd`�� treasure ���� ��� �߰�
 - `scripts/tests/treasure_chest_snapshot.gd`
 
-구현 내용:
+���� ����:
 
-- rarity table 정의
-- marker 구조 정의
-- marker 생성 함수
-- bounds 검사
-- overlap 검사
-- 좌우 벽 총 6개 생성
-- snapshot에서 marker 목록 출력
+- rarity table ����
+- marker ���� ����
+- marker ���� �Լ�
+- bounds �˻�
+- overlap �˻�
+- �¿� �� �� 6�� ����
+- snapshot���� marker ��� ���
 
-검증:
+����:
 
-- marker가 2 x 2인지
-- wall bounds 밖에 생성되지 않는지
-- row 0에 걸치지 않는지
-- marker끼리 겹치지 않는지
-- rarity roll table 총합이 100인지
+- marker�� 2 x 2����
+- wall bounds �ۿ� �������� �ʴ���
+- row 0�� ��ġ�� �ʴ���
+- marker���� ��ġ�� �ʴ���
+- rarity roll table ������ 100����
 
-절대 금지:
+���� ����:
 
-- 실제 채굴 로직 변경
-- UI 추가
-- reward 지급 구현
-- 기존 shop 구매 로직 변경
+- ���� ä�� ���� ����
+- UI �߰�
+- reward ���� ����
+- ���� shop ���� ���� ����
 
 ---
 
-## Phase 2. Mining 연동과 partial reveal
+## Phase 2. Mining ������ partial reveal
 
-목표:
+��ǥ:
 
-- wall subcell 채굴 완료 시 marker reveal 상태를 갱신한다.
-- 채굴된 quadrant만 표시한다.
-- 4칸 모두 채굴되면 fully revealed 처리한다.
+- 1U wall cell ä�� �Ϸ� �� marker reveal ���¸� �����Ѵ�.
+- ä���� quadrant�� ǥ���Ѵ�.
+- 4ĭ ��� ä���Ǹ� fully revealed ó���Ѵ�.
 
-수정/추가 예상 파일:
+����/�߰� ���� ����:
 
 - `WallTreasureManager.gd`
-- `WorldGrid.gd` 또는 실제 벽 채굴 완료 처리 파일
-- `Main.gd` 연결부
-- 임시 visual Node 또는 overlay 구현 파일
-- `treasure_chest_snapshot.gd` 확장
+- `WorldGrid.gd` �Ǵ� ���� �� ä�� �Ϸ� ó�� ����
+- `Main.gd` �����
+- �ӽ� visual Node �Ǵ� overlay ���� ����
+- `treasure_chest_snapshot.gd` Ȯ��
 
-구현 내용:
+���� ����:
 
-- mined subcell 이벤트 또는 callback 연결
-- marker 영역 포함 여부 확인
-- revealed_cells 갱신
-- partial visual 표시
-- fully revealed 판정
+- mined subcell �̺�Ʈ �Ǵ� callback ����
+- marker ���� ���� ���� Ȯ��
+- revealed_cells ����
+- partial visual ǥ��
+- fully revealed ����
 
-검증:
+����:
 
-- 1칸 채굴 시 1/4 표시
-- 2칸 채굴 시 2/4 표시
-- 4칸 채굴 시 fully revealed
-- fully revealed 전 interaction 불가 상태 유지
+- 1ĭ ä�� �� 1/4 ǥ��
+- 2ĭ ä�� �� 2/4 ǥ��
+- 4ĭ ä�� �� fully revealed
+- fully revealed �� interaction �Ұ� ���� ����
 
-절대 금지:
+���� ����:
 
-- reward popup 구현
-- 아이템 지급 구현
-- StageTable/BlockCatalog 변경
+- reward popup ����
+- ������ ���� ����
+- StageTable/BlockCatalog ����
 
 ---
 
-## Phase 3. E 상호작용과 TreasureRewardPopup 최소 UI
+## Phase 3. E ��ȣ�ۿ�� TreasureRewardPopup �ּ� UI
 
-목표:
+��ǥ:
 
-- fully revealed marker 근처에서 E 상호작용으로 popup을 연다.
-- popup은 아직 reward 지급 로직이 없거나 mock reward로 동작해도 된다.
+- fully revealed marker ��ó���� E ��ȣ�ۿ����� popup�� ����.
+- popup�� ���� reward ���� ������ ���ų� mock reward�� �����ص� �ȴ�.
 
-수정/추가 예상 파일:
+����/�߰� ���� ����:
 
 - `scenes/ui/TreasureRewardPopup.tscn`
 - `scenes/ui/TreasureRewardPopup.gd`
 - `Main.gd`
 - `WallTreasureManager.gd`
 
-구현 내용:
+���� ����:
 
-- nearest fully revealed treasure 조회
-- E interaction 연결
+- nearest fully revealed treasure ��ȸ
+- E interaction ����
 - popup open/close
-- pause 처리
-- consumed 처리 준비
+- pause ó��
+- consumed ó�� �غ�
 
-검증:
+����:
 
-- fully revealed 전 E 무시
-- fully revealed 후 E popup open
-- 키오스크와 E 충돌 없음
-- popup close 후 pause 해제
+- fully revealed �� E ����
+- fully revealed �� E popup open
+- Ű����ũ�� E �浹 ����
+- popup close �� pause ����
 
-절대 금지:
+���� ����:
 
-- reward 지급/판매 최종 처리까지 무리하게 넣지 않음
-- 기존 DayShopUI 동작 변경 금지
+- reward ����/�Ǹ� ���� ó������ �����ϰ� ���� ����
+- ���� DayShopUI ���� ���� ����
 
 ---
 
-## Phase 4. Reward roll, 획득/판매, grant helper
+## Phase 4. Reward roll, ȹ��/�Ǹ�, grant helper
 
-목표:
+��ǥ:
 
-- 실제 ShopItemCatalog 아이템을 reward로 roll한다.
-- 획득/판매 선택을 구현한다.
-- 골드 차감 없는 item grant helper를 추가한다.
+- ���� ShopItemCatalog �������� reward�� roll�Ѵ�.
+- ȹ��/�Ǹ� ������ �����Ѵ�.
+- ��� ���� ���� item grant helper�� �߰��Ѵ�.
 
-수정/추가 예상 파일:
+����/�߰� ���� ����:
 
 - `GameState.gd`
-- `ShopItemCatalog.gd` 필요 시 helper 추가
+- `ShopItemCatalog.gd` �ʿ� �� helper �߰�
 - `TreasureRewardPopup.gd`
 - `WallTreasureManager.gd`
-- `treasure_chest_snapshot.gd` 확장
+- `treasure_chest_snapshot.gd` Ȯ��
 
-구현 내용:
+���� ����:
 
 - reward rank roll
-- item candidate 조회
-- sell price 계산
-- `grant_shop_item_reward()` 구현
-- 획득 버튼 처리
-- 판매 버튼 처리
-- consumed 처리
+- item candidate ��ȸ
+- sell price ���
+- `grant_shop_item_reward()` ����
+- ȹ�� ��ư ó��
+- �Ǹ� ��ư ó��
+- consumed ó��
 
-검증:
+����:
 
 - sell price = effective price x 0.6 floor
-- 획득 시 골드 차감 없음
-- 판매 시 item 지급 없음, gold 증가
-- attack_module/function_module/enhance_module 처리 정상
-- 기존 purchase_shop_item 회귀 통과
+- ȹ�� �� ��� ���� ����
+- �Ǹ� �� item ���� ����, gold ����
+- attack_module/function_module/enhance_module ó�� ����
+- ���� purchase_shop_item ȸ�� ���
 
-절대 금지:
+���� ����:
 
-- 기존 상점 구매 비용/lock/reroll 동작 변경
-- 공격모듈 수치 변경
+- ���� ���� ���� ���/lock/reroll ���� ����
+- ���ݸ�� ��ġ ����
 
 ---
 
-## Phase 5. 문서 갱신과 회귀 테스트
+## Phase 5. ���� ���Ű� ȸ�� �׽�Ʈ
 
-목표:
+��ǥ:
 
-- 구현 결과를 canonical 문서에 반영한다.
-- snapshot과 회귀 테스트를 정리한다.
+- ���� ����� canonical ������ �ݿ��Ѵ�.
+- snapshot�� ȸ�� �׽�Ʈ�� �����Ѵ�.
 
-갱신 대상:
+���� ���:
 
 - `docs/02_systems_spec.md`
 - `docs/03_data_and_state_spec.md`
 - `docs/04_roadmap.md`
 
-반영 내용:
+�ݿ� ����:
 
-- Normal chest → Bronze chest
-- 1U / 2 x 2 wall subcell 구조
-- partial reveal 규칙
-- fully revealed 후 E 상호작용
+- Normal chest �� Bronze chest
+- 1U / 1 x 1 wall cell ����
+- partial reveal ��Ģ
+- fully revealed �� E ��ȣ�ۿ�
 - reward popup
-- 획득/판매 선택
-- 판매가 60%
-- 크립은 미구현/TODO 유지
+- ȹ��/�Ǹ� ����
+- �ǸŰ� 60%
+- ũ���� �̱���/TODO ����
 
-검증:
+����:
 
 - `scripts/tests/balance_snapshot.gd`
 - `scripts/tests/attack_module_dps_snapshot.gd`
@@ -889,153 +889,153 @@ B. popup open 시 reward roll
 
 ---
 
-## 18. 테스트 계획 상세
+## 18. �׽�Ʈ ��ȹ ��
 
-### Marker 테스트
+### Marker �׽�Ʈ
 
-- marker count가 설정값과 일치하는지
-- marker size가 항상 2 x 2인지
-- marker origin이 wall bounds 안인지
-- marker 2 x 2 전체가 wall bounds 안인지
-- row 0에 걸치지 않는지
-- marker끼리 겹치지 않는지
+- marker count�� �������� ��ġ�ϴ���
+- marker size�� �׻� 2 x 2����
+- marker origin�� wall bounds ������
+- marker 2 x 2 ��ü�� wall bounds ������
+- row 0�� ��ġ�� �ʴ���
+- marker���� ��ġ�� �ʴ���
 
-### Reveal 테스트
+### Reveal �׽�Ʈ
 
-- 특정 marker의 1개 subcell reveal 시 partial count 1
-- 2개 reveal 시 partial count 2
-- 3개 reveal 시 partial count 3
-- 4개 reveal 시 fully revealed true
-- 이미 revealed된 cell을 다시 reveal해도 count 중복 증가 없음
+- Ư�� marker�� 1�� subcell reveal �� partial count 1
+- 2�� reveal �� partial count 2
+- 3�� reveal �� partial count 3
+- 4�� reveal �� fully revealed true
+- �̹� revealed�� cell�� �ٽ� reveal�ص� count �ߺ� ���� ����
 
-### Interaction 테스트
+### Interaction �׽�Ʈ
 
-- hidden/partial 상태에서는 interaction 불가
-- fully revealed 상태에서는 interaction 가능
-- consumed 상태에서는 interaction 불가
-- 키오스크 interaction과 충돌하지 않음
+- hidden/partial ���¿����� interaction �Ұ�
+- fully revealed ���¿����� interaction ����
+- consumed ���¿����� interaction �Ұ�
+- Ű����ũ interaction�� �浹���� ����
 
-### Reward 테스트
+### Reward �׽�Ʈ
 
-- chest rarity table 총합 검증
-- reward rank table 총합 검증
-- reward rank S가 0%인 chest에서 S가 나오지 않음
-- Gold/Platinum에서는 S 후보가 확률적으로 가능
-- 후보 item이 현재 ShopItemCatalog에서 조회됨
-- sell price가 유효 구매가의 60%
-- grant helper가 골드 차감 없이 동작
+- chest rarity table ���� ����
+- reward rank table ���� ����
+- reward rank S�� 0%�� chest���� S�� ������ ����
+- Gold/Platinum������ S �ĺ��� Ȯ�������� ����
+- �ĺ� item�� ���� ShopItemCatalog���� ��ȸ��
+- sell price�� ��ȿ ���Ű��� 60%
+- grant helper�� ��� ���� ���� ����
 
-### Regression 테스트
+### Regression �׽�Ʈ
 
-- 기존 상점 구매 정상
-- 공격모듈 장착/합성 정상
-- function/enhance module 적용 정상
-- v1 블록 스폰 변경 없음
-- v2 시뮬레이션 변경 없음
-- day pressure snapshot 변경 없음 또는 변경 사유 명확
+- ���� ���� ���� ����
+- ���ݸ�� ����/�ռ� ����
+- function/enhance module ���� ����
+- v1 ��� ���� ���� ����
+- v2 �ùķ��̼� ���� ����
+- day pressure snapshot ���� ���� �Ǵ� ���� ���� ��Ȯ
 
 ---
 
-## 19. 주요 리스크
+## 19. �ֿ� ����ũ
 
-| 리스크 | 설명 | 대응 |
+| ����ũ | ���� | ���� |
 |---|---|---|
-| 벽 좌표계 혼동 | wall column, subcell, world position 변환이 헷갈릴 수 있음 | Phase 1에서 좌표 변환 helper와 snapshot 먼저 작성 |
-| Main.gd 비대화 | 모든 기능을 Main에 넣으면 유지보수 어려움 | WallTreasureManager 분리 |
-| WorldGrid 책임 과다 | reward/popup까지 WorldGrid가 알면 구조가 흐려짐 | WorldGrid는 채굴 결과만 전달 |
-| Partial visual 충돌 | wall tile draw와 treasure overlay가 겹칠 수 있음 | overlay layer를 별도 관리 |
-| E interaction 충돌 | 키오스크와 treasure가 같은 E를 사용 | 우선순위와 range 명확화 |
-| Pause 충돌 | LevelUpUI/DayShopUI/PauseMenu와 pause 충돌 가능 | popup 상태 flag와 close path 명확화 |
-| Attack module 슬롯 부족 | reward가 attack_module인데 슬롯이 가득 찰 수 있음 | 합성 가능 우선, 불가 시 판매 유도/자동 판매 정책 |
-| Shop 구매 회귀 | grant helper가 purchase_shop_item을 건드리다 기존 구매가 깨질 수 있음 | 공통 apply helper 분리 후 purchase regression 테스트 |
+| �� ��ǥ�� ȥ�� | wall column, subcell, world position ��ȯ�� �򰥸� �� ���� | Phase 1���� ��ǥ ��ȯ helper�� snapshot ���� �ۼ� |
+| Main.gd ���ȭ | ��� ����� Main�� ������ �������� ����� | WallTreasureManager �и� |
+| WorldGrid å�� ���� | reward/popup���� WorldGrid�� �˸� ������ ����� | WorldGrid�� ä�� ����� ���� |
+| Partial visual �浹 | wall tile draw�� treasure overlay�� ��ĥ �� ���� | overlay layer�� ���� ���� |
+| E interaction �浹 | Ű����ũ�� treasure�� ���� E�� ��� | �켱������ range ��Ȯȭ |
+| Pause �浹 | LevelUpUI/DayShopUI/PauseMenu�� pause �浹 ���� | popup ���� flag�� close path ��Ȯȭ |
+| Attack module ���� ���� | reward�� attack_module�ε� ������ ���� �� �� ���� | �ռ� ���� �켱, �Ұ� �� �Ǹ� ����/�ڵ� �Ǹ� ��å |
+| Shop ���� ȸ�� | grant helper�� purchase_shop_item�� �ǵ帮�� ���� ���Ű� ���� �� ���� | ���� apply helper �и� �� purchase regression �׽�Ʈ |
 
 ---
 
-## 20. 첫 구현 Phase 권장
+## 20. ù ���� Phase ����
 
-바로 구현해도 되는 범위는 **Phase 1**이다.
+�ٷ� �����ص� �Ǵ� ������ **Phase 1**�̴�.
 
-Phase 1 구현 지시 요약:
+Phase 1 ���� ���� ���:
 
 ```text
-Treasure Chest 1차 구현 계획서의 Phase 1만 구현해줘.
-목표는 marker 데이터 구조와 marker 생성/snapshot까지다.
-채굴 연동, partial visual, interaction, reward popup, item 지급은 아직 구현하지 마라.
+Treasure Chest 1�� ���� ��ȹ���� Phase 1�� ��������.
+��ǥ�� marker ������ ������ marker ����/snapshot������.
+ä�� ����, partial visual, interaction, reward popup, item ������ ���� �������� ����.
 ```
 
-Phase 1이 안정적으로 끝난 뒤 Phase 2로 넘어간다.
+Phase 1�� ���������� ���� �� Phase 2�� �Ѿ��.
 
 ---
 
-## 21. Codex Phase 1 지시 초안
+## 21. Codex Phase 1 ���� �ʾ�
 
 ```text
-Burial Protocol 프로젝트에서 docs/reports/treasure_chest_implementation_plan.md의 Phase 1만 구현해줘.
+Burial Protocol ������Ʈ���� docs/reports/treasure_chest_implementation_plan.md�� Phase 1�� ��������.
 
-목표:
-- 보물상자 marker 데이터 구조 추가
-- wall reset/런 시작 시 marker 생성 함수 추가
-- 2 x 2 wall subcell bounds/overlap 검증
-- bronze/silver/gold/platinum rarity roll table 추가
-- marker snapshot 테스트 추가
+��ǥ:
+- �������� marker ������ ���� �߰�
+- wall reset/�� ���� �� marker ���� �Լ� �߰�
+- 1 x 1 wall cell bounds/overlap ����
+- bronze/silver/gold/platinum rarity roll table �߰�
+- marker snapshot �׽�Ʈ �߰�
 
-금지:
-- 채굴 연동 금지
-- partial visual 금지
-- E interaction 금지
-- TreasureRewardPopup 금지
-- reward roll/item grant 금지
-- 기존 shop 구매 로직 변경 금지
-- v1 블록 스폰 변경 금지
-- v2 시뮬레이션 변경 금지
-- StageTable/BlockCatalog/ShopItemCatalog 수치 변경 금지
+����:
+- ä�� ���� ����
+- partial visual ����
+- E interaction ����
+- TreasureRewardPopup ����
+- reward roll/item grant ����
+- ���� shop ���� ���� ���� ����
+- v1 ��� ���� ���� ����
+- v2 �ùķ��̼� ���� ����
+- StageTable/BlockCatalog/ShopItemCatalog ��ġ ���� ����
 
-완료 후 보고:
-1. 추가/수정 파일
-2. marker 저장 위치
-3. marker 구조
-4. marker 생성 개수와 rarity 확률
-5. bounds/overlap 검증 방식
-6. snapshot 테스트 결과
-7. 기존 balance/attack/day snapshot 결과
-8. Godot headless 결과
-9. git diff --check 결과
+�Ϸ� �� ����:
+1. �߰�/���� ����
+2. marker ���� ��ġ
+3. marker ����
+4. marker ���� ������ rarity Ȯ��
+5. bounds/overlap ���� ���
+6. snapshot �׽�Ʈ ���
+7. ���� balance/attack/day snapshot ���
+8. Godot headless ���
+9. git diff --check ���
 ```
 
 ---
 
-## 22. 최종 결론
+## 22. ���� ���
 
-보물상자 1차 구현은 한 번에 진행하지 않는다.
+�������� 1�� ������ �� ���� �������� �ʴ´�.
 
-권장 진행 순서:
+���� ���� ����:
 
 ```text
-Phase 1: marker 생성/snapshot
+Phase 1: marker ����/snapshot
 Phase 2: mining reveal + partial visual
 Phase 3: E interaction + popup
 Phase 4: reward roll + grant/sell
-Phase 5: 문서 갱신 + 회귀 테스트
+Phase 5: ���� ���� + ȸ�� �׽�Ʈ
 ```
 
-현재 가장 안전한 다음 작업은 **Phase 1만 구현**하는 것이다.
+���� ���� ������ ���� �۾��� **Phase 1�� ����**�ϴ� ���̴�.
 ---
 
-## 22. 구현 완료 기록
+## 22. ���� �Ϸ� ���
 
-기준일: `2026-05-17`
+������: `2026-05-17`
 
-Phase 1~5는 현재 구현 및 문서 반영까지 완료되었다.
+Phase 1~5�� ���� ���� �� ���� �ݿ����� �Ϸ�Ǿ���.
 
-완료된 범위:
+�Ϸ�� ����:
 
-- Phase 1: treasure marker 데이터 구조, 2 x 2 wall subcell marker 생성, bounds/overlap/rarity snapshot
-- Phase 2: wall mining 연동, 채굴 전 preview visual, 채굴된 quadrant partial reveal, fully revealed 판정
-- Phase 3: fully revealed marker `E` 상호작용, prompt, `TreasureRewardPopup`, pause/close 처리
-- Phase 4: reward rank roll, ShopItemCatalog reward 후보 roll, 획득/판매, grant helper, consumed 처리
-- Phase 5: canonical 문서 갱신, treasure snapshot 확장, headless 검증
+- Phase 1: treasure marker ������ ����, 1 x 1 wall cell marker ����, bounds/overlap/rarity snapshot
+- Phase 2: wall mining ����, ä�� �� preview visual, ä���� quadrant partial reveal, fully revealed ����
+- Phase 3: fully revealed marker `E` ��ȣ�ۿ�, prompt, `TreasureRewardPopup`, pause/close ó��
+- Phase 4: reward rank roll, ShopItemCatalog reward �ĺ� roll, ȹ��/�Ǹ�, grant helper, consumed ó��
+- Phase 5: canonical ���� ����, treasure snapshot Ȯ��, headless ����
 
-현재 구현 파일:
+���� ���� ����:
 
 - `scripts/data/TreasureChestMarkerData.gd`
 - `scripts/data/WallTreasureManager.gd`
@@ -1047,23 +1047,92 @@ Phase 1~5는 현재 구현 및 문서 반영까지 완료되었다.
 - `scripts/autoload/GameState.gd`
 - `scripts/tests/treasure_chest_snapshot.gd`
 
-현재 검증:
+���� ����:
 
-- marker 생성 수, bounds, row 0 금지, overlap 없음
-- preview visual과 rarity palette
-- partial reveal과 fully revealed
-- interaction prompt 조건
-- reward rank table 총합
-- reward candidate roll과 fallback
+- marker ���� ��, bounds, row 0 ����, overlap ����
+- preview visual�� rarity palette
+- partial reveal�� fully revealed
+- interaction prompt ����
+- reward rank table ����
+- reward candidate roll�� fallback
 - sell price 60%
-- grant helper gold 차감 없음
-- consumed 후 prompt/interaction/visual 제외
-- popup signal과 paused process mode
+- grant helper gold ���� ����
+- consumed �� prompt/interaction/visual ����
+- popup signal�� paused process mode
 
-남은 후속 작업은 공식 Phase가 아니라 별도 계획으로 분리한다.
+���� �ļ� �۾��� ���� Phase�� �ƴ϶� ���� ��ȹ���� �и��Ѵ�.
 
-- creep 구현
-- sprite 기반 treasure art polish
-- marker 생성 수와 reward 확률 밸런스 확정
-- popup icon/slot full UX 개선
-- 기존 shop regression 실패 항목 정리
+- creep ����
+- sprite ��� treasure art polish
+- marker ���� ���� reward Ȯ�� �뷱�� Ȯ��
+- popup icon/slot full UX ����
+- ���� shop regression ���� �׸� ����
+
+## Current Source Snapshot - 2026-05-25
+
+This section is the current canonical attack-module implementation note.
+
+### Current Module List
+
+| Module ID | Display Name | Type | Style | Effect |
+|---|---|---|---|---|
+| `sword_module` | Sword Module | `melee` | `slash` | `slash_arc` |
+| `dagger_module` | Dagger Module | `melee` | `stab` | `short_stab` |
+| `lance_module` | Lance Module | `melee` | `pierce` | `long_pierce` |
+| `axe_module` | Axe Module | `melee` | `smash` | `blunt_smash` |
+| `greatsword_module` | Greatsword Module | `melee` | `cleave` | `big_cleave` |
+| `pistol_module` | Pistol Module | `ranged` | `revolver` | `revolver_projectile` |
+| `shotgun_module` | Shotgun Module | `ranged` | `shotgun` | `shotgun_spread` |
+| `sniper_module` | Sniper Module | `ranged` | `sniper` | `sniper_projectile` |
+| `laser_module` | Laser Module | `ranged` | `laser` | `laser_beam` |
+| `drone_attack_module` | Drone Attack Module | `mechanic` | `drone` | empty |
+
+Deprecated IDs are not current data: `bow_module`, `scatter_module`, `pierce_module`.
+
+### Gameplay Contract
+
+- Attack hit detection, projectile behavior, cooldowns, damage, grade multipliers, synthesis, and equipment capacity are data/system driven.
+- World visual sprite sizes do not affect attack hit shapes or projectile collision.
+- `pistol_module` uses revolver-style ranged projectile defaults.
+- `shotgun_module` keeps multi-projectile spread behavior.
+- `sniper_module` keeps `pierce_count = 2`.
+- `laser_module` remains hitscan.
+- `drone_attack_module` remains mechanic/auto-targeting.
+
+### World Visual Contract
+
+Attack-module world visuals are composed in `scenes/player/modules/AttackModuleVisual.gd`.
+
+```text
+AttackModuleVisual
+  SlotSprite
+  WeaponSprite
+```
+
+Slot ring texture is chosen by equipped grade:
+
+| Grade | Slot Texture |
+|---|---|
+| `D` | `res://assets/attack_modules/module_d.png` |
+| `C` | `res://assets/attack_modules/module_c.png` |
+| `B` | `res://assets/attack_modules/module_b.png` |
+| `A` | `res://assets/attack_modules/module_a.png` |
+| `S` | `res://assets/attack_modules/module_s.png` |
+
+Weapon texture resolution:
+
+1. Use `ShopItemDefinition.icon_path` if it exists and can be loaded.
+2. Fall back to `res://assets/attack_modules/<module_id without _module>.png`.
+3. Fall back to `res://assets/attack_modules/<module_id>.png`.
+4. If no image exists, keep the old code-drawn placeholder visual.
+
+Current visual sizing:
+
+- All slot rings target `64 x 64`.
+- Default weapon target is `56 x 56`.
+- `greatsword` and `lance` target `64 x 64`.
+- `dagger`, `pistol`, and `revolver` target `48 x 48`.
+- Visual alpha is `70%`.
+- Orbit radius around the player is `64px`.
+
+Slot size must stay consistent across modules. Weapon size may vary by weapon silhouette.

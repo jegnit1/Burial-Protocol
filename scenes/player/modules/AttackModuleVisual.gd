@@ -1,18 +1,183 @@
 extends Node2D
 class_name AttackModuleVisual
 
+const SLOT_TEXTURE_PATHS := {
+	"D": "res://assets/attack_modules/module_d.png",
+	"C": "res://assets/attack_modules/module_c.png",
+	"B": "res://assets/attack_modules/module_b.png",
+	"A": "res://assets/attack_modules/module_a.png",
+	"S": "res://assets/attack_modules/module_s.png",
+}
+const WEAPON_ASSET_BASE_PATH := "res://assets/attack_modules/%s.png"
+const SLOT_TARGET_SIZE := Vector2(64.0, 64.0)
+const WEAPON_TARGET_SIZE := Vector2(56.0, 56.0)
+const VISUAL_ALPHA := 0.7
+
 @export var module_id: StringName
 @export var shape_style: StringName = &"sword"
 @export var fill_color := Color.WHITE
 @export var accent_color := Color(0.1, 0.12, 0.14, 1.0)
 @export var visual_scale := 1.0
 
+var _slot_sprite: Sprite2D
+var _weapon_sprite: Sprite2D
+var _slot_texture: Texture2D
+var _weapon_texture: Texture2D
+var _configured_grade := "D"
+var _configured_icon_path := ""
+var _warned_missing_weapon_paths: Dictionary = {}
+
 
 func _ready() -> void:
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_apply_visual_alpha()
+	_ensure_sprite_nodes()
+	_apply_asset_visuals()
 	queue_redraw()
 
 
+func configure(module_entry: Dictionary, module_definition = null) -> void:
+	_apply_visual_alpha()
+	var entry_module_id := String(module_entry.get("module_id", ""))
+	if not entry_module_id.is_empty():
+		module_id = StringName(entry_module_id)
+	_configured_grade = String(module_entry.get("grade", "D")).strip_edges().to_upper()
+	if _configured_grade.is_empty():
+		_configured_grade = "D"
+	_configured_icon_path = ""
+	if module_definition != null:
+		_configured_icon_path = String(module_definition.icon_path)
+	_apply_asset_visuals()
+	queue_redraw()
+
+
+func _apply_visual_alpha() -> void:
+	modulate.a = VISUAL_ALPHA
+
+
+func _ensure_sprite_nodes() -> void:
+	if _slot_sprite == null:
+		_slot_sprite = get_node_or_null("SlotSprite") as Sprite2D
+	if _slot_sprite == null:
+		_slot_sprite = Sprite2D.new()
+		_slot_sprite.name = "SlotSprite"
+		add_child(_slot_sprite)
+	_slot_sprite.centered = true
+	_slot_sprite.z_index = 0
+	_slot_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	if _weapon_sprite == null:
+		_weapon_sprite = get_node_or_null("WeaponSprite") as Sprite2D
+	if _weapon_sprite == null:
+		_weapon_sprite = Sprite2D.new()
+		_weapon_sprite.name = "WeaponSprite"
+		add_child(_weapon_sprite)
+	_weapon_sprite.centered = true
+	_weapon_sprite.z_index = 1
+	_weapon_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+
+
+func _apply_asset_visuals() -> void:
+	_ensure_sprite_nodes()
+	_slot_texture = _get_slot_texture_for_grade(_configured_grade)
+	_weapon_texture = _load_weapon_texture()
+	_slot_sprite.texture = _slot_texture
+	_weapon_sprite.texture = _weapon_texture
+	_slot_sprite.visible = _slot_texture != null
+	_weapon_sprite.visible = _weapon_texture != null
+	_fit_sprite_to_target(_slot_sprite, SLOT_TARGET_SIZE, false)
+	_fit_sprite_to_target(_weapon_sprite, _get_weapon_target_size(), true)
+
+
+func _get_slot_texture_for_grade(grade: String) -> Texture2D:
+	var normalized_grade := grade.strip_edges().to_upper()
+	var path := String(SLOT_TEXTURE_PATHS.get(normalized_grade, SLOT_TEXTURE_PATHS["D"]))
+	return _load_texture_if_available(path)
+
+
+func _load_weapon_texture() -> Texture2D:
+	var candidate_paths := _get_weapon_texture_candidate_paths()
+	for path in candidate_paths:
+		if path.is_empty():
+			continue
+		var loaded_texture := _load_texture_if_available(path)
+		if loaded_texture != null:
+			return loaded_texture
+	for path in candidate_paths:
+		if path.is_empty() or _warned_missing_weapon_paths.has(path):
+			continue
+		_warned_missing_weapon_paths[path] = true
+		push_warning("Attack module weapon texture missing, using fallback visual: %s" % path)
+	return null
+
+
+func _load_texture_if_available(path: String) -> Texture2D:
+	if path.is_empty():
+		return null
+	if ResourceLoader.exists(path):
+		return load(path) as Texture2D
+	if not FileAccess.file_exists(path):
+		return null
+	var image := Image.new()
+	var error := image.load(path)
+	if error != OK:
+		return null
+	return ImageTexture.create_from_image(image)
+
+
+func _get_weapon_texture_candidate_paths() -> Array[String]:
+	var paths: Array[String] = []
+	if not _configured_icon_path.is_empty():
+		paths.append(_configured_icon_path)
+	var asset_key := _get_weapon_asset_key()
+	if not asset_key.is_empty():
+		paths.append(WEAPON_ASSET_BASE_PATH % asset_key)
+	paths.append(WEAPON_ASSET_BASE_PATH % String(module_id))
+	return paths
+
+
+func _get_weapon_asset_key() -> String:
+	var key := String(module_id)
+	if key.ends_with("_attack_module"):
+		key = key.replace("_attack_module", "")
+	elif key.ends_with("_module"):
+		key = key.replace("_module", "")
+	match key:
+		"drone":
+			return ""
+		_:
+			return key
+
+
+func _get_weapon_target_size() -> Vector2:
+	match _get_weapon_asset_key():
+		"greatsword", "lance":
+			return Vector2(64.0, 64.0)
+		"dagger", "pistol", "revolver":
+			return Vector2(48.0, 48.0)
+		_:
+			return WEAPON_TARGET_SIZE
+
+
+func _fit_sprite_to_target(sprite: Sprite2D, target_size: Vector2, apply_visual_scale: bool) -> void:
+	if sprite == null or sprite.texture == null:
+		return
+	var texture_size := sprite.texture.get_size()
+	if texture_size.x <= 0.0 or texture_size.y <= 0.0:
+		return
+	var fit_scale := minf(target_size.x / texture_size.x, target_size.y / texture_size.y)
+	var final_scale := fit_scale
+	if apply_visual_scale:
+		final_scale *= visual_scale
+	sprite.scale = Vector2.ONE * final_scale
+
+
+func _uses_asset_visual() -> bool:
+	return _slot_texture != null and _weapon_texture != null
+
+
 func _draw() -> void:
+	if _uses_asset_visual():
+		return
 	match shape_style:
 		&"dagger":
 			_draw_dagger()

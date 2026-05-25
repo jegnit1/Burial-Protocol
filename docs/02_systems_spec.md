@@ -793,7 +793,7 @@ XP 획득:
 
 - 관리 노드: `scripts/data/WallTreasureManager.gd`
 - marker 데이터: `scripts/data/TreasureChestMarkerData.gd`
-- marker는 2 x 2 wall subcell 영역이다.
+- marker는 1U wall cell 하나와 정확히 같은 영역이다.
 - marker는 좌우 벽 bounds 안에만 생성된다.
 - marker는 row 0에 걸치지 않는다.
 - marker끼리 subcell이 겹치지 않는다.
@@ -803,8 +803,8 @@ XP 획득:
 
 ### 16-2. 채굴과 reveal
 
-- `WorldGrid.try_mine_in_shape()`는 제거된 wall subcell 목록을 `removed_subcells`로 반환한다.
-- `Main.gd`는 wall mining 결과를 `WallTreasureManager.handle_mined_wall_subcells()`로 전달한다.
+- `WorldGrid.try_mine_in_shape()`는 제거된 1U wall cell 목록을 `removed_cells`로 반환한다.
+- `Main.gd`는 wall mining 결과를 `WallTreasureManager.handle_mined_wall_cells()`로 전달한다.
 - marker preview는 채굴 전에도 보이며, rarity별 색상을 사용한다.
 - 채굴된 subcell만 quadrant partial reveal로 표시된다.
 - 4개 quadrant가 모두 reveal되면 `is_fully_revealed = true`가 된다.
@@ -829,3 +829,55 @@ XP 획득:
 - 판매가는 유효 구매가의 60%를 floor 처리한다.
 - 획득은 `GameState.grant_shop_item_reward(item_id, "treasure_chest")`로 처리하며 gold를 차감하지 않는다.
 - 획득 또는 판매 성공 시 `WallTreasureManager.consume_marker(marker_id)`가 호출된다.
+
+## Current Source Snapshot - 2026-05-25
+
+This section records the active implementation state. It supersedes older sections that still describe wall mining as subcell-based.
+
+### Mining Flow
+
+- Mining is a right-click environmental interaction and remains separate from attack modules.
+- The visual drill state and the damage tick state are separated.
+- While right-click is held and the current mining shape overlaps a valid mineable target, the drill visual stays active.
+- Damage is applied only when the existing mining cooldown permits a mining tick.
+- If the input is released, the target disappears, the target leaves range, or mining becomes locked, the drill visual stops.
+- Mining damage popups are spawned only on actual hit ticks.
+- Mining damage popup font size is smaller than combat damage popup font size.
+
+### Wall Cell Model
+
+- `WorldGrid.wall_cells` is currently a `Dictionary<Vector2i, int>`.
+- Each entry represents one solid `1U` wall block and stores current HP.
+- `GameConstants.WALL_CELL_MAX_HP` is the max HP for one wall block.
+- `rect_collides_static()` treats an existing wall cell as solid for the full `1U` cell rect.
+- `try_mine_in_shape()` damages whole wall cells, not subcells.
+- Return data includes `hit_count`, `removed_count`, `hit_cells`, and `removed_cells`.
+- Removed wall cells are erased from `wall_cells` and no longer collide.
+- `_touched_cells` is retained for mined-background rendering and visual bookkeeping.
+- `restore_mining_walls()` rebuilds wall cells and clears touched/shake/hit visual state.
+
+### Wall Rendering
+
+- Wall cells use `draw_texture_rect_region()` with `assets/world/walls/wall_brick_normal.png`.
+- Source tiles are `32 x 32`; destination wall cells are `64 x 64`.
+- Nearest-neighbor rendering is used for pixel-art consistency.
+- Wall hit shake affects only the rendered wall tile position, not collision or mining shape.
+- Wall chip particles use actual shard sprites from `assets/world/walls/wall_brick_normal_shard.png`.
+
+### Treasure Wall UX
+
+- Treasure markers are `1U` wall-cell aligned.
+- A treasure marker is revealed when the matching wall cell is removed.
+- `WallTreasureManager.handle_mined_wall_cells()` consumes removed wall cell coordinates.
+- Treasure glow preview uses `assets/world/walls/wall_brick_glow.png`.
+- The glow effect is separate from border/outlines.
+
+### Attack Module World Visuals
+
+- Attack module equipment, duplicate equipment, synthesis, grades, cooldowns, damage, and attack styles are unchanged by the visual asset work.
+- `Player.gd` owns orbit placement and updates positions each frame.
+- `AttackModuleVisual.gd` owns visual composition.
+- Each visual node creates `SlotSprite` and `WeaponSprite`.
+- `SlotSprite` uses `assets/attack_modules/module_d.png` through `module_s.png` based on equipped grade.
+- `WeaponSprite` resolves from the module icon path when available, then falls back to `assets/attack_modules/<module_id without _module>.png`.
+- Missing weapon images fall back to the old code-drawn placeholder without crashing.

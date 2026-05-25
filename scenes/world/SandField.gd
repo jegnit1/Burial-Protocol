@@ -230,6 +230,8 @@ func try_mine_in_shape(shape_data: Dictionary, mining_damage: int = 1) -> Dictio
 	var result := {
 		"hit_count": 0,
 		"removed_count": 0,
+		"hit_cells": [],
+		"removed_cells": [],
 	}
 	if world_grid == null or sand_cells.is_empty() or mining_damage <= 0:
 		return result
@@ -248,6 +250,7 @@ func try_mine_in_shape(shape_data: Dictionary, mining_damage: int = 1) -> Dictio
 			if not GameConstants.is_point_inside_shape(cell_rect.get_center(), shape_data):
 				continue
 			result["hit_count"] += 1
+			result["hit_cells"].append(cell)
 			var sand_cell: SandCellData = sand_cells[cell]
 			sand_cell.hp -= mining_damage
 			if sand_cell.hp > 0:
@@ -255,6 +258,7 @@ func try_mine_in_shape(shape_data: Dictionary, mining_damage: int = 1) -> Dictio
 			sand_cells.erase(cell)
 			mining_triggered_cells.erase(cell)
 			removed_cells.append(cell)
+			result["removed_cells"].append(cell)
 			result["removed_count"] += 1
 	if int(result["removed_count"]) > 0:
 		blocked_push_signature = ""
@@ -264,6 +268,25 @@ func try_mine_in_shape(shape_data: Dictionary, mining_damage: int = 1) -> Dictio
 	elif int(result["hit_count"]) > 0:
 		queue_redraw()
 	return result
+
+
+func has_mineable_in_shape(shape_data: Dictionary) -> bool:
+	if world_grid == null or sand_cells.is_empty():
+		return false
+	var shape_bounds := GameConstants.get_shape_bounds(shape_data)
+	var min_cell := world_to_sand_cell(shape_bounds.position)
+	var max_cell := world_to_sand_cell(shape_bounds.position + shape_bounds.size - Vector2.ONE)
+	for y in range(min_cell.y, max_cell.y + 1):
+		for x in range(min_cell.x, max_cell.x + 1):
+			var cell := Vector2i(x, y)
+			if not sand_cells.has(cell):
+				continue
+			var cell_rect := get_sand_cell_rect(cell)
+			if not cell_rect.intersects(shape_bounds):
+				continue
+			if GameConstants.is_point_inside_shape(cell_rect.get_center(), shape_data):
+				return true
+	return false
 
 
 func try_mine_in_rect(mine_rect: Rect2, direction: Vector2i, mining_damage: int = 1) -> int:

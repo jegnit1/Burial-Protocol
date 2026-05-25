@@ -679,7 +679,7 @@ Treasure Chest는 좌우 벽 채굴 루프에 붙는 보상 오브젝트다. 아
 
 플레이어가 알아야 하는 규칙:
 
-- 보물상자는 좌우 벽에 2 x 2 wall subcell 영역으로 배치된다.
+- 보물상자는 좌우 벽의 1U wall cell 하나와 같은 위치에 배치된다.
 - 생성 직후부터 rarity별 preview glow/outline으로 위치를 미리 인지할 수 있다.
 - 벽 subcell을 채굴하면 해당 quadrant만 partial reveal로 추가 표시된다.
 - 4개 subcell이 모두 채굴되면 fully revealed 상태가 된다.
@@ -698,3 +698,44 @@ Treasure Chest는 좌우 벽 채굴 루프에 붙는 보상 오브젝트다. 아
 - 후보가 없으면 낮은 rank 방향, 이후 높은 rank 방향으로 fallback한다.
 - 판매가는 `floor(GameState.get_effective_shop_item_price(definition) * 0.6)`이다.
 - 획득은 `GameState.grant_shop_item_reward()`를 사용하며 gold를 차감하지 않는다.
+
+## Current Source Snapshot - 2026-05-25
+
+This section supersedes older notes in this document where they still mention wall subcells, bow/scatter/pierce module IDs, or placeholder attack-module visuals.
+
+### World Scale And Mining
+
+- `1U = GameConstants.CELL_SIZE = 64px`.
+- Player visual size and collision are currently aligned to `1U x 1U`.
+- Left/right mining walls are made of `1U` wall cells.
+- A wall cell has one HP value, currently `GameConstants.WALL_CELL_MAX_HP = 8`.
+- Wall mining no longer uses wall subcell HP, subcell collision, or subcell damage rendering.
+- Mining range distance is `0.5U` by default.
+- Mining range height is fixed at `0.5U`, even if mining range upgrades are added.
+- Mining visual state is continuous while right mouse is held and a mineable target exists.
+- Mining damage remains tick-based through the existing mining cooldown/speed flow.
+- Mining damage shows a smaller damage popup than combat damage.
+- The orange mining range preview is disabled.
+- The drill visual uses `assets/characters/drill.png` and is displayed above the player while mining.
+
+### Wall Visuals And Treasure
+
+- Wall cells render from `assets/world/walls/wall_brick_normal.png`.
+- Tile selection is based on remaining HP ratio: `> 0.5` normal, `<= 0.5` damaged 1, `<= 0.25` damaged 2, `0` removed/mined background.
+- Wall chip particles use `assets/world/walls/wall_brick_normal_shard.png`.
+- Treasure markers are aligned to one `1U` wall cell.
+- A treasure chest cannot exist between two wall cells.
+- A treasure-bearing wall cell is hinted with `assets/world/walls/wall_brick_glow.png`.
+- The glow visual should be glow-only, not a border/frame around the block.
+
+### Attack Modules
+
+- Current attack module IDs: `sword_module`, `dagger_module`, `lance_module`, `axe_module`, `greatsword_module`, `pistol_module`, `shotgun_module`, `sniper_module`, `laser_module`, `drone_attack_module`.
+- Deprecated IDs no longer used: `bow_module`, `scatter_module`, `pierce_module`.
+- Attack-module world visuals orbit around the player independently of hit shape.
+- Current orbit radius is `64px`.
+- Current orbit visual alpha is `70%`.
+- Each world visual is composed of grade slot ring plus weapon sprite.
+- Slot ring size is shared across all modules: target `64 x 64`.
+- Weapon image size may vary by module.
+- Visual size never changes attack range, collision, projectile logic, cooldown, or damage.

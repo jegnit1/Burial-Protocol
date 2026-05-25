@@ -415,7 +415,7 @@
 - 데이터 구조는 정리되었으므로, 이제 실제 플레이 감각과 시각 피드백을 검증한다.
 
 - melee/ranged 간 DPS 차이와 체감 처리력 확인
-- `scatter_module` 전탄 명중/단일 projectile DPS 차이 확인
+- `shotgun_module` 전탄 명중/단일 projectile DPS 차이 확인
 - mechanic/drone 구현 범위 결정
 - 공격 이펙트, 투사체 가독성, hit feedback 개선 후보 정리
 

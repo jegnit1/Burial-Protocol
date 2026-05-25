@@ -80,8 +80,8 @@ func _validate_preview_visuals(manager) -> Dictionary:
 		"all_previews_visible_before_mining": all_previews_visible,
 		"rarity_palette_has_four_entries": palette.size() == 4,
 		"rarity_palette_colors_are_distinct": distinct_color_keys.size() == 4,
-		"debug_outline_enabled": bool(visual_snapshot.get("debug_draw_marker_outlines", false)),
-		"no_revealed_quadrants_before_mining": int(visual_snapshot.get("revealed_quadrant_count", -1)) == 0,
+		"debug_outline_disabled_by_default": not bool(visual_snapshot.get("debug_draw_marker_outlines", true)),
+		"no_revealed_chests_before_mining": int(visual_snapshot.get("revealed_chest_count", -1)) == 0,
 	}
 	var ok := true
 	for value in checks.values():
@@ -98,53 +98,39 @@ func _validate_reveal_flow(manager) -> Dictionary:
 	if manager.markers.is_empty():
 		return {"ok": false, "error": "no markers generated"}
 	var marker = manager.markers[0]
-	var origin_x := int(marker.origin_subcell_x)
-	var origin_y := int(marker.origin_subcell_y)
+	var origin := Vector2i(int(marker.origin_cell_x), int(marker.origin_cell_y))
 	var interaction_available_before_reveal := bool(marker.is_interaction_available())
 	var nearest_before_reveal = manager.get_nearest_interactable_marker(manager.get_marker_world_center(marker), INTERACTION_RANGE)
 	manager.update_interaction_prompt(manager.get_marker_world_center(marker), INTERACTION_RANGE)
 	var prompt_before_reveal: Dictionary = manager.get_interaction_debug_snapshot()
-	var step_1: Dictionary = manager.handle_mined_wall_subcells([_make_removed_subcell(origin_x, origin_y)])
-	var visual_after_step_1: Dictionary = manager.get_visual_debug_snapshot()
-	var interaction_available_after_partial := bool(marker.is_interaction_available())
-	var nearest_after_partial = manager.get_nearest_interactable_marker(manager.get_marker_world_center(marker), INTERACTION_RANGE)
-	var duplicate_step: Dictionary = manager.handle_mined_wall_subcells([_make_removed_subcell(origin_x, origin_y)])
-	var step_3: Dictionary = manager.handle_mined_wall_subcells([
-		_make_removed_subcell(origin_x + 1, origin_y),
-		_make_removed_subcell(origin_x, origin_y + 1),
-	])
-	var step_4: Dictionary = manager.handle_mined_wall_subcells([_make_removed_subcell(origin_x + 1, origin_y + 1)])
-	var visual_after_step_4: Dictionary = manager.get_visual_debug_snapshot()
+	var reveal_step: Dictionary = manager.handle_mined_wall_cells([origin])
+	var visual_after_reveal: Dictionary = manager.get_visual_debug_snapshot()
+	var duplicate_step: Dictionary = manager.handle_mined_wall_cells([origin])
 	var nearest_after_full_outside = manager.get_nearest_interactable_marker(Vector2(-10000.0, -10000.0), INTERACTION_RANGE)
 	var nearest_after_full_inside = manager.get_nearest_interactable_marker(manager.get_marker_world_center(marker), INTERACTION_RANGE)
 	manager.update_interaction_prompt(Vector2(-10000.0, -10000.0), INTERACTION_RANGE)
 	var prompt_after_full_outside: Dictionary = manager.get_interaction_debug_snapshot()
 	manager.update_interaction_prompt(manager.get_marker_world_center(marker), INTERACTION_RANGE)
 	var prompt_after_full_inside: Dictionary = manager.get_interaction_debug_snapshot()
-	var unrelated_step: Dictionary = manager.handle_mined_wall_subcells([_make_removed_subcell(-1, -1)])
+	var unrelated_step: Dictionary = manager.handle_mined_wall_cells([Vector2i(-1, -1)])
 	var checks := {
-		"step_1_revealed": marker.get_revealed_count() >= 1,
-		"step_1_new_count": int(step_1["newly_revealed_count"]) == 1,
-		"step_1_visual_has_one_revealed_quadrant": int(visual_after_step_1.get("revealed_quadrant_count", -1)) == 1,
+		"same_cell_reveals_marker": marker.get_revealed_count() == 1,
+		"reveal_step_new_count": int(reveal_step["newly_revealed_count"]) == 1,
+		"reveal_visual_has_one_chest": int(visual_after_reveal.get("revealed_chest_count", -1)) == 1,
+		"reveal_removes_one_preview": int(visual_after_reveal.get("preview_count", -1)) == manager.markers.size() - 1,
 		"duplicate_ignored": int(duplicate_step["newly_revealed_count"]) == 0,
-		"step_3_new_count": int(step_3["newly_revealed_count"]) == 2,
-		"step_4_new_count": int(step_4["newly_revealed_count"]) == 1,
-		"step_4_visual_has_four_revealed_quadrants": int(visual_after_step_4.get("revealed_quadrant_count", -1)) == 4,
 		"unrelated_ignored": int(unrelated_step["newly_revealed_count"]) == 0,
-		"revealed_count_4": marker.get_revealed_count() == 4,
 		"fully_revealed": bool(marker.is_fully_revealed),
 		"interaction_unavailable_before_reveal": not interaction_available_before_reveal,
-		"interaction_unavailable_after_partial": not interaction_available_after_partial,
 		"interaction_available_after_full_reveal": bool(marker.is_interaction_available()),
 		"nearest_unavailable_before_reveal": nearest_before_reveal == null,
-		"nearest_unavailable_after_partial": nearest_after_partial == null,
 		"nearest_unavailable_outside_range": nearest_after_full_outside == null,
 		"nearest_available_inside_range": nearest_after_full_inside != null,
 		"prompt_hidden_before_reveal": not bool(prompt_before_reveal.get("prompt_visible", true)),
 		"prompt_hidden_outside_range": not bool(prompt_after_full_outside.get("prompt_visible", true)),
 		"prompt_visible_inside_range": bool(prompt_after_full_inside.get("prompt_visible", false)),
 		"prompt_targets_marker": String(prompt_after_full_inside.get("prompt_marker_id", "")) == marker.marker_id,
-		"fully_revealed_id_reported": Array(step_4["newly_fully_revealed_marker_ids"]).has(marker.marker_id),
+		"fully_revealed_id_reported": Array(reveal_step["newly_fully_revealed_marker_ids"]).has(marker.marker_id),
 	}
 	var ok := true
 	for value in checks.values():
@@ -154,24 +140,14 @@ func _validate_reveal_flow(manager) -> Dictionary:
 		"ok": ok,
 		"marker_id": marker.marker_id,
 		"checks": checks,
-		"step_1": step_1,
-		"visual_after_step_1": visual_after_step_1,
+		"reveal_step": reveal_step,
+		"visual_after_reveal": visual_after_reveal,
 		"duplicate_step": duplicate_step,
-		"step_3": step_3,
-		"step_4": step_4,
-		"visual_after_step_4": visual_after_step_4,
 		"prompt_before_reveal": prompt_before_reveal,
 		"prompt_after_full_outside": prompt_after_full_outside,
 		"prompt_after_full_inside": prompt_after_full_inside,
 		"unrelated_step": unrelated_step,
 		"final_marker": marker.to_snapshot(),
-	}
-
-
-func _make_removed_subcell(subcell_x: int, subcell_y: int) -> Dictionary:
-	return {
-		"subcell_x": subcell_x,
-		"subcell_y": subcell_y,
 	}
 
 

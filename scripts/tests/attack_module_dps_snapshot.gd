@@ -9,9 +9,9 @@ const DPS_MODULE_IDS := [
 	"lance_module",
 	"axe_module",
 	"greatsword_module",
-	"bow_module",
-	"scatter_module",
-	"pierce_module",
+	"pistol_module",
+	"shotgun_module",
+	"sniper_module",
 	"laser_module",
 ]
 
@@ -137,8 +137,8 @@ func _append_notes(lines: Array[String], modules: Array) -> void:
 	lines.append("## Readout")
 	lines.append("")
 	lines.append("- The previous row-rank comparison was invalid because it compared different module shapes at different grades instead of comparing all module shapes at the same grade.")
-	lines.append("- Same-grade comparison is now available for D/C/B/A/S across sword, dagger, lance, axe, greatsword, bow, scatter, pierce, and laser.")
-	lines.append("- Scatter reports both `single_projectile_DPS` and `full_hit_DPS`; the full-hit column assumes all projectiles connect.")
+	lines.append("- Same-grade comparison is now available for D/C/B/A/S across sword, dagger, lance, axe, greatsword, pistol, shotgun, sniper, and laser.")
+	lines.append("- Shotgun reports both `single_projectile_DPS` and `full_hit_DPS`; the full-hit column assumes all projectiles connect.")
 	lines.append("- D-grade melee average full-hit DPS: %.2f." % _average(melee_dps))
 	lines.append("- D-grade ranged average full-hit DPS: %.2f." % _average(ranged_dps))
 	lines.append("")
@@ -164,7 +164,7 @@ func _get_aps(definition, grade: String) -> float:
 
 
 func _get_projectile_count(definition) -> int:
-	if String(definition.item_id) == "scatter_module":
+	if String(definition.item_id) == "shotgun_module":
 		return maxi(int(definition.projectile_count), 1)
 	return 1
 

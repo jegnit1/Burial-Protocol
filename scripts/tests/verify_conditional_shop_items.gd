@@ -121,9 +121,9 @@ func _check_melee_style_shape_growth() -> void:
 			_expect(is_equal_approx(float(bonus_shape.get("y", 0.0)), float(current_shape.get("y", 0.0))), "%s height should not grow" % module_id)
 		else:
 			_expect(float(bonus_shape.get("y", 0.0)) > float(current_shape.get("y", 0.0)), "%s height should grow by style scale" % module_id)
-	var bow_definition = _game_data.call("get_attack_module_definition", &"bow_module")
+	var pistol_definition = _game_data.call("get_attack_module_definition", &"pistol_module")
 	var drone_definition = _game_data.call("get_attack_module_definition", &"drone_attack_module")
-	_expect(bow_definition != null and bow_definition.module_type == &"ranged", "bow_module should remain ranged")
+	_expect(pistol_definition != null and pistol_definition.module_type == &"ranged", "pistol_module should remain ranged")
 	_expect(drone_definition != null and drone_definition.module_type == &"mechanic", "drone_attack_module should remain mechanic")
 	_record("melee_shape_before_range_bonus", before)
 	_record("melee_shape_after_50pct_range_bonus", after)
@@ -131,9 +131,9 @@ func _check_melee_style_shape_growth() -> void:
 
 func _check_ranged_attack_module_style_fields() -> void:
 	var expected := {
-		"bow_module": {"attack_style": "rifle", "effect_style": "rifle_projectile", "projectile_count": 1, "spread_angle": 0.0, "pierce_count": 0, "is_hitscan": false},
-		"scatter_module": {"attack_style": "shotgun", "effect_style": "shotgun_spread", "projectile_count": 3, "spread_angle": 26.0, "pierce_count": 0, "is_hitscan": false},
-		"pierce_module": {"attack_style": "sniper", "effect_style": "sniper_projectile", "projectile_count": 1, "spread_angle": 0.0, "pierce_count": 2, "is_hitscan": false},
+		"pistol_module": {"attack_style": "revolver", "effect_style": "revolver_projectile", "projectile_count": 1, "spread_angle": 0.0, "pierce_count": 0, "is_hitscan": false},
+		"shotgun_module": {"attack_style": "shotgun", "effect_style": "shotgun_spread", "projectile_count": 3, "spread_angle": 26.0, "pierce_count": 0, "is_hitscan": false},
+		"sniper_module": {"attack_style": "sniper", "effect_style": "sniper_projectile", "projectile_count": 1, "spread_angle": 0.0, "pierce_count": 2, "is_hitscan": false},
 		"laser_module": {"attack_style": "laser", "effect_style": "laser_beam", "projectile_count": 0, "spread_angle": 0.0, "pierce_count": 0, "is_hitscan": true},
 	}
 	var loaded := {}
@@ -169,9 +169,9 @@ func _check_ranged_attack_module_style_fields() -> void:
 
 func _check_ranged_range_growth_only() -> void:
 	_reset_with_gold()
-	_game_state.call("purchase_shop_item", &"bow_module")
-	_game_state.call("purchase_shop_item", &"scatter_module")
-	_game_state.call("purchase_shop_item", &"pierce_module")
+	_game_state.call("purchase_shop_item", &"pistol_module")
+	_game_state.call("purchase_shop_item", &"shotgun_module")
+	_game_state.call("purchase_shop_item", &"sniper_module")
 	_game_state.call("purchase_shop_item", &"laser_module")
 	var snapshots := {}
 	for entry in _get_equipped_attack_module_entries():
@@ -193,9 +193,9 @@ func _check_ranged_range_growth_only() -> void:
 		}
 		_expect(float(bonus_shape.get("x", 0.0)) > float(current_shape.get("x", 0.0)), "%s range length should grow with attack range" % module_id)
 		_expect(is_equal_approx(float(bonus_shape.get("y", 0.0)), float(current_shape.get("y", 0.0))), "%s projectile/hitscan thickness should not grow with attack range" % module_id)
-	_expect(int(snapshots.get("scatter_module", {}).get("projectile_count", 0)) == 3, "shotgun projectile_count should stay style-defined")
-	_expect(is_equal_approx(float(snapshots.get("scatter_module", {}).get("spread_angle", 0.0)), 26.0), "shotgun spread_angle should stay style-defined")
-	_expect(int(snapshots.get("pierce_module", {}).get("pierce_count", 0)) == 2, "sniper pierce_count should stay style-defined")
+	_expect(int(snapshots.get("shotgun_module", {}).get("projectile_count", 0)) == 3, "shotgun projectile_count should stay style-defined")
+	_expect(is_equal_approx(float(snapshots.get("shotgun_module", {}).get("spread_angle", 0.0)), 26.0), "shotgun spread_angle should stay style-defined")
+	_expect(int(snapshots.get("sniper_module", {}).get("pierce_count", 0)) == 2, "sniper pierce_count should stay style-defined")
 	_expect(bool(snapshots.get("laser_module", {}).get("is_hitscan", false)), "laser should stay hitscan")
 	_record("ranged_range_growth_only", snapshots)
 
@@ -328,15 +328,15 @@ func _check_melee_purity_core_condition() -> void:
 	_expect(melee_after == 12, "melee_purity_core should make 10 attack become 12 when all modules are melee")
 
 	_reset_with_gold()
-	var bow_result: Dictionary = _game_state.call("purchase_shop_item", &"bow_module")
+	var pistol_result: Dictionary = _game_state.call("purchase_shop_item", &"pistol_module")
 	var mixed_before: int = _game_state.call("get_attack_damage")
 	var mixed_result: Dictionary = _game_state.call("purchase_shop_item", &"melee_purity_core")
 	var mixed_after: int = _game_state.call("get_attack_damage")
-	_record("melee_core_unsatisfied_bow_purchase", bow_result)
+	_record("melee_core_unsatisfied_pistol_purchase", pistol_result)
 	_record("melee_core_unsatisfied_before", mixed_before)
 	_record("melee_core_unsatisfied_after", mixed_after)
 	_record("melee_core_unsatisfied_purchase", mixed_result)
-	_expect(bool(bow_result.get("ok", false)), "bow_module purchase should succeed")
+	_expect(bool(pistol_result.get("ok", false)), "pistol_module purchase should succeed")
 	_expect(bool(mixed_result.get("ok", false)), "melee_purity_core mixed purchase should succeed")
 	_expect(mixed_after == mixed_before, "melee_purity_core should not increase attack when any equipped module is non-melee")
 

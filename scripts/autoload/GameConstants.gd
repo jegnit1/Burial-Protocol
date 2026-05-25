@@ -158,9 +158,9 @@ const PLAYER_MINING_BUFFER_TIME := 0.12
 # 채굴 실패/불가 상태 문구가 과도하게 반복되지 않도록 두는 최소 간격.
 const PLAYER_MINING_STATUS_MESSAGE_INTERVAL := 0.3
 # 채굴 범위: 플레이어 몸체에서 뻗는 거리 (0.25U).
-const PLAYER_MINING_RANGE_DISTANCE := float(CELL_SIZE) * 0.25
+const PLAYER_MINING_RANGE_DISTANCE := float(CELL_SIZE) * 0.5
 # 채굴 범위: 세로 높이 (1U).
-const PLAYER_MINING_RANGE_HEIGHT := float(CELL_SIZE)
+const PLAYER_MINING_RANGE_HEIGHT := float(CELL_SIZE) * 0.5
 const PLAYER_UPWARD_SAND_CHECK_HEIGHT := 2.0
 const PLAYER_DASH_DISTANCE := CELL_SIZE * 4.0
 const PLAYER_DASH_DOUBLE_TAP_WINDOW := 0.22
@@ -169,7 +169,7 @@ const PLAYER_DASH_COOLDOWN := 0.45
 const PLAYER_DASH_DOWN_ENABLED := true
 const PLAYER_DASH_UP_ENABLED := false
 const SAND_CELL_MAX_HP := 3
-const WALL_SUBCELL_MAX_HP := 3
+const WALL_CELL_MAX_HP := 8
 
 # 낙하 블록의 낙하 속도(px/s).
 const BLOCK_FALL_SPEED := 330.0
@@ -209,8 +209,6 @@ const BLOCK_SPAWN_Y_OFFSET := 16.0
 const SAND_CELLS_PER_UNIT := 6
 # 모래 시뮬레이션 셀 1칸의 픽셀 크기.
 const SAND_CELL_SIZE := float(CELL_SIZE) / float(SAND_CELLS_PER_UNIT)
-const WALL_SUBCELLS_PER_UNIT := 2
-const WALL_SUBCELL_SIZE := float(CELL_SIZE) / float(WALL_SUBCELLS_PER_UNIT)
 # 한 번의 계산에서 연쇄적으로 이어질 수 있는 모래 밀기 최대 횟수.
 const SAND_PUSH_CHAIN_LIMIT := 9
 # 시뮬레이션 한 틱마다 처리하는 모래 흐름 업데이트 수.
@@ -283,6 +281,9 @@ const DAMAGE_POPUP_HORIZONTAL_JITTER := 22.0
 const DAMAGE_POPUP_TEXT_COLOR := Color("fff2cf")
 # 데미지 팝업 그림자 색상.
 const DAMAGE_POPUP_SHADOW_COLOR := Color(0.07, 0.05, 0.04, 0.88)
+const MINING_DAMAGE_POPUP_FONT_SIZE := 28
+const MINING_DAMAGE_POPUP_TEXT_COLOR := Color("fff2cf")
+const MINING_DAMAGE_POPUP_SHADOW_COLOR := Color(0.07, 0.05, 0.04, 0.88)
 const CRITICAL_DAMAGE_POPUP_TEXT_COLOR := Color("ffe066")
 const CRITICAL_DAMAGE_POPUP_SHADOW_COLOR := Color(0.23, 0.16, 0.02, 0.92)
 const PLAYER_DAMAGE_POPUP_TEXT_COLOR := Color("ff7676")

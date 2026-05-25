@@ -183,13 +183,13 @@ desc = "넓은 전방 범위와 높은 데미지를 가지지만 공격속도가
 
 [sub_resource type="Resource" id="Resource_q3pi3"]
 script = ExtResource("1_eikcl")
-item_id = &"bow_module"
-name = "보우 모듈"
+item_id = &"pistol_module"
+name = "권총 모듈"
 equip_slot = "attack_module"
 is_equippable = true
 module_type = &"ranged"
-attack_style = &"rifle"
-effect_style = &"rifle_projectile"
+attack_style = &"revolver"
+effect_style = &"revolver_projectile"
 range_units = 5.0
 range_width_u = 5.0
 range_height_u = 0.5
@@ -209,17 +209,17 @@ price_by_grade = {
 "S": 4000
 }
 attack_speed_multiplier = 0.85
-projectile_visual_size = Vector2(18, 6)
-icon_path = "res://assets/ui/items/attack_modules/bow_module.png"
-world_visual_scene_path = "res://scenes/player/modules/BowModuleVisual.tscn"
-tags = PackedStringArray("ranged", "single", "test")
-short_desc = "원거리 단발 공격 모듈"
-desc = "좌클릭 유지 중 캐릭터 위치에서 실제 투사체를 발사하는 원거리 테스트 모듈이다."
+projectile_visual_size = Vector2(16, 6)
+icon_path = "res://assets/ui/items/attack_modules/pistol_module.png"
+world_visual_scene_path = "res://scenes/player/modules/RangedModuleVisual.tscn"
+tags = PackedStringArray("ranged", "pistol", "single", "test")
+short_desc = "원거리 단발 권총 모듈"
+desc = "좌클릭 유지 중 캐릭터 위치에서 빠른 단발 탄환을 발사하는 권총형 원거리 모듈이다."
 
 [sub_resource type="Resource" id="Resource_sfxbr"]
 script = ExtResource("1_eikcl")
-item_id = &"scatter_module"
-name = "산탄 모듈"
+item_id = &"shotgun_module"
+name = "샷건 모듈"
 equip_slot = "attack_module"
 is_equippable = true
 module_type = &"ranged"
@@ -250,16 +250,16 @@ projectile_visual_size = Vector2(14, 5)
 projectile_speed = 820.0
 projectile_lifetime = 1.0
 projectile_max_distance = 760.0
-icon_path = "res://assets/ui/items/attack_modules/scatter_module.png"
-world_visual_scene_path = "res://scenes/player/modules/BowModuleVisual.tscn"
-tags = PackedStringArray("ranged", "spread", "test")
-short_desc = "원거리 산탄 공격 모듈"
-desc = "여러 투사체를 넓은 각도로 동시에 발사하는 테스트 모듈이다."
+icon_path = "res://assets/ui/items/attack_modules/shotgun_module.png"
+world_visual_scene_path = "res://scenes/player/modules/RangedModuleVisual.tscn"
+tags = PackedStringArray("ranged", "shotgun", "spread", "test")
+short_desc = "원거리 샷건 공격 모듈"
+desc = "여러 탄환을 넓은 각도로 동시에 발사하는 샷건형 원거리 모듈이다."
 
 [sub_resource type="Resource" id="Resource_sr35s"]
 script = ExtResource("1_eikcl")
-item_id = &"pierce_module"
-name = "관통 모듈"
+item_id = &"sniper_module"
+name = "스나이퍼 모듈"
 equip_slot = "attack_module"
 is_equippable = true
 module_type = &"ranged"
@@ -289,11 +289,11 @@ projectile_visual_size = Vector2(20, 5)
 projectile_speed = 960.0
 projectile_lifetime = 1.4
 projectile_max_distance = 1100.0
-icon_path = "res://assets/ui/items/attack_modules/pierce_module.png"
-world_visual_scene_path = "res://scenes/player/modules/BowModuleVisual.tscn"
-tags = PackedStringArray("ranged", "pierce", "test")
-short_desc = "원거리 관통 공격 모듈"
-desc = "첫 블록 명중 후에도 추가 블록까지 관통 가능한 테스트 모듈이다."
+icon_path = "res://assets/ui/items/attack_modules/sniper_module.png"
+world_visual_scene_path = "res://scenes/player/modules/RangedModuleVisual.tscn"
+tags = PackedStringArray("ranged", "sniper", "pierce", "test")
+short_desc = "원거리 스나이퍼 공격 모듈"
+desc = "긴 사거리와 관통 탄환으로 첫 블록 명중 후에도 추가 블록까지 타격 가능한 스나이퍼형 원거리 모듈이다."
 
 [sub_resource type="Resource" id="Resource_2m00x"]
 script = ExtResource("1_eikcl")
@@ -330,7 +330,7 @@ projectile_speed = 1400.0
 projectile_lifetime = 0.15
 projectile_max_distance = 1200.0
 icon_path = "res://assets/ui/items/attack_modules/laser_module.png"
-world_visual_scene_path = "res://scenes/player/modules/BowModuleVisual.tscn"
+world_visual_scene_path = "res://scenes/player/modules/RangedModuleVisual.tscn"
 tags = PackedStringArray("ranged", "laser", "test")
 short_desc = "원거리 레이저 공격 모듈"
 desc = "즉시 판정과 짧은 빔 placeholder를 표시하는 테스트 모듈이다."

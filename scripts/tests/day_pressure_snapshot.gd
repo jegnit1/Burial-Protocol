@@ -508,7 +508,7 @@ func _build_attack_baseline() -> Dictionary:
 		var base_damage := _get_base_damage_for_grade(definition, grade)
 		var aps := _get_aps(definition, grade)
 		var full_hit_multiplier := 1
-		if String(definition.item_id) == "scatter_module":
+		if String(definition.item_id) == "shotgun_module":
 			full_hit_multiplier = maxi(int(definition.projectile_count), 1)
 		var full_hit_dps := aps * float(base_damage) * float(full_hit_multiplier)
 		var row := {

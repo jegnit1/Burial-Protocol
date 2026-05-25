@@ -1,11 +1,14 @@
 extends Node2D
 class_name WallTreasureManager
 
-const MARKER_WIDTH_SUBCELLS := 2
-const MARKER_HEIGHT_SUBCELLS := 2
+const MARKER_WIDTH_CELLS := 1
+const MARKER_HEIGHT_CELLS := 1
 const DEFAULT_MARKER_COUNT := 6
 const MAX_PLACEMENT_ATTEMPTS_PER_MARKER := 200
 const TREASURE_CHEST_MARKER_DATA_SCRIPT := preload("res://scripts/data/TreasureChestMarkerData.gd")
+const WALL_BRICK_GLOW_TEXTURE := preload("res://assets/world/walls/wall_brick_glow.png")
+const WALL_BRICK_GLOW_FRAME_SIZE := Vector2(32.0, 32.0)
+const WALL_BRICK_GLOW_FRAME_COUNT := 11
 const PREVIEW_RARITY_COLORS := {
 	"bronze": Color(0.92, 0.52, 0.24, 1.0),
 	"silver": Color(0.78, 0.9, 1.0, 1.0),
@@ -61,7 +64,7 @@ const REWARD_RANK_FALLBACK_ORDER := ["D", "C", "B", "A", "S"]
 const TREASURE_SELL_PRICE_RATE := 0.60
 
 var markers: Array = []
-var debug_draw_marker_outlines := true
+var debug_draw_marker_outlines := false
 var _preview_pulse_time := 0.0
 var _prompt_label: Label
 var _prompt_marker_id := ""
@@ -69,6 +72,7 @@ var _prompt_marker_id := ""
 
 func setup() -> void:
 	z_index = 16
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	set_process(true)
 	_ensure_prompt_label()
 	clear_markers()
@@ -98,7 +102,7 @@ func generate_markers_for_wall_reset(rng: RandomNumberGenerator, count := DEFAUL
 			push_warning("Failed to place treasure marker %d on %s wall." % [index, side])
 			continue
 		markers.append(marker)
-		for key in marker.get_occupied_subcell_keys():
+		for key in marker.get_occupied_cell_keys():
 			occupied[key] = true
 	queue_redraw()
 	return markers
@@ -126,33 +130,35 @@ func get_marker_by_id(marker_id: String):
 
 func get_visual_debug_snapshot() -> Dictionary:
 	var previews: Array[Dictionary] = []
-	var revealed_quadrants: Array[Dictionary] = []
+	var revealed_chests: Array[Dictionary] = []
 	for marker in markers:
 		if marker.consumed:
 			continue
 		var preview_color: Color = _get_preview_color(marker.chest_rarity)
 		var preview_rect := _get_marker_world_rect(marker)
-		previews.append({
-			"marker_id": marker.marker_id,
-			"rarity": marker.chest_rarity,
-			"visible_before_mining": true,
-			"rect": _rect_to_snapshot(preview_rect),
-			"color": _color_to_snapshot(preview_color),
-		})
-		for subcell in marker.get_revealed_global_subcells():
-			revealed_quadrants.append({
+		if marker.is_fully_revealed:
+			revealed_chests.append({
 				"marker_id": marker.marker_id,
-				"subcell": {"x": subcell.x, "y": subcell.y},
-				"rect": _rect_to_snapshot(_get_global_subcell_rect(subcell)),
+				"cell": {"x": marker.origin_cell_x, "y": marker.origin_cell_y},
+				"rect": _rect_to_snapshot(preview_rect),
 				"color": _color_to_snapshot(_get_revealed_color(marker.chest_rarity)),
+			})
+		else:
+			previews.append({
+				"marker_id": marker.marker_id,
+				"rarity": marker.chest_rarity,
+				"visible_before_mining": true,
+				"rect": _rect_to_snapshot(preview_rect),
+				"color": _color_to_snapshot(preview_color),
+				"glow_texture": "res://assets/world/walls/wall_brick_glow.png",
 			})
 	return {
 		"preview_count": previews.size(),
-		"revealed_quadrant_count": revealed_quadrants.size(),
+		"revealed_chest_count": revealed_chests.size(),
 		"debug_draw_marker_outlines": debug_draw_marker_outlines,
 		"rarity_preview_palette": get_rarity_preview_palette_snapshot(),
 		"previews": previews,
-		"revealed_quadrants": revealed_quadrants,
+		"revealed_chests": revealed_chests,
 	}
 
 
@@ -209,17 +215,15 @@ func get_nearest_interactable_marker(player_position: Vector2, interaction_range
 	return best_marker
 
 
-func handle_mined_wall_subcells(removed_subcells: Array) -> Dictionary:
+func handle_mined_wall_cells(removed_cells: Array) -> Dictionary:
 	var newly_revealed_count := 0
 	var updated_marker_ids: Array[String] = []
 	var newly_fully_revealed_marker_ids: Array[String] = []
-	for raw_subcell in removed_subcells:
-		var subcell: Dictionary = raw_subcell
-		var subcell_x := int(subcell.get("subcell_x", -1))
-		var subcell_y := int(subcell.get("subcell_y", -1))
+	for raw_cell in removed_cells:
+		var cell: Vector2i = raw_cell
 		for marker in markers:
 			var was_fully_revealed := bool(marker.is_fully_revealed)
-			if not marker.reveal_global_subcell(subcell_x, subcell_y):
+			if not marker.reveal_global_cell(cell.x, cell.y):
 				continue
 			newly_revealed_count += 1
 			if not updated_marker_ids.has(marker.marker_id):
@@ -459,17 +463,17 @@ func validate_markers() -> Dictionary:
 	var errors: Array[String] = []
 	var occupied := {}
 	for marker in markers:
-		if marker.width_subcells != MARKER_WIDTH_SUBCELLS or marker.height_subcells != MARKER_HEIGHT_SUBCELLS:
-			errors.append("%s has invalid size %dx%d" % [marker.marker_id, marker.width_subcells, marker.height_subcells])
+		if marker.width_cells != MARKER_WIDTH_CELLS or marker.height_cells != MARKER_HEIGHT_CELLS:
+			errors.append("%s has invalid size %dx%d" % [marker.marker_id, marker.width_cells, marker.height_cells])
 		if not _is_valid_side(marker.wall_side):
 			errors.append("%s has invalid side %s" % [marker.marker_id, marker.wall_side])
 		if not _is_marker_inside_side_bounds(marker):
 			errors.append("%s is out of %s wall bounds" % [marker.marker_id, marker.wall_side])
 		if _touches_world_row_zero(marker):
 			errors.append("%s touches world row 0" % marker.marker_id)
-		for key in marker.get_occupied_subcell_keys():
+		for key in marker.get_occupied_cell_keys():
 			if occupied.has(key):
-				errors.append("%s overlaps subcell %s" % [marker.marker_id, key])
+				errors.append("%s overlaps cell %s" % [marker.marker_id, key])
 			occupied[key] = marker.marker_id
 	return {
 		"ok": errors.is_empty(),
@@ -479,7 +483,7 @@ func validate_markers() -> Dictionary:
 
 
 func _create_marker_for_side(index: int, side: String, rng: RandomNumberGenerator, occupied: Dictionary):
-	var bounds := _get_side_subcell_bounds(side)
+	var bounds := _get_side_cell_bounds(side)
 	if bounds.is_empty():
 		return null
 	for _attempt in range(MAX_PLACEMENT_ATTEMPTS_PER_MARKER):
@@ -508,21 +512,20 @@ func _build_side_sequence(count: int) -> Array[String]:
 	return sequence
 
 
-func _get_side_subcell_bounds(side: String) -> Dictionary:
-	var subcells_per_unit := GameConstants.WALL_SUBCELLS_PER_UNIT
-	var min_y := subcells_per_unit
-	var max_y := GameConstants.FLOOR_ROW * subcells_per_unit - MARKER_HEIGHT_SUBCELLS
+func _get_side_cell_bounds(side: String) -> Dictionary:
+	var min_y := 1
+	var max_y := GameConstants.FLOOR_ROW - MARKER_HEIGHT_CELLS
 	if side == "left":
 		return {
 			"min_x": 0,
-			"max_x": GameConstants.WALL_COLUMNS * subcells_per_unit - MARKER_WIDTH_SUBCELLS,
+			"max_x": GameConstants.WALL_COLUMNS - MARKER_WIDTH_CELLS,
 			"min_y": min_y,
 			"max_y": max_y,
 		}
 	if side == "right":
 		return {
-			"min_x": (GameConstants.WORLD_COLUMNS - GameConstants.WALL_COLUMNS) * subcells_per_unit,
-			"max_x": GameConstants.WORLD_COLUMNS * subcells_per_unit - MARKER_WIDTH_SUBCELLS,
+			"min_x": GameConstants.WORLD_COLUMNS - GameConstants.WALL_COLUMNS,
+			"max_x": GameConstants.WORLD_COLUMNS - MARKER_WIDTH_CELLS,
 			"min_y": min_y,
 			"max_y": max_y,
 		}
@@ -530,24 +533,24 @@ func _get_side_subcell_bounds(side: String) -> Dictionary:
 
 
 func _is_marker_inside_side_bounds(marker) -> bool:
-	var bounds := _get_side_subcell_bounds(marker.wall_side)
+	var bounds := _get_side_cell_bounds(marker.wall_side)
 	if bounds.is_empty():
 		return false
 	return (
-		marker.origin_subcell_x >= int(bounds["min_x"])
-		and marker.origin_subcell_x <= int(bounds["max_x"])
-		and marker.origin_subcell_y >= int(bounds["min_y"])
-		and marker.origin_subcell_y <= int(bounds["max_y"])
+		marker.origin_cell_x >= int(bounds["min_x"])
+		and marker.origin_cell_x <= int(bounds["max_x"])
+		and marker.origin_cell_y >= int(bounds["min_y"])
+		and marker.origin_cell_y <= int(bounds["max_y"])
 	)
 
 
 func _touches_world_row_zero(marker) -> bool:
-	return marker.origin_subcell_y < GameConstants.WALL_SUBCELLS_PER_UNIT
+	return marker.origin_cell_y <= 0
 
 
 func _would_overlap(origin_x: int, origin_y: int, occupied: Dictionary) -> bool:
-	for local_y in range(MARKER_HEIGHT_SUBCELLS):
-		for local_x in range(MARKER_WIDTH_SUBCELLS):
+	for local_y in range(MARKER_HEIGHT_CELLS):
+		for local_x in range(MARKER_WIDTH_CELLS):
 			if occupied.has("%d,%d" % [origin_x + local_x, origin_y + local_y]):
 				return true
 	return false
@@ -561,37 +564,28 @@ func _draw() -> void:
 	for marker in markers:
 		if marker.consumed:
 			continue
-		_draw_marker_preview(marker)
-		_draw_marker_revealed_quadrants(marker)
+		if marker.is_fully_revealed:
+			_draw_revealed_marker(marker)
+		else:
+			_draw_marker_preview(marker)
 
 
 func _draw_marker_preview(marker) -> void:
 	var rect := _get_marker_world_rect(marker)
-	var base_color := _get_preview_color(marker.chest_rarity)
-	var pulse := 0.5 + sin(_preview_pulse_time * 2.4) * 0.5
-	var glow_color := Color(base_color.r, base_color.g, base_color.b, 0.09 + pulse * 0.05)
-	var outline_color := Color(base_color.r, base_color.g, base_color.b, 0.56 + pulse * 0.22)
-	var inner_color := Color(base_color.r, base_color.g, base_color.b, 0.26 + pulse * 0.12)
-	draw_rect(rect.grow(5.0), Color(base_color.r, base_color.g, base_color.b, 0.05 + pulse * 0.04))
-	draw_rect(rect.grow(1.0), glow_color)
-	draw_rect(rect.grow(-2.0), outline_color, false, 3.0)
-	draw_rect(rect.grow(-7.0), inner_color, false, 1.0)
-	var center_x := rect.position.x + rect.size.x * 0.5
-	var center_y := rect.position.y + rect.size.y * 0.5
-	draw_line(Vector2(center_x, rect.position.y + 6.0), Vector2(center_x, rect.end.y - 6.0), Color(base_color.r, base_color.g, base_color.b, 0.24), 1.0)
-	draw_line(Vector2(rect.position.x + 6.0, center_y), Vector2(rect.end.x - 6.0, center_y), Color(base_color.r, base_color.g, base_color.b, 0.24), 1.0)
-	if debug_draw_marker_outlines:
-		draw_rect(rect, Color(base_color.r, base_color.g, base_color.b, 0.9), false, 1.0)
+	var frame_index := int(floor(_preview_pulse_time * 12.0)) % WALL_BRICK_GLOW_FRAME_COUNT
+	var source_rect := Rect2(
+		Vector2(float(frame_index) * WALL_BRICK_GLOW_FRAME_SIZE.x, 0.0),
+		WALL_BRICK_GLOW_FRAME_SIZE
+	)
+	draw_texture_rect_region(WALL_BRICK_GLOW_TEXTURE, rect, source_rect)
 
 
-func _draw_marker_revealed_quadrants(marker) -> void:
+func _draw_revealed_marker(marker) -> void:
 	var color := _get_revealed_color(marker.chest_rarity)
-	for subcell in marker.get_revealed_global_subcells():
-		var rect := _get_global_subcell_rect(subcell)
-		draw_rect(rect.grow(-3.0), color)
-		draw_rect(rect.grow(-3.0), REVEALED_QUADRANT_BORDER_COLOR, false, 2.0)
-	if marker.is_fully_revealed:
-		draw_rect(_get_marker_world_rect(marker).grow(-1.0), FULLY_REVEALED_BORDER_COLOR, false, 4.0)
+	var rect := _get_marker_world_rect(marker)
+	draw_rect(rect.grow(-5.0), Color(color.r, color.g, color.b, 0.28))
+	draw_rect(rect.grow(-10.0), Color(color.r, color.g, color.b, 0.58))
+	draw_rect(rect.grow(-1.0), FULLY_REVEALED_BORDER_COLOR, false, 4.0)
 
 
 func _get_preview_color(rarity: String) -> Color:
@@ -604,20 +598,13 @@ func _get_revealed_color(rarity: String) -> Color:
 
 func _get_marker_world_rect(marker) -> Rect2:
 	return Rect2(
-		Vector2(GameConstants.WORLD_ORIGIN) + Vector2(marker.origin_subcell_x, marker.origin_subcell_y) * GameConstants.WALL_SUBCELL_SIZE,
-		Vector2(marker.width_subcells, marker.height_subcells) * GameConstants.WALL_SUBCELL_SIZE
+		Vector2(GameConstants.WORLD_ORIGIN) + Vector2(marker.origin_cell_x, marker.origin_cell_y) * GameConstants.CELL_SIZE,
+		Vector2(marker.width_cells, marker.height_cells) * GameConstants.CELL_SIZE
 	)
 
 
 func _get_marker_world_center(marker) -> Vector2:
 	return _get_marker_world_rect(marker).get_center()
-
-
-func _get_global_subcell_rect(subcell: Vector2i) -> Rect2:
-	return Rect2(
-		Vector2(GameConstants.WORLD_ORIGIN) + Vector2(subcell) * GameConstants.WALL_SUBCELL_SIZE,
-		Vector2.ONE * GameConstants.WALL_SUBCELL_SIZE
-	)
 
 
 func _rect_to_snapshot(rect: Rect2) -> Dictionary:

@@ -14,7 +14,7 @@ var damage := 1
 var is_critical := false
 var pierce_count := 0
 var homing := false
-var effect_style: StringName = &"rifle_projectile"
+var effect_style: StringName = &"revolver_projectile"
 var blocks_root: Node2D
 
 var _elapsed := 0.0

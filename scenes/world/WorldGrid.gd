@@ -1,36 +1,64 @@
 extends Node2D
 class_name WorldGrid
 
-const WALL_SUBCELL_COUNT := GameConstants.WALL_SUBCELLS_PER_UNIT * GameConstants.WALL_SUBCELLS_PER_UNIT
+const WALL_TILESET_TEXTURE := preload("res://assets/world/walls/wall_brick_normal.png")
+const WALL_CHIP_TEXTURE := preload("res://assets/world/walls/wall_brick_normal_shard.png")
+const WALL_CHIP_PARTICLE_SCRIPT := preload("res://scenes/world/WallChipParticle.gd")
+const WALL_TILE_SOURCE_SIZE := Vector2(32.0, 32.0)
+const WALL_CHIP_SOURCE_SIZE := Vector2(7.0, 7.0)
+const WALL_CHIP_SOURCE_COUNT := 4
+const WALL_HIT_SHAKE_DURATION := 0.08
+const WALL_HIT_SHAKE_PIXELS := 3.0
+const WALL_CHIP_PARTICLE_COUNT_MIN := 7
+const WALL_CHIP_PARTICLE_COUNT_MAX := 12
 
 var wall_cells: Dictionary = {}
-
-# 손상된 적 있는 셀 집합. _draw()에서 이 셀만 서브셀 단위로 개별 렌더링한다.
-# 한 번 추가되면 제거하지 않는다(완전 채굴 후에도 MINED_WALL_COLOR 배경이 필요).
 var _touched_cells: Dictionary = {}
-
-# get_active_wall_count()용 캐시. 서브셀 HP가 0이 될 때마다 차감한다.
-var _active_subcell_count := 0
-
-# _draw()에서 반복 계산을 피하기 위해 미리 계산해둔 사각형.
+var _wall_hit_shake_timers: Dictionary = {}
+var _wall_hit_shake_offsets: Dictionary = {}
+var _wall_mining_hit_counts: Dictionary = {}
 var _left_wall_rect := Rect2()
 var _right_wall_rect := Rect2()
 var _floor_rect := Rect2()
+var _rng := RandomNumberGenerator.new()
 
 
 func _ready() -> void:
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_rng.randomize()
 	_build_wall_cells()
+	set_process(true)
+	queue_redraw()
+
+
+func _process(delta: float) -> void:
+	if _wall_hit_shake_timers.is_empty():
+		return
+	var expired_cells: Array[Vector2i] = []
+	for key in _wall_hit_shake_timers.keys():
+		var cell: Vector2i = key
+		var remaining := float(_wall_hit_shake_timers[cell]) - delta
+		if remaining <= 0.0:
+			expired_cells.append(cell)
+			continue
+		_wall_hit_shake_timers[cell] = remaining
+		_wall_hit_shake_offsets[cell] = _make_wall_shake_offset(remaining)
+	for cell in expired_cells:
+		_wall_hit_shake_timers.erase(cell)
+		_wall_hit_shake_offsets.erase(cell)
 	queue_redraw()
 
 
 func _build_wall_cells() -> void:
 	wall_cells.clear()
 	_touched_cells.clear()
+	_wall_hit_shake_timers.clear()
+	_wall_hit_shake_offsets.clear()
+	_wall_mining_hit_counts.clear()
 	for y in range(GameConstants.FLOOR_ROW):
 		for x in range(GameConstants.WORLD_COLUMNS):
 			if _is_wall_column(x):
-				wall_cells[Vector2i(x, y)] = _create_full_wall_subcells()
-	_active_subcell_count = wall_cells.size() * WALL_SUBCELL_COUNT
+				wall_cells[Vector2i(x, y)] = GameConstants.WALL_CELL_MAX_HP
 	_precalculate_rects()
 
 
@@ -51,13 +79,6 @@ func _precalculate_rects() -> void:
 	)
 
 
-func _create_full_wall_subcells() -> PackedByteArray:
-	var subcell_hps := PackedByteArray()
-	subcell_hps.resize(WALL_SUBCELL_COUNT)
-	subcell_hps.fill(GameConstants.WALL_SUBCELL_MAX_HP)
-	return subcell_hps
-
-
 func _is_wall_column(column: int) -> bool:
 	return column < GameConstants.WALL_COLUMNS or column >= GameConstants.WORLD_COLUMNS - GameConstants.WALL_COLUMNS
 
@@ -71,7 +92,7 @@ func is_static_solid_cell(cell: Vector2i) -> bool:
 		return false
 	if cell.y == GameConstants.FLOOR_ROW:
 		return true
-	return _wall_cell_has_solid_subcells(cell)
+	return wall_cells.has(cell)
 
 
 func world_to_cell(world_position: Vector2) -> Vector2i:
@@ -93,13 +114,6 @@ func get_cell_rect(cell: Vector2i) -> Rect2:
 	return Rect2(cell_to_world(cell), Vector2.ONE * GameConstants.CELL_SIZE)
 
 
-func get_wall_subcell_rect(cell: Vector2i, sub_x: int, sub_y: int) -> Rect2:
-	return Rect2(
-		cell_to_world(cell) + Vector2(sub_x, sub_y) * GameConstants.WALL_SUBCELL_SIZE,
-		Vector2.ONE * GameConstants.WALL_SUBCELL_SIZE
-	)
-
-
 func rect_collides_static(rect: Rect2) -> bool:
 	var min_cell := world_to_cell(rect.position)
 	var max_cell := world_to_cell(rect.position + rect.size - Vector2.ONE)
@@ -116,9 +130,7 @@ func rect_collides_static(rect: Rect2) -> bool:
 				if get_cell_rect(cell).intersects(rect):
 					return true
 				continue
-			if not _wall_cell_has_solid_subcells(cell):
-				continue
-			if _wall_cell_rect_collides(cell, rect):
+			if wall_cells.has(cell) and get_cell_rect(cell).intersects(rect):
 				return true
 	return false
 
@@ -127,7 +139,8 @@ func try_mine_in_shape(shape_data: Dictionary, mining_damage: int) -> Dictionary
 	var result := {
 		"hit_count": 0,
 		"removed_count": 0,
-		"removed_subcells": [],
+		"hit_cells": [],
+		"removed_cells": [],
 	}
 	if mining_damage <= 0:
 		return result
@@ -137,42 +150,58 @@ func try_mine_in_shape(shape_data: Dictionary, mining_damage: int) -> Dictionary
 	for y in range(min_cell.y, max_cell.y + 1):
 		for x in range(min_cell.x, max_cell.x + 1):
 			var cell := Vector2i(x, y)
-			if not _wall_cell_has_solid_subcells(cell):
+			if not wall_cells.has(cell):
 				continue
-			var subcell_hps: PackedByteArray = wall_cells[cell]
-			var changed := false
-			for sub_y in range(GameConstants.WALL_SUBCELLS_PER_UNIT):
-				for sub_x in range(GameConstants.WALL_SUBCELLS_PER_UNIT):
-					var subcell_index := _get_subcell_index(sub_x, sub_y)
-					if subcell_hps[subcell_index] == 0:
-						continue
-					var subcell_rect := get_wall_subcell_rect(cell, sub_x, sub_y)
-					if not subcell_rect.intersects(shape_bounds):
-						continue
-					if not GameConstants.is_point_inside_shape(subcell_rect.get_center(), shape_data):
-						continue
-					result["hit_count"] += 1
-					changed = true
-					var remaining_hp := maxi(int(subcell_hps[subcell_index]) - mining_damage, 0)
-					if remaining_hp == 0:
-						result["removed_count"] += 1
-						_active_subcell_count -= 1
-						result["removed_subcells"].append(_make_removed_subcell_entry(cell, sub_x, sub_y))
-					subcell_hps[subcell_index] = remaining_hp
-			if not changed:
+			var cell_rect := get_cell_rect(cell)
+			if not cell_rect.intersects(shape_bounds):
+				continue
+			if not _cell_rect_intersects_shape(cell_rect, shape_data):
 				continue
 			_touched_cells[cell] = true
-			if _packed_byte_array_is_empty(subcell_hps):
+			result["hit_count"] += 1
+			result["hit_cells"].append(cell)
+			_register_wall_hit_effect(cell)
+			var current_hp := int(wall_cells[cell])
+			var tile_index_before_hit := _get_wall_tile_index_for_ratio(_get_wall_cell_remaining_ratio(cell))
+			var new_hp := maxi(current_hp - mining_damage, 0)
+			var chip_tile_index := tile_index_before_hit
+			if new_hp <= 0:
 				wall_cells.erase(cell)
+				_wall_hit_shake_timers.erase(cell)
+				_wall_hit_shake_offsets.erase(cell)
+				result["removed_count"] += 1
+				result["removed_cells"].append(cell)
 			else:
-				wall_cells[cell] = subcell_hps
+				wall_cells[cell] = new_hp
+				chip_tile_index = _get_wall_tile_index_for_ratio(_get_wall_cell_remaining_ratio(cell))
+			var hit_count := int(_wall_mining_hit_counts.get(cell, 0)) + 1
+			_wall_mining_hit_counts[cell] = hit_count
+			if hit_count % 2 == 0:
+				_spawn_wall_chip_particles(cell, chip_tile_index)
 	if int(result["hit_count"]) > 0:
 		queue_redraw()
 	return result
 
 
+func has_mineable_in_shape(shape_data: Dictionary) -> bool:
+	var shape_bounds := GameConstants.get_shape_bounds(shape_data)
+	var min_cell := world_to_cell(shape_bounds.position)
+	var max_cell := world_to_cell(shape_bounds.position + shape_bounds.size - Vector2.ONE)
+	for y in range(min_cell.y, max_cell.y + 1):
+		for x in range(min_cell.x, max_cell.x + 1):
+			var cell := Vector2i(x, y)
+			if not wall_cells.has(cell):
+				continue
+			var cell_rect := get_cell_rect(cell)
+			if not cell_rect.intersects(shape_bounds):
+				continue
+			if _cell_rect_intersects_shape(cell_rect, shape_data):
+				return true
+	return false
+
+
 func get_active_wall_count() -> int:
-	return _active_subcell_count
+	return wall_cells.size()
 
 
 func restore_mining_walls() -> void:
@@ -195,75 +224,122 @@ func get_spawn_position(size_cells: Vector2i, rng: RandomNumberGenerator, camera
 	)
 
 
-func _wall_cell_has_solid_subcells(cell: Vector2i) -> bool:
-	if not wall_cells.has(cell):
-		return false
-	var subcell_hps: PackedByteArray = wall_cells[cell]
-	for hp in subcell_hps:
-		if hp > 0:
+func _cell_rect_intersects_shape(cell_rect: Rect2, shape_data: Dictionary) -> bool:
+	var points := PackedVector2Array([
+		cell_rect.get_center(),
+		cell_rect.position,
+		Vector2(cell_rect.end.x, cell_rect.position.y),
+		cell_rect.end,
+		Vector2(cell_rect.position.x, cell_rect.end.y),
+		Vector2(cell_rect.get_center().x, cell_rect.position.y),
+		Vector2(cell_rect.end.x, cell_rect.get_center().y),
+		Vector2(cell_rect.get_center().x, cell_rect.end.y),
+		Vector2(cell_rect.position.x, cell_rect.get_center().y),
+	])
+	for point in points:
+		if GameConstants.is_point_inside_shape(point, shape_data):
+			return true
+	for shape_corner in GameConstants.get_shape_corners(shape_data):
+		if cell_rect.has_point(shape_corner):
 			return true
 	return false
 
 
-func _wall_cell_rect_collides(cell: Vector2i, rect: Rect2) -> bool:
-	var subcell_hps: PackedByteArray = wall_cells[cell]
-	for sub_y in range(GameConstants.WALL_SUBCELLS_PER_UNIT):
-		for sub_x in range(GameConstants.WALL_SUBCELLS_PER_UNIT):
-			if subcell_hps[_get_subcell_index(sub_x, sub_y)] == 0:
-				continue
-			if get_wall_subcell_rect(cell, sub_x, sub_y).intersects(rect):
-				return true
-	return false
+func _register_wall_hit_effect(cell: Vector2i) -> void:
+	_wall_hit_shake_timers[cell] = WALL_HIT_SHAKE_DURATION
+	_wall_hit_shake_offsets[cell] = _make_wall_shake_offset(WALL_HIT_SHAKE_DURATION)
 
 
-func _get_subcell_index(sub_x: int, sub_y: int) -> int:
-	return sub_y * GameConstants.WALL_SUBCELLS_PER_UNIT + sub_x
-
-
-func _make_removed_subcell_entry(cell: Vector2i, sub_x: int, sub_y: int) -> Dictionary:
-	return {
-		"cell": cell,
-		"cell_x": cell.x,
-		"cell_y": cell.y,
-		"sub_x": sub_x,
-		"sub_y": sub_y,
-		"subcell_x": cell.x * GameConstants.WALL_SUBCELLS_PER_UNIT + sub_x,
-		"subcell_y": cell.y * GameConstants.WALL_SUBCELLS_PER_UNIT + sub_y,
-	}
-
-
-func _packed_byte_array_is_empty(data: PackedByteArray) -> bool:
-	for value in data:
-		if value > 0:
-			return false
-	return true
+func _make_wall_shake_offset(remaining: float) -> Vector2:
+	var strength := WALL_HIT_SHAKE_PIXELS * clampf(remaining / WALL_HIT_SHAKE_DURATION, 0.0, 1.0)
+	return Vector2(
+		_rng.randf_range(-strength, strength),
+		_rng.randf_range(-strength, strength)
+	)
 
 
 func _draw() -> void:
 	draw_rect(GameConstants.get_world_rect(), GameConstants.WORLD_BACKGROUND_COLOR)
 	draw_rect(GameConstants.get_center_rect(), GameConstants.WORLD_CENTER_COLOR)
-	# 좌우 벽 전체를 단색 사각형 2개로 표현
-	draw_rect(_left_wall_rect, GameConstants.WALL_CELL_COLOR)
-	draw_rect(_right_wall_rect, GameConstants.WALL_CELL_COLOR)
-	# 손상된 셀만 서브셀 단위로 덮어씀
-	for key in _touched_cells.keys():
-		var cell: Vector2i = key
-		_draw_damaged_cell(cell)
-	# 바닥은 1개 rect
+	_draw_wall_cells()
 	draw_rect(_floor_rect, GameConstants.FLOOR_COLOR)
 
 
-func _draw_damaged_cell(cell: Vector2i) -> void:
-	# 손상 배경 먼저 (완전 채굴 셀은 여기서 끝)
-	draw_rect(get_cell_rect(cell), GameConstants.MINED_WALL_COLOR)
+func _draw_wall_cells() -> void:
+	for key in wall_cells.keys():
+		var cell: Vector2i = key
+		_draw_wall_cell(cell)
+	for key in _touched_cells.keys():
+		var cell: Vector2i = key
+		if not wall_cells.has(cell):
+			draw_rect(get_cell_rect(cell), GameConstants.MINED_WALL_COLOR)
+
+
+func _draw_wall_cell(cell: Vector2i) -> void:
 	if not wall_cells.has(cell):
 		return
-	var subcell_hps: PackedByteArray = wall_cells[cell]
-	for sub_y in range(GameConstants.WALL_SUBCELLS_PER_UNIT):
-		for sub_x in range(GameConstants.WALL_SUBCELLS_PER_UNIT):
-			var hp := int(subcell_hps[_get_subcell_index(sub_x, sub_y)])
-			if hp <= 0:
-				continue
-			var damage_ratio := 1.0 - float(hp) / float(GameConstants.WALL_SUBCELL_MAX_HP)
-			var draw_color := GameConstants.WALL_CELL_COLOR.lerp(GameConstants.MINED_WALL_COLOR, damage_ratio)
-			draw_rect(get_wall_subcell_rect(cell, sub_x, sub_y), draw_color)
+	var ratio := _get_wall_cell_remaining_ratio(cell)
+	var tile_index := _get_wall_tile_index_for_ratio(ratio)
+	if tile_index < 0:
+		return
+	var dst_rect := get_cell_rect(cell)
+	if _wall_hit_shake_offsets.has(cell):
+		dst_rect.position += _wall_hit_shake_offsets[cell]
+	draw_texture_rect_region(
+		WALL_TILESET_TEXTURE,
+		dst_rect,
+		_get_wall_tile_source_rect(tile_index)
+	)
+
+
+func _get_wall_cell_remaining_ratio(cell: Vector2i) -> float:
+	if not wall_cells.has(cell):
+		return 0.0
+	return clampf(float(int(wall_cells[cell])) / float(GameConstants.WALL_CELL_MAX_HP), 0.0, 1.0)
+
+
+func _get_wall_tile_index_for_ratio(ratio: float) -> int:
+	if ratio <= 0.0:
+		return -1
+	if ratio <= 0.25:
+		return 2
+	if ratio <= 0.5:
+		return 1
+	return 0
+
+
+func _get_wall_tile_source_rect(tile_index: int) -> Rect2:
+	return Rect2(Vector2(float(tile_index) * WALL_TILE_SOURCE_SIZE.x, 0.0), WALL_TILE_SOURCE_SIZE)
+
+
+func _spawn_wall_chip_particles(cell: Vector2i, _tile_index := -1) -> void:
+	var particle_count := _rng.randi_range(WALL_CHIP_PARTICLE_COUNT_MIN, WALL_CHIP_PARTICLE_COUNT_MAX)
+	var cell_rect := get_cell_rect(cell)
+	for _index in range(particle_count):
+		var shard_index := _index % WALL_CHIP_SOURCE_COUNT
+		var source_rect := Rect2(
+			Vector2(float(shard_index) * WALL_CHIP_SOURCE_SIZE.x, 0.0),
+			WALL_CHIP_SOURCE_SIZE
+		)
+		var particle := WALL_CHIP_PARTICLE_SCRIPT.new() as Node2D
+		if particle == null:
+			continue
+		add_child(particle)
+		particle.z_index = z_index + 2
+		particle.position = cell_rect.get_center() + Vector2(
+			_rng.randf_range(-GameConstants.CELL_SIZE * 0.45, GameConstants.CELL_SIZE * 0.45),
+			_rng.randf_range(-GameConstants.CELL_SIZE * 0.3, GameConstants.CELL_SIZE * 0.25)
+		)
+		var burst_direction := Vector2(
+			_rng.randf_range(-1.0, 1.0),
+			_rng.randf_range(-1.2, -0.25)
+		).normalized()
+		var burst_speed := _rng.randf_range(180.0, 420.0)
+		particle.call(
+			"setup",
+			WALL_CHIP_TEXTURE,
+			source_rect,
+			WALL_CHIP_SOURCE_SIZE * _rng.randf_range(2.2, 3.1),
+			burst_direction * burst_speed + Vector2(_rng.randf_range(-90.0, 90.0), _rng.randf_range(-120.0, 10.0)),
+			_rng.randf_range(0.55, 0.85)
+		)

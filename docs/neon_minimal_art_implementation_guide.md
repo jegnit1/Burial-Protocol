@@ -245,7 +245,7 @@ _draw() 호출 때마다 균열 위치가 바뀌면 안 된다.
 
 ### 4-3. 손상 셀 렌더링
 
-현재 `_draw_damaged_cell(cell)`은 손상 배경을 그리고 남은 서브셀을 사각형으로 칠한다.
+현재 벽은 1U wall cell HP를 기준으로 스프라이트 타일 상태를 선택해 그린다.
 
 변경 목표:
 
@@ -265,7 +265,7 @@ _draw() 호출 때마다 균열 위치가 바뀌면 안 된다.
 구체 규칙:
 
 ```gdscript
-var damage_ratio := 1.0 - float(hp) / float(GameConstants.WALL_SUBCELL_MAX_HP)
+var damage_ratio := 1.0 - float(hp) / float(GameConstants.WALL_CELL_MAX_HP)
 var fill_color := GameConstants.NEON_WALL_BASE.lerp(GameConstants.NEON_WALL_MINED_BG, damage_ratio)
 fill_color.a = 0.45
 var edge_color := GameConstants.NEON_WALL_LINE.lerp(GameConstants.NEON_MINING_YELLOW, damage_ratio)
@@ -696,7 +696,7 @@ Neon art palette 상수
 
 ```text
 _draw()의 벽 전체 단색 렌더링을 얇은 라인 중심 렌더링으로 변경
-_draw_damaged_cell()을 서브셀 line/crack/particle 느낌으로 변경
+1U wall cell 렌더링을 tile/shake/chip particle 느낌으로 변경
 중앙 전장 경계선 강조
 채굴 손상 셀 노란 균열 표시
 ```
@@ -856,3 +856,31 @@ Codex는 아래 목표로 작업한다.
 게임플레이 판정과 수치는 변경하지 않는다.
 새 이미지 에셋을 대량 추가하지 말고 Godot의 draw/Control/StyleBox/Line/짧은 이벤트 기반 이펙트로 구현한다.
 ```
+
+## Current Visual Implementation Snapshot - 2026-05-25
+
+This section records the current visual implementation after the UI/gameplay pass.
+
+### Mining And Wall Visuals
+
+- Mining preview range boxes are disabled.
+- Continuous drill visual is active while right-click is held and a mineable target exists.
+- Drill texture: `assets/characters/drill.png`.
+- Wall block texture: `assets/world/walls/wall_brick_normal.png`.
+- Wall glow texture: `assets/world/walls/wall_brick_glow.png`.
+- Wall chip particle texture: `assets/world/walls/wall_brick_normal_shard.png`.
+- Wall cell rendering is 1U-based, not subcell-based.
+- Wall hit shake is visual-only.
+- Wall chip particles use actual shard sprites rather than colored rects.
+
+### Attack Module Visuals
+
+- Attack-module orbit visuals use asset sprites instead of placeholder shapes when textures exist.
+- Each module combines a grade slot ring with a weapon sprite.
+- Slot rings are grade-colored and shared across all modules.
+- Weapon sprites keep their own color; grade color must not recolor the weapon.
+- Slot target size is `64 x 64` for every module.
+- Weapon target sizes vary by weapon silhouette.
+- Orbit radius is `64px`.
+- Alpha is `70%` to reduce player occlusion.
+- The visual layer is independent of attack hit shapes and projectile collision.

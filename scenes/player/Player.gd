@@ -11,13 +11,19 @@ const DASH_DOWNWARD_SAND_SIDE_MARGIN := 6.0
 const DASH_FEEDBACK_DURATION := 0.14
 const DASH_TRAIL_ALPHA := 0.32
 const DASH_OUTLINE_WIDTH := 3.0
-const ATTACK_MODULE_ORBIT_RADIUS := 36.0
+const ATTACK_MODULE_ORBIT_RADIUS := 64.0
 const ATTACK_MODULE_ORBIT_SPEED := 1.35
 const ATTACK_MODULE_BOB_AMPLITUDE := 4.0
 const ATTACK_MODULE_BOB_SPEED := 2.6
 const ATTACK_MODULE_STRIKE_DISTANCE := 22.0
 const ATTACK_MODULE_STRIKE_DURATION := 0.12
 const DAMAGE_POPUP_SCRIPT := preload("res://scenes/ui/DamagePopup.gd")
+const DRILL_TEXTURE := preload("res://assets/characters/drill.png")
+const DRILL_FRAME_SIZE := Vector2(17.0, 15.0)
+const DRILL_FRAME_COUNT := 4
+const DRILL_FRAME_RATE := 28.0
+const DRILL_VISUAL_SCALE := Vector2(2.0, 2.0)
+const DRILL_EDGE_OVERLAP := 2.0
 # 스프라이트 시각 영역에 맞게 충돌 박스를 줄이는 inset (픽셀).
 # x: 좌우 각각 줄임. y는 반드시 0 — y를 바꾸면 바닥/블록 감지가 깨짐.
 const COLLISION_INSET := Vector2.ZERO
@@ -42,6 +48,8 @@ var mining_buffer_remaining := 0.0
 var pending_mine_direction := Vector2.ZERO
 var mining_visual_direction := Vector2.RIGHT
 var mining_visual_time := 0.0
+var mining_visual_active := false
+var drill_animation_time := 0.0
 var is_dashing := false
 var dash_requested := false
 var dash_direction := Vector2.ZERO
@@ -74,6 +82,7 @@ var attack_module_orbit_angle := 0.0
 var attack_module_bob_time := 0.0
 var attack_module_strike_time_remaining := 0.0
 var attack_module_strike_direction := Vector2.RIGHT
+var drill_visual: Sprite2D
 
 @onready var animated_sprite: AnimatedSprite2D = $AnimatedSprite2D
 
@@ -83,7 +92,9 @@ func _ready() -> void:
 	current_battery = GameConstants.PLAYER_BATTERY_MAX
 	is_wall_climbing = false
 	_cache_sprite_base_scale()
+	_ensure_drill_visual()
 	_update_sprite_visuals(0.0)
+	_update_drill_visual()
 	queue_redraw()
 
 
@@ -146,6 +157,8 @@ func _physics_process(delta: float) -> void:
 	hurt_flash_remaining = max(hurt_flash_remaining - delta, 0.0)
 	attack_visual_time = max(attack_visual_time - delta, 0.0)
 	mining_visual_time = max(mining_visual_time - delta, 0.0)
+	if mining_visual_active:
+		drill_animation_time += delta
 	attack_module_strike_time_remaining = max(attack_module_strike_time_remaining - delta, 0.0)
 	_process_pending_dash_request()
 	_update_dash_state()
@@ -162,12 +175,13 @@ func _physics_process(delta: float) -> void:
 	_snap_to_supporting_block()
 	_refresh_contacts()
 	_update_sprite_visuals(position.x - previous_position.x)
+	_update_drill_visual()
 	_update_attack_module_visual(delta)
 	var _has_active_visuals := (
 		is_dashing
 		or dash_feedback_time > 0.0
 		or attack_visual_time > 0.0
-		or (mining_visual_time > 0.0 and mining_visual_direction != Vector2.ZERO)
+		or (mining_visual_active and mining_visual_direction != Vector2.ZERO)
 		or damage_cooldown > 0.0
 		or hurt_flash_remaining > 0.0
 	)
@@ -305,10 +319,24 @@ func consume_mining_direction() -> Vector2:
 	if direction == Vector2.ZERO:
 		direction = _resolve_attack_direction()
 	direction = get_mining_direction(direction)
-	mining_visual_direction = direction
-	mining_visual_time = GameConstants.PLAYER_ATTACK_VISUAL_DURATION
 	queue_redraw()
 	return direction
+
+
+func start_or_update_mining_visual(direction: Vector2) -> void:
+	var resolved_direction := get_mining_direction(direction)
+	if resolved_direction == Vector2.ZERO:
+		stop_mining_visual()
+		return
+	mining_visual_direction = resolved_direction
+	mining_visual_active = true
+	_update_drill_visual()
+
+
+func stop_mining_visual() -> void:
+	mining_visual_active = false
+	mining_visual_time = 0.0
+	_update_drill_visual()
 
 
 func get_attack_shape_data(direction: Vector2) -> Dictionary:
@@ -504,6 +532,42 @@ func _align_sprite_to_body_bottom() -> void:
 	var visual_height := frame_texture.get_size().y * absf(animated_sprite.scale.y)
 	var body := _get_body_local_rect()
 	animated_sprite.position = Vector2(0.0, body.end.y - visual_height * 0.5)
+
+
+func _ensure_drill_visual() -> void:
+	if drill_visual != null:
+		return
+	drill_visual = Sprite2D.new()
+	drill_visual.texture = DRILL_TEXTURE
+	drill_visual.region_enabled = true
+	drill_visual.region_rect = Rect2(Vector2.ZERO, DRILL_FRAME_SIZE)
+	drill_visual.centered = true
+	drill_visual.scale = DRILL_VISUAL_SCALE
+	drill_visual.z_index = 30
+	drill_visual.visible = false
+	drill_visual.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	add_child(drill_visual)
+
+
+func _update_drill_visual() -> void:
+	_ensure_drill_visual()
+	if drill_visual == null:
+		return
+	if not mining_visual_active or mining_visual_direction == Vector2.ZERO:
+		drill_visual.visible = false
+		return
+	var direction := mining_visual_direction.normalized()
+	if direction == Vector2.ZERO:
+		drill_visual.visible = false
+		return
+	var frame_index := int(floor(drill_animation_time * DRILL_FRAME_RATE)) % DRILL_FRAME_COUNT
+	drill_visual.region_rect = Rect2(Vector2(float(frame_index) * DRILL_FRAME_SIZE.x, 0.0), DRILL_FRAME_SIZE)
+	drill_visual.rotation = direction.angle()
+	drill_visual.scale = DRILL_VISUAL_SCALE
+	var support_distance := _get_body_support_distance(direction)
+	var drill_half_width := DRILL_FRAME_SIZE.x * DRILL_VISUAL_SCALE.x * 0.5
+	drill_visual.position = direction * (support_distance + drill_half_width - DRILL_EDGE_OVERLAP)
+	drill_visual.visible = true
 
 
 func _is_invulnerability_flash_visible() -> bool:
@@ -972,10 +1036,9 @@ func _get_mining_local_shape_data(direction: Vector2) -> Dictionary:
 	if mining_direction == Vector2.ZERO:
 		mining_direction = Vector2(facing)
 	var mining_size := Vector2(
-		GameConstants.PLAYER_MINING_RANGE_DISTANCE,
+		GameConstants.PLAYER_MINING_RANGE_DISTANCE * GameState.get_mining_range_multiplier(),
 		GameConstants.PLAYER_MINING_RANGE_HEIGHT
 	)
-	mining_size *= GameState.get_mining_range_multiplier()
 	var support_distance := _get_body_support_distance(mining_direction)
 	var center_offset := mining_direction * (support_distance + mining_size.x * 0.5)
 	return {
@@ -1063,9 +1126,11 @@ func _sync_attack_module_visual() -> void:
 		if instance_id.is_empty():
 			continue
 		alive_ids[instance_id] = true
-		if attack_module_visuals.has(instance_id):
-			continue
 		var module_definition = GameState.get_attack_module_definition_from_entry(module_entry)
+		if attack_module_visuals.has(instance_id):
+			var existing_visual: Node2D = attack_module_visuals[instance_id]
+			_configure_attack_module_visual(existing_visual, module_entry, module_definition)
+			continue
 		var scene_path := ""
 		if module_definition != null:
 			scene_path = module_definition.visual_scene_path
@@ -1074,6 +1139,7 @@ func _sync_attack_module_visual() -> void:
 			continue
 		add_child(visual)
 		visual.z_index = 20
+		_configure_attack_module_visual(visual, module_entry, module_definition)
 		attack_module_visuals[instance_id] = visual
 	for raw_instance_id in attack_module_visuals.keys():
 		var instance_key := String(raw_instance_id)
@@ -1128,6 +1194,13 @@ func _instantiate_attack_module_visual(scene_path: String) -> Node2D:
 	return (visual_scene as PackedScene).instantiate() as Node2D
 
 
+func _configure_attack_module_visual(visual: Node2D, module_entry: Dictionary, module_definition) -> void:
+	if visual == null or not is_instance_valid(visual):
+		return
+	if visual.has_method("configure"):
+		visual.call("configure", module_entry, module_definition)
+
+
 func _play_attack_module_strike(direction: Vector2) -> void:
 	if direction == Vector2.ZERO:
 		direction = Vector2(facing)
@@ -1154,7 +1227,6 @@ func _get_dash_visual_color() -> Color:
 
 func _draw() -> void:
 	var body := _get_body_local_rect()
-	draw_rect(body, Color(1.0, 1.0, 1.0, 0.18), false, 1.0)
 	var dash_visual_color := _get_dash_visual_color()
 	if is_dashing and dash_direction != Vector2.ZERO:
 		var trail_rect := body
@@ -1177,9 +1249,3 @@ func _draw() -> void:
 		for index in range(preview_polygon.size()):
 			var next_index := (index + 1) % preview_polygon.size()
 			draw_line(preview_polygon[index], preview_polygon[next_index], Color(0.95, 0.45, 0.33, 0.95), 2.0)
-	if mining_visual_time > 0.0 and mining_visual_direction != Vector2.ZERO:
-		var mining_polygon := _get_mining_preview_polygon(mining_visual_direction)
-		draw_colored_polygon(mining_polygon, GameConstants.MINING_PREVIEW_COLOR)
-		for index in range(mining_polygon.size()):
-			var next_index := (index + 1) % mining_polygon.size()
-			draw_line(mining_polygon[index], mining_polygon[next_index], Color(0.93, 0.84, 0.43, 0.95), 2.0)

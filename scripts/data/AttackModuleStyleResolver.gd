@@ -119,7 +119,7 @@ static func get_melee_attack_style_defaults(attack_style: String) -> Dictionary:
 static func normalize_ranged_attack_style_alias(attack_style: String) -> String:
 	match attack_style:
 		"", "single":
-			return "rifle"
+			return "revolver"
 		"spread":
 			return "shotgun"
 		"pierce":

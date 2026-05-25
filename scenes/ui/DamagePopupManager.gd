@@ -33,7 +33,8 @@ func request_popup(
 	text_color: Color = GameConstants.DAMAGE_POPUP_TEXT_COLOR,
 	shadow_color: Color = GameConstants.DAMAGE_POPUP_SHADOW_COLOR,
 	prefix: String = "",
-	suffix: String = ""
+	suffix: String = "",
+	font_size: int = -1
 ) -> void:
 	if parent == null or amount <= 0:
 		return
@@ -47,7 +48,7 @@ func request_popup(
 	var popup := DAMAGE_POPUP_SCRIPT.new() as Node2D
 	parent.add_child(popup)
 	popup.global_position = anchor_position + slot_offset + jitter
-	popup.call("setup", amount, text_color, shadow_color, prefix, suffix)
+	popup.call("setup", amount, text_color, shadow_color, prefix, suffix, font_size)
 	if popup.has_method("set_motion"):
 		popup.call("set_motion", _get_slot_drift(slot_offset))
 

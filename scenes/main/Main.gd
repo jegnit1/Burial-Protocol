@@ -6,6 +6,7 @@ const DAY_KIOSK_SCRIPT := preload("res://scenes/world/DayKiosk.gd")
 const DAY_SHOP_UI_SCRIPT := preload("res://scenes/ui/DayShopUI.gd")
 const PAUSE_MENU_SCRIPT := preload("res://scenes/ui/PauseMenu.gd")
 const ATTACK_MODULE_PROJECTILE_SCRIPT := preload("res://scenes/projectiles/AttackModuleProjectile.gd")
+const DAMAGE_POPUP_MANAGER_SCRIPT := preload("res://scenes/ui/DamagePopupManager.gd")
 const ATTACK_MODULE_STYLE_RESOLVER := preload("res://scripts/data/AttackModuleStyleResolver.gd")
 const WALL_TREASURE_MANAGER_SCRIPT := preload("res://scripts/data/WallTreasureManager.gd")
 const TREASURE_REWARD_POPUP_SCENE := preload("res://scenes/ui/TreasureRewardPopup.tscn")
@@ -50,6 +51,7 @@ var _wall_treasure_manager: Node2D
 var _treasure_reward_popup: CanvasLayer
 var _active_treasure_marker_id := ""
 var _treasure_popup_was_paused := false
+var _mining_damage_popup_manager := DAMAGE_POPUP_MANAGER_SCRIPT.new()
 
 var _current_day := 1
 var _day_time_remaining := 0.0
@@ -101,11 +103,15 @@ func _physics_process(delta: float) -> void:
 	if run_finished:
 		return
 
+	if _shop_ui_open or _is_next_day_transitioning or _is_intermission_locked:
+		player.stop_mining_visual()
 	if not _shop_ui_open and not _is_next_day_transitioning and not _is_intermission_locked:
+		_update_continuous_mining_visual()
 		var mine_direction := player.consume_mining_direction()
 		if mine_direction != Vector2.ZERO:
 			_handle_mining_action(mine_direction)
 	elif player.consume_mining_direction() != Vector2.ZERO and _is_intermission_locked:
+		player.stop_mining_visual()
 		GameState.set_status_text("상점 단계에서는 채굴이 정지됩니다.")
 
 	if _is_day_active:
@@ -482,6 +488,21 @@ func _find_nearest_attackable_block(max_distance: float) -> FallingBlock:
 	return best_block
 
 
+func _update_continuous_mining_visual() -> void:
+	if not Input.is_action_pressed("mine_action") or player.is_dashing:
+		player.stop_mining_visual()
+		return
+	var mining_direction := player.get_mining_direction(player.get_attack_direction())
+	if mining_direction == Vector2.ZERO:
+		player.stop_mining_visual()
+		return
+	var mining_shape_data := player.get_mining_shape_data(mining_direction)
+	if sand_field.has_mineable_in_shape(mining_shape_data) or world_grid.has_mineable_in_shape(mining_shape_data):
+		player.start_or_update_mining_visual(mining_direction)
+		return
+	player.stop_mining_visual()
+
+
 func _handle_mining_action(direction: Vector2) -> void:
 	var mining_direction := player.get_mining_direction(direction)
 	if mining_direction == Vector2.ZERO:
@@ -493,6 +514,7 @@ func _handle_mining_action(direction: Vector2) -> void:
 	var sand_hits := int(sand_result["hit_count"])
 	var sand_removed := int(sand_result["removed_count"])
 	if sand_hits > 0:
+		_spawn_mining_damage_popups(sand_result.get("hit_cells", []), final_mining_damage, true)
 		if sand_removed > 0:
 			GameState.add_sand_removed_xp(sand_removed)
 		GameState.set_status_text(Locale.ltr("status_mine_sand") % [sand_hits, sand_removed])
@@ -501,11 +523,37 @@ func _handle_mining_action(direction: Vector2) -> void:
 	var wall_hits := int(wall_result["hit_count"])
 	var wall_removed := int(wall_result["removed_count"])
 	if wall_hits > 0:
+		_spawn_mining_damage_popups(wall_result.get("hit_cells", []), final_mining_damage, false)
 		if _wall_treasure_manager != null:
-			_wall_treasure_manager.call("handle_mined_wall_subcells", wall_result.get("removed_subcells", []))
+			_wall_treasure_manager.call("handle_mined_wall_cells", wall_result.get("removed_cells", []))
 		GameState.set_status_text(Locale.ltr("status_mine_wall") % [wall_hits, wall_removed])
 		return
 	_set_mining_idle_status(Locale.ltr("status_mine_nothing"))
+
+
+func _spawn_mining_damage_popups(hit_cells: Array, amount: int, is_sand: bool) -> void:
+	if amount <= 0 or hit_cells.is_empty():
+		return
+	for raw_cell in hit_cells:
+		var cell: Vector2i = raw_cell
+		var anchor_position := Vector2.ZERO
+		var target_prefix := "wall"
+		if is_sand:
+			anchor_position = sand_field.get_sand_cell_rect(cell).get_center()
+			target_prefix = "sand"
+		else:
+			anchor_position = world_grid.get_cell_rect(cell).get_center()
+		_mining_damage_popup_manager.request_popup(
+			self,
+			hash("%s:%d:%d" % [target_prefix, cell.x, cell.y]),
+			anchor_position,
+			amount,
+			GameConstants.MINING_DAMAGE_POPUP_TEXT_COLOR,
+			GameConstants.MINING_DAMAGE_POPUP_SHADOW_COLOR,
+			"",
+			"",
+			GameConstants.MINING_DAMAGE_POPUP_FONT_SIZE
+		)
 
 
 func _on_block_destroyed(block: FallingBlock) -> void:

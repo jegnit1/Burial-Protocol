@@ -9,19 +9,22 @@ var text_color := GameConstants.DAMAGE_POPUP_TEXT_COLOR
 var shadow_color := GameConstants.DAMAGE_POPUP_SHADOW_COLOR
 var prefix := ""
 var suffix := ""
+var font_size_override := -1
 
 func setup(
 	value: int,
 	custom_text_color: Color = GameConstants.DAMAGE_POPUP_TEXT_COLOR,
 	custom_shadow_color: Color = GameConstants.DAMAGE_POPUP_SHADOW_COLOR,
 	custom_prefix: String = "",
-	custom_suffix: String = ""
+	custom_suffix: String = "",
+	custom_font_size: int = -1
 ) -> void:
 	amount = value
 	text_color = custom_text_color
 	shadow_color = custom_shadow_color
 	prefix = custom_prefix
 	suffix = custom_suffix
+	font_size_override = custom_font_size
 	horizontal_speed = randf_range(
 		-GameConstants.DAMAGE_POPUP_HORIZONTAL_JITTER,
 		GameConstants.DAMAGE_POPUP_HORIZONTAL_JITTER
@@ -53,6 +56,8 @@ func _draw() -> void:
 		return
 	var text := prefix + str(amount) + suffix
 	var font_size := GameConstants.DAMAGE_POPUP_FONT_SIZE
+	if font_size_override > 0:
+		font_size = font_size_override
 	var text_size := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
 	var baseline := font.get_ascent(font_size) * 0.5
 	var text_position := Vector2(-text_size.x * 0.5, baseline)

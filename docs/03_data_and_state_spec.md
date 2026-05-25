@@ -820,9 +820,9 @@ HUD는 필요한 값만 Player getter를 통해 읽는다.
 - `marker_id`
 - `chest_rarity`: `bronze`, `silver`, `gold`, `platinum`
 - `wall_side`: `left` 또는 `right`
-- `origin_subcell_x`, `origin_subcell_y`
-- `width_subcells = 2`
-- `height_subcells = 2`
+- `origin_cell_x`, `origin_cell_y`
+- `width_cells = 1`
+- `height_cells = 1`
 - `revealed_cells`: local key `"x,y"` -> bool
 - `is_fully_revealed`
 - `reward_seed`
@@ -840,7 +840,7 @@ HUD는 필요한 값만 Player getter를 통해 읽는다.
 주요 API:
 
 - `generate_markers_for_wall_reset(rng, count = 6)`
-- `handle_mined_wall_subcells(removed_subcells)`
+- `handle_mined_wall_cells(removed_cells)`
 - `get_nearest_interactable_marker(player_position, interaction_range)`
 - `update_interaction_prompt(player_position, interaction_range, enabled)`
 - `prepare_reward_for_marker(marker)`
@@ -848,7 +848,7 @@ HUD는 필요한 값만 Player getter를 통해 읽는다.
 - `get_marker_snapshots()`
 - `get_visual_debug_snapshot()`
 
-`WorldGrid.gd`는 treasure reward나 popup을 알지 않고, 제거된 wall subcell 좌표만 반환한다.
+`WorldGrid.gd`는 treasure reward나 popup을 알지 않고, 제거된 1U wall cell 좌표만 반환한다.
 `Main.gd`는 mining 결과 전달, interaction 우선순위, popup open/close, reward claim/sell 연결만 담당한다.
 
 ### 19-3. Reward 데이터
@@ -873,3 +873,46 @@ Reward snapshot은 popup 표시와 획득/판매 처리에 사용된다.
 
 `GameState.grant_shop_item_reward()`는 기존 shop slot, reroll, lock 상태를 변경하지 않는다.
 지원 category는 `attack_module`, `function_module`, `enhance_module`이다.
+
+## Current Source Snapshot - 2026-05-25
+
+This section documents current data identifiers and state structures that have changed during implementation.
+
+### Attack Module IDs
+
+| Module ID | Type | Attack Style | Effect Style |
+|---|---|---|---|
+| `sword_module` | `melee` | `slash` | `slash_arc` |
+| `dagger_module` | `melee` | `stab` | `short_stab` |
+| `lance_module` | `melee` | `pierce` | `long_pierce` |
+| `axe_module` | `melee` | `smash` | `blunt_smash` |
+| `greatsword_module` | `melee` | `cleave` | `big_cleave` |
+| `pistol_module` | `ranged` | `revolver` | `revolver_projectile` |
+| `shotgun_module` | `ranged` | `shotgun` | `shotgun_spread` |
+| `sniper_module` | `ranged` | `sniper` | `sniper_projectile` |
+| `laser_module` | `ranged` | `laser` | `laser_beam` |
+| `drone_attack_module` | `mechanic` | `drone` | empty |
+
+Deprecated module IDs: `bow_module`, `scatter_module`, `pierce_module`.
+
+### Equipped Attack Module Entry
+
+Equipped attack modules still use entry dictionaries with `instance_id`, `module_id`, and `grade`.
+Synthesis still upgrades the `grade` on an existing entry with the same `module_id` and grade.
+The visual layer reads the same entry and must not introduce gameplay state.
+
+### Wall State
+
+`WorldGrid.wall_cells` now stores one HP value per `1U` wall cell:
+
+```gdscript
+wall_cells[Vector2i(x, y)] = GameConstants.WALL_CELL_MAX_HP
+```
+
+Removed cells are erased from `wall_cells`.
+Wall cell mining results use `hit_cells` and `removed_cells` arrays for UI, treasure, and feedback systems.
+
+### Treasure Marker State
+
+Treasure markers are aligned to `1U` wall cells and use cell coordinates: `origin_cell_x`, `origin_cell_y`, `width_cells = 1`, and `height_cells = 1`.
+The old runtime concept of a `2 x 2` subcell reveal grid is no longer the active implementation.
