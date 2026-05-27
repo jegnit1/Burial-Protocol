@@ -111,6 +111,7 @@ func _build_block_type_rows() -> Array[Dictionary]:
 			"can_spawn_randomly": bool(definition.can_spawn_randomly),
 			"spawn_weight_multiplier": float(definition.spawn_weight_multiplier),
 			"hp_multiplier": float(definition.hp_multiplier),
+			"stagger_resistance": float(definition.stagger_resistance),
 			"reward_multiplier": float(definition.reward_multiplier),
 			"sand_units_multiplier": float(definition.sand_units_multiplier),
 			"special_result_override": str(definition.special_result_override),
@@ -421,7 +422,7 @@ func _build_shop_item_rows_by_category() -> Dictionary:
 	}
 	for raw_definition in catalog.get_all_items():
 		var definition: Dictionary = raw_definition
-		var category := str(definition.get("item_category", ""))
+		var category := _get_legacy_shop_export_category(definition)
 		if not rows_by_category.has(category):
 			continue
 		match category:
@@ -436,7 +437,7 @@ func _build_attack_module_item_row(definition: Dictionary) -> Dictionary:
 	var row := {
 		"item_id": str(definition.get("item_id", "")),
 		"name": str(definition.get("name", "")),
-		"item_category": str(definition.get("item_category", "attack_module")),
+		"item_category": "attack_module",
 		"shop_enabled": bool(definition.get("shop_enabled", true)),
 		"shop_spawn_weight": float(definition.get("shop_spawn_weight", -1.0)),
 		"icon_path": str(definition.get("icon_path", "")),
@@ -456,12 +457,13 @@ func _build_attack_module_item_row(definition: Dictionary) -> Dictionary:
 	row["range_growth_scale"] = float(definition.get("range_growth_scale", 1.0))
 	row["range_width_u"] = float(definition.get("range_width_u", 0.0))
 	row["range_height_u"] = float(definition.get("range_height_u", 0.0))
-	var base_damage_by_grade: Dictionary = definition.get("base_damage_by_grade", {})
+	var base_damage_by_grade: Dictionary = definition.get("base_damage_by_grade", {}) as Dictionary
 	for grade in TSV_SCHEMA.ATTACK_MODULE_BASE_DAMAGE_GRADES:
 		row["base_damage_%s" % grade] = int(base_damage_by_grade.get(grade, 0))
-	var price_by_grade: Dictionary = definition.get("price_by_grade", {})
+	var price_by_grade: Dictionary = definition.get("price_by_grade", {}) as Dictionary
 	for grade in TSV_SCHEMA.ATTACK_MODULE_BASE_DAMAGE_GRADES:
 		row["price_%s" % grade] = int(price_by_grade.get(grade, _get_attack_module_default_price_for_grade(grade)))
+	row["stagger_power"] = float(definition.get("stagger_power", 0.0))
 	row["attack_speed_multiplier"] = float(definition.get("attack_speed_multiplier", 1.0))
 	row["projectile_count"] = int(definition.get("projectile_count", 1))
 	row["spread_angle"] = float(definition.get("spread_angle", 0.0))
@@ -502,7 +504,7 @@ func _build_effect_item_row(definition: Dictionary) -> Dictionary:
 		row["conditions_json"] = _stringify_json(conditions)
 		row["effects_json"] = _stringify_json(effects)
 		row["apply_timing"] = str(definition.get("apply_timing", ""))
-	var effect_values: Dictionary = definition.get("effect_values", {})
+	var effect_values: Dictionary = definition.get("effect_values", {}) as Dictionary
 	for effect_column in TSV_SCHEMA.EFFECT_HEADERS:
 		var effect_key := str(TSV_SCHEMA.EFFECT_COLUMN_TO_KEY[effect_column])
 		if effect_values.has(effect_key):
@@ -519,10 +521,11 @@ func _stringify_json(value: Variant) -> String:
 
 
 func _build_common_item_row(definition: Dictionary) -> Dictionary:
+	var category := _get_legacy_shop_export_category(definition)
 	return {
 		"item_id": str(definition.get("item_id", "")),
 		"name": str(definition.get("name", "")),
-		"item_category": str(definition.get("item_category", "")),
+		"item_category": category,
 		"rank": str(definition.get("rank", "D")),
 		"price_gold": int(definition.get("price_gold", 100)),
 		"shop_enabled": bool(definition.get("shop_enabled", true)),
@@ -531,11 +534,28 @@ func _build_common_item_row(definition: Dictionary) -> Dictionary:
 		"max_stack": int(definition.get("max_stack", 1)),
 		"equip_slot": str(definition.get("equip_slot", "")),
 		"is_equippable": bool(definition.get("is_equippable", false)),
+		"allowed_weapon_ids": TSV_SCHEMA.join_list(Array(definition.get("allowed_weapon_ids", []))),
+		"allowed_weapon_types": TSV_SCHEMA.join_list(Array(definition.get("allowed_weapon_types", []))),
+		"allowed_attack_styles": TSV_SCHEMA.join_list(Array(definition.get("allowed_attack_styles", []))),
+		"exclusive_group": str(definition.get("exclusive_group", "")),
 		"icon_path": str(definition.get("icon_path", "")),
 		"short_desc": str(definition.get("short_desc", "")),
 		"desc": str(definition.get("desc", "")),
 		"tags": TSV_SCHEMA.join_list(Array(definition.get("tags", []))),
 	}
+
+
+func _get_legacy_shop_export_category(definition: Dictionary) -> String:
+	match str(definition.get("item_category", "")):
+		"weapon":
+			return "attack_module"
+		"part", "artifact":
+			var effect_type := str(definition.get("effect_type", ""))
+			if effect_type == "combat_drone" or effect_type == "sand_cleaner" or effect_type == "aura_damage":
+				return "function_module"
+			return "enhance_module"
+		_:
+			return str(definition.get("item_category", ""))
 
 
 func _write_table(output_dir: String, file_name: String, headers: Array, rows: Array, written_files: Array[String], errors: Array[String]) -> void:

@@ -11,6 +11,7 @@ var max_distance := 900.0
 var projectile_size := Vector2(18.0, 6.0)
 var visual_offset := Vector2.ZERO
 var damage := 1
+var stagger_power := 0.0
 var is_critical := false
 var pierce_count := 0
 var homing := false
@@ -40,6 +41,7 @@ func setup(config: Dictionary) -> void:
 	max_distance = float(config.get("max_distance", max_distance))
 	projectile_size = configured_size
 	damage = int(config.get("damage", damage))
+	stagger_power = maxf(float(config.get("stagger_power", stagger_power)), 0.0)
 	is_critical = bool(config.get("is_critical", false))
 	pierce_count = int(config.get("pierce_count", pierce_count))
 	homing = bool(config.get("homing", false))
@@ -79,7 +81,7 @@ func _check_block_hits(previous_position: Vector2, current_position: Vector2) ->
 		if not block.get_block_rect().intersects(sweep_rect):
 			continue
 		_hit_block_ids[block_id] = true
-		block.apply_damage(damage, is_critical)
+		block.apply_damage(damage, is_critical, stagger_power)
 		if pierce_count <= 0:
 			queue_free()
 			return

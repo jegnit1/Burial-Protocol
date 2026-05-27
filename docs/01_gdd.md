@@ -1,7 +1,7 @@
 # Burial Protocol - Game Design Document
 
-기준일: `2026-05-01`
-기준 브랜치: `visual-density-camera-hud`
+기준일: `2026-04-28`
+기준 브랜치: `main`
 엔진: Godot `4.6`
 언어: GDScript
 
@@ -41,8 +41,8 @@ Burial Protocol의 핵심 감성은 아래 세 가지다.
 - 모래 생성과 모래 시뮬레이션
 - 중량 한도 기반 실패
 - 좌우 벽 채굴
-- 마우스 방향 기반 채굴
-- 점프, 추가 점프, 대시, 벽타기
+- 방향키 기반 벽 채굴
+- 점프, 추가 점프, 마우스 방향 대시
 - 공격모듈 기반 공격
 - melee/ranged/mechanic 공격모듈 타입
 - Day 종료 후 intermission
@@ -127,7 +127,7 @@ Burial Protocol의 핵심 감성은 아래 세 가지다.
 
 ### 6-1. 역할
 
-플레이어는 좁은 중앙 샤프트 안에서 블록을 공격하고, 벽과 모래를 채굴하며, 쌓이는 모래를 피해 생존하는 주체다.
+플레이어는 좁은 중앙 샤프트 안에서 블록을 공격하고, 좌우 벽을 채굴하며, 쌓이는 모래를 피해 생존하는 주체다.
 
 전투 능력의 핵심은 플레이어 자체가 아니라 **장착된 공격모듈**이다.
 플레이어는 공격모듈을 운용하는 플랫폼에 가깝다.
@@ -144,8 +144,8 @@ Burial Protocol의 핵심 감성은 아래 세 가지다.
 - 코요테 타임
 - 점프 버퍼
 - 빠른 낙하
-- 좌/우/하 대시
-- 배터리 기반 벽타기
+- 마우스 방향 360도 대시
+- 대시 종료 직후 짧은 입력 유예
 
 주요 수치:
 
@@ -157,30 +157,18 @@ Burial Protocol의 핵심 감성은 아래 세 가지다.
 | 중력 | `2000 px/s^2` |
 | 점프 속도 | `-853` |
 | 추가 점프 | `1회` |
-| 벽 점프 가로 속도 | `480` |
 | 빠른 낙하 가속 | `2933 px/s^2` |
 | 빠른 낙하 최대 속도 | `1306 px/s` |
-| 대시 거리 | `4U` |
+| 대시 거리 | `GameConstants.PLAYER_DASH_DISTANCE` |
 | 대시 지속시간 | `0.08초` |
 | 대시 쿨다운 | `0.45초` |
-| 벽타기 배터리 | `100` |
-| 벽타기 소모 | `5/sec` |
-| 기본 배터리 회복 | `5/sec` |
+| 대시 입력 유예 | `0.10초` |
+| 기본 배터리 회복 | `1/sec` |
 
 ### 6-3. 벽타기
 
-벽타기는 고정벽 전용 이동 시스템이다.
-
-발동 조건:
-
-- 대시 중이 아님
-- 배터리 `> 0`
-- 고정벽 접촉
-- 접촉한 벽 방향 입력 유지
-- 플레이 가능 상단 제한 아래에 있음
-
-벽타기 중에는 낙하 속도가 제한되고 배터리가 소모된다.
-벽타기가 아닐 때는 배터리가 회복된다.
+벽타기 기능은 삭제되었다.
+좌우 벽 방향 입력은 이동용 벽타기가 아니라, 방향키 기반 벽 채굴 진입 조건으로 사용된다.
 
 ---
 
@@ -192,8 +180,6 @@ Burial Protocol의 핵심 감성은 아래 세 가지다.
 공격의 주체는 캐릭터의 기본 공격 하나가 아니라 장착된 모듈들이다.
 
 현재 공격모듈은 시각적으로 플레이어 주변을 공전하며, 실제 판정 기준은 캐릭터 위치를 사용한다.
-
-세부 데이터/스타일/데미지 계산 기준은 `06_attack_modules.md`를 따른다.
 
 ### 7-2. 장착 규칙
 
@@ -236,9 +222,6 @@ C 소드 + C 소드 = B 소드
 | `ranged` | 좌클릭 기반 | 투사체 또는 레이저 히트스캔 |
 | `mechanic` | 좌클릭 무관 | 자동 타겟팅/자동 공격 |
 
-현재 데미지는 `base_damage_by_grade[current_grade]`를 우선 사용하고, 없으면 `module_base_damage`, 둘 다 없으면 warning 후 `1`을 사용한다.
-공격모듈 직접 필드 `damage_multiplier` fallback은 제거되었다.
-
 ### 7-5. 공격 대상
 
 공격모듈의 공격 대상은 블록이다.
@@ -260,27 +243,38 @@ C 소드 + C 소드 = B 소드
 
 ## 8. 채굴 시스템
 
-채굴은 우클릭 기반 환경 상호작용이다.
+채굴은 방향키 기반 `is_digging` 상태로 처리되는 좌우 벽 전용 환경 상호작용이다.
 공격모듈과 별개의 시스템이다.
+우클릭은 대시 전용이며 채굴을 발생시키지 않는다.
 
 현재 채굴 대상:
 
-- 모래 셀
 - 좌우 벽 서브셀
 
 현재 채굴 비대상:
 
+- 모래 셀
 - 낙하 블록
+- 활성 블록
+- 보스 블록
 
 주요 수치:
 
 | 항목 | 값 |
 |---|---:|
 | 기본 채굴 데미지 | `1` |
-| 채굴 쿨다운 | `0.15초` |
-| 채굴 버퍼 | `0.12초` |
+| 채굴 진입 유지시간 | `0.45초` |
+| 채굴 준비 낙하 제한 | `80 px/s` |
+| dig_effect 기본/최소 주기 | `0.5초 / 0.12초` |
+| dig_execute 기본/최소 주기 | `3.0초 / 0.75초` |
+| dig_execute 배터리 소모 | `5` |
+| 연속채굴 유예시간 | `0.45초` |
 | 채굴 거리 | `0.25U` |
 | 채굴 높이 | `1U` |
+
+`dig_effect`는 드릴/캐릭터 반동 피드백만 발생시키고 데미지와 배터리 소모를 만들지 않는다.
+`dig_execute`는 기존 벽 채굴 데미지/파편 처리 경로를 사용한다.
+모래 직접 채굴은 삭제되었으며, 추후 별도 시스템으로 재정의한다.
 
 Day 종료 후 intermission 유예 시간이 지나면 채굴만 정지된다.
 플레이어 이동, 자연 모래 반응, 플레이어의 모래 밀림은 유지된다.
@@ -305,8 +299,6 @@ Runtime Block = Material x Size + optional Type
 
 ### 9-2. 스폰 흐름
 
-현재 라이브 스폰은 v1 조합 roll 방식이다.
-
 1. 현재 난이도와 Day 확인
 2. `BlockCatalog`에서 유효한 spawn candidate 수집
 3. candidate weight 기반 랜덤 선택
@@ -314,9 +306,6 @@ Runtime Block = Material x Size + optional Type
 5. `BlockSpawnResolver`가 resolved definition 생성
 6. `BlockData`로 변환
 7. `FallingBlock` 생성
-
-v1에서는 material의 `max_allowed_area`, `max_allowed_width`, `max_allowed_height`가 size 후보를 실제로 차단한다.
-Spawn Pool + Weight Modifier 기반 v2 구조는 현재 `BlockSpawnV2Simulator.gd`와 스냅샷 리포트에서만 사용되며, 실제 게임 스폰으로 전환되지 않았다.
 
 ### 9-3. 최종 HP 공식
 
@@ -327,7 +316,6 @@ final_hp =
   x material_hp_multiplier
   x difficulty_hp_multiplier
   x type_hp_multiplier
-  x day_hp_multiplier
 ```
 
 기본값:
@@ -450,9 +438,6 @@ Day 1~29에서 시간이 끝나면 결과 화면으로 가지 않고 intermissio
 - 구매 가능 여부 표시
 - 골드 차감
 - 구매 성공 시 현재 상점 목록에서 제거
-- 골드 지불 reroll
-- 슬롯별 lock
-- lock된 슬롯은 reroll/다음 상점 롤에서 같은 슬롯의 한 자리를 차지하며 보존
 - `Close`
 - `Next Day`
 
@@ -668,74 +653,3 @@ user://profile.save
 - 모래는 단순 이펙트가 아니라 실패 조건과 전장 압박의 핵심이다.
 - Day 전환에서 벽과 모래는 기본 유지한다.
 - 메타 시스템은 placeholder 범위를 명확히 표시한다.
-
----
-
-## 20. Treasure Chest 구현 기준
-
-기준일: `2026-05-17`
-
-Treasure Chest는 좌우 벽 채굴 루프에 붙는 보상 오브젝트다. 아직 creep 계열은 구현하지 않는다.
-
-플레이어가 알아야 하는 규칙:
-
-- 보물상자는 좌우 벽의 1U wall cell 하나와 같은 위치에 배치된다.
-- 생성 직후부터 rarity별 preview glow/outline으로 위치를 미리 인지할 수 있다.
-- 벽 subcell을 채굴하면 해당 quadrant만 partial reveal로 추가 표시된다.
-- 4개 subcell이 모두 채굴되면 fully revealed 상태가 된다.
-- fully revealed 상태에서만 range 안 `E` 상호작용 prompt가 표시된다.
-- `E` 상호작용은 Treasure Chest가 Day Kiosk보다 우선한다.
-- reward popup이 열리면 게임이 pause되고, 닫으면 기존 pause 상태로 복구된다.
-- popup에서 보상을 획득하거나 판매하면 해당 marker는 consumed 처리되고 다시 상호작용할 수 없다.
-
-보상 규칙:
-
-- chest rarity는 `bronze`, `silver`, `gold`, `platinum`이다.
-- 테스트/현재 구현 기준 marker는 wall reset/run start 시 6개 생성된다.
-- reward는 popup open 시 marker의 `reward_seed`로 deterministic roll된다.
-- reward rank는 chest rarity별 확률표를 따른다.
-- reward item은 `ShopItemCatalog`에서 같은 rank 후보를 조회한다.
-- 후보가 없으면 낮은 rank 방향, 이후 높은 rank 방향으로 fallback한다.
-- 판매가는 `floor(GameState.get_effective_shop_item_price(definition) * 0.6)`이다.
-- 획득은 `GameState.grant_shop_item_reward()`를 사용하며 gold를 차감하지 않는다.
-
-## Current Source Snapshot - 2026-05-25
-
-This section supersedes older notes in this document where they still mention wall subcells, bow/scatter/pierce module IDs, or placeholder attack-module visuals.
-
-### World Scale And Mining
-
-- `1U = GameConstants.CELL_SIZE = 64px`.
-- Player visual size and collision are currently aligned to `1U x 1U`.
-- Left/right mining walls are made of `1U` wall cells.
-- A wall cell has one HP value, currently `GameConstants.WALL_CELL_MAX_HP = 8`.
-- Wall mining no longer uses wall subcell HP, subcell collision, or subcell damage rendering.
-- Mining range distance is `0.5U` by default.
-- Mining range height is fixed at `0.5U`, even if mining range upgrades are added.
-- Mining visual state is continuous while right mouse is held and a mineable target exists.
-- Mining damage remains tick-based through the existing mining cooldown/speed flow.
-- Mining damage shows a smaller damage popup than combat damage.
-- The orange mining range preview is disabled.
-- The drill visual uses `assets/characters/drill.png` and is displayed above the player while mining.
-
-### Wall Visuals And Treasure
-
-- Wall cells render from `assets/world/walls/wall_brick_normal.png`.
-- Tile selection is based on remaining HP ratio: `> 0.5` normal, `<= 0.5` damaged 1, `<= 0.25` damaged 2, `0` removed/mined background.
-- Wall chip particles use `assets/world/walls/wall_brick_normal_shard.png`.
-- Treasure markers are aligned to one `1U` wall cell.
-- A treasure chest cannot exist between two wall cells.
-- A treasure-bearing wall cell is hinted with `assets/world/walls/wall_brick_glow.png`.
-- The glow visual should be glow-only, not a border/frame around the block.
-
-### Attack Modules
-
-- Current attack module IDs: `sword_module`, `dagger_module`, `lance_module`, `axe_module`, `greatsword_module`, `pistol_module`, `shotgun_module`, `sniper_module`, `laser_module`, `drone_attack_module`.
-- Deprecated IDs no longer used: `bow_module`, `scatter_module`, `pierce_module`.
-- Attack-module world visuals orbit around the player independently of hit shape.
-- Current orbit radius is `64px`.
-- Current orbit visual alpha is `70%`.
-- Each world visual is composed of grade slot ring plus weapon sprite.
-- Slot ring size is shared across all modules: target `64 x 64`.
-- Weapon image size may vary by module.
-- Visual size never changes attack range, collision, projectile logic, cooldown, or damage.

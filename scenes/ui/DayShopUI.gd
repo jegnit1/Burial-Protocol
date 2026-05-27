@@ -91,7 +91,7 @@ func _build_ui() -> void:
 	root.add_child(title)
 
 	var hint := Label.new()
-	hint.text = "Buy new items, equip owned attack modules for free, then proceed with Next Day."
+	hint.text = "Buy a weapon, attach up to five parts, collect artifacts, then proceed with Next Day."
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD
 	hint.add_theme_font_size_override("font_size", 18)
@@ -130,7 +130,7 @@ func _build_ui() -> void:
 	owned_margin.add_child(owned_vbox)
 
 	var owned_title := Label.new()
-	owned_title.text = "Owned Attack Modules"
+	owned_title.text = "Weapon / Parts"
 	owned_title.add_theme_font_size_override("font_size", 20)
 	owned_title.add_theme_color_override("font_color", Color("dfe8f2"))
 	owned_vbox.add_child(owned_title)
@@ -280,21 +280,27 @@ func _refresh_owned_attack_modules() -> void:
 	for child in _owned_attack_row.get_children():
 		child.queue_free()
 	_owned_attack_buttons.clear()
-	for entry in GameState.get_equipped_attack_module_entries():
-		var definition = GameState.get_attack_module_definition_from_entry(entry)
-		if definition == null:
+	var weapon_button := Button.new()
+	weapon_button.text = "Weapon: %s" % GameState.get_equipped_attack_module_display_name()
+	weapon_button.disabled = true
+	_owned_attack_row.add_child(weapon_button)
+	_owned_attack_buttons.append(weapon_button)
+	for part_entry in GameState.get_equipped_part_entries():
+		var definition := GameData.get_shop_item_definition(StringName(String(part_entry.get("item_id", ""))))
+		if definition.is_empty():
 			continue
 		var button := Button.new()
-		button.text = "%s %s" % [
-			String(definition.display_name),
-			String(entry.get("grade", "D")),
+		var active_text := "" if bool(part_entry.get("active", false)) else " (Inactive)"
+		button.text = "Part: %s%s" % [
+			String(definition.get("name", part_entry.get("item_id", ""))),
+			active_text,
 		]
 		button.disabled = true
 		_owned_attack_row.add_child(button)
 		_owned_attack_buttons.append(button)
 	if _owned_attack_buttons.is_empty():
 		var empty_label := Label.new()
-		empty_label.text = "No owned attack modules."
+		empty_label.text = "No weapon equipped."
 		empty_label.add_theme_color_override("font_color", Color("8ea8bc"))
 		_owned_attack_row.add_child(empty_label)
 
@@ -367,6 +373,8 @@ func _refresh_detail(snapshot: Dictionary) -> void:
 	var equipped := bool(entry.get("equipped", false))
 	var can_afford := bool(entry.get("can_afford", false))
 	var can_buy := bool(entry.get("can_buy", can_afford))
+	var active := bool(entry.get("active", true))
+	var inactive_reason := String(entry.get("inactive_reason", ""))
 	var lock_text := "   LOCKED" if bool(entry.get("is_locked", false)) else ""
 	_detail_name_label.text = String(entry.get("name", item_id))
 	_detail_meta_label.text = "Category %s   Rank %s   Price %dG%s" % [
@@ -377,45 +385,61 @@ func _refresh_detail(snapshot: Dictionary) -> void:
 	]
 	_detail_short_desc_label.text = String(entry.get("short_desc", ""))
 	_detail_desc_label.text = String(entry.get("desc", ""))
-	_detail_state_label.text = _build_state_text(category, owned, equipped, stack_count, can_buy)
+	_detail_state_label.text = _build_state_text(category, owned, equipped, stack_count, can_buy, active, inactive_reason)
 
 	match category:
-		"attack_module":
-			_action_button.text = "Buy / Merge"
+		"weapon", "attack_module":
+			_action_button.text = "Buy / Equip"
+			_action_button.disabled = not can_buy
+		"part":
+			_action_button.text = "Buy"
+			_action_button.disabled = not can_buy
+		"artifact":
+			_action_button.text = "Buy"
 			_action_button.disabled = not can_buy
 		"function_module":
-			if owned:
-				_action_button.text = "Owned"
-				_action_button.disabled = true
-			else:
-				_action_button.text = "Buy"
-				_action_button.disabled = not can_afford
+			_action_button.text = "Owned" if owned else "Buy"
+			_action_button.disabled = owned or not can_buy
 		"enhance_module":
 			_action_button.text = "Buy"
-			_action_button.disabled = not can_afford
+			_action_button.disabled = not can_buy
 		_:
 			_action_button.text = "Unavailable"
 			_action_button.disabled = true
 
 
-func _build_state_text(category: String, owned: bool, equipped: bool, stack_count: int, can_afford: bool) -> String:
+func _build_state_text(category: String, owned: bool, equipped: bool, stack_count: int, can_buy: bool, active: bool = true, inactive_reason: String = "") -> String:
 	match category:
-		"attack_module":
-			if not can_afford:
-				return "Not enough gold, no empty slot, or no same-grade merge target."
+		"weapon", "attack_module":
+			if not can_buy:
+				return "Cannot buy or equip this weapon right now."
 			if equipped or owned:
-				return "Buying another copy adds a duplicate slot or merges if slots are full."
-			return "Buying immediately equips this module into an empty slot."
+				return "Buying equips this weapon and keeps existing parts."
+			return "Buying immediately equips this weapon."
+		"part":
+			if stack_count > 0:
+				return "Equipped copies %d. Incompatible parts stay installed but inactive." % stack_count
+			if not can_buy:
+				return "Cannot buy: part slots may be full, stacked out, or exclusive with another part."
+			if not active and not inactive_reason.is_empty():
+				return "%s. It will stay installed but inactive until a compatible weapon is equipped." % inactive_reason
+			return "Buying attaches this part to the current weapon set."
+		"artifact":
+			if stack_count > 0:
+				return "Current stack %d. Buying again stacks immediately." % stack_count
+			if not can_buy:
+				return "Cannot buy this artifact right now."
+			return "Buying adds this artifact to the run immediately."
 		"function_module":
 			if owned:
 				return "Already owned in this run and registered in current effects."
-			if not can_afford:
+			if not can_buy:
 				return "Not enough gold."
 			return "Buying registers it to current run effects immediately."
 		"enhance_module":
 			if stack_count > 0:
 				return "Current stack %d. Buying again stacks immediately." % stack_count
-			if not can_afford:
+			if not can_buy:
 				return "Not enough gold."
 			return "Buying applies the stat bonus immediately."
 	return "Unsupported item category."
@@ -469,6 +493,12 @@ func _on_action_pressed() -> void:
 				GameState.set_status_text("Not enough gold.")
 			"already_owned":
 				GameState.set_status_text("Item already owned.")
+			"part_slots_full":
+				GameState.set_status_text("Part slots are full.")
+			"part_stack_full", "artifact_stack_full", "stack_full":
+				GameState.set_status_text("Item stack limit reached.")
+			"part_exclusive_conflict":
+				GameState.set_status_text("A mutually exclusive part is already equipped.")
 			_:
 				GameState.set_status_text("Failed to process shop item.")
 	_refresh_ui()
@@ -509,6 +539,12 @@ func _on_next_day_pressed() -> void:
 
 func _category_label(category: String) -> String:
 	match category:
+		"weapon":
+			return "WPN"
+		"part":
+			return "PART"
+		"artifact":
+			return "ART"
 		"attack_module":
 			return "ATK"
 		"function_module":

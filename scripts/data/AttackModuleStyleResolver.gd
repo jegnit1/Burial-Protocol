@@ -3,7 +3,8 @@ class_name AttackModuleStyleResolver
 
 
 static func normalize_item_dictionary(item: Dictionary) -> void:
-	if String(item.get("item_category", "")) != "attack_module":
+	var item_category := String(item.get("item_category", ""))
+	if item_category != "attack_module" and item_category != "weapon":
 		return
 	var module_type := String(item.get("module_type", ""))
 	var attack_style := get_attack_style_for_values(module_type, String(item.get("attack_style", "")))

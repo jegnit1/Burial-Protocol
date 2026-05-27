@@ -40,6 +40,7 @@ var block_type_sand_units_multiplier := 1.0
 
 var unit_hp := 0.0
 var area_units := 1
+var stagger_resistance := 0.0
 var day_hp_multiplier := 1.0
 var difficulty_hp_multiplier := 1.0
 var spawn_weight := 1.0
@@ -106,6 +107,7 @@ static func from_resolved_definition(resolved_definition) -> BlockData:
 
 	data.unit_hp = float(resolved_definition.base_unit_hp)
 	data.area_units = maxi(int(data.size_cells.x * data.size_cells.y), 1)
+	data.stagger_resistance = maxf(float(resolved_definition.stagger_resistance), 0.0)
 	data.day_hp_multiplier = float(resolved_definition.day_hp_multiplier)
 	data.difficulty_hp_multiplier = float(resolved_definition.difficulty_hp_multiplier)
 	data.spawn_weight = float(resolved_definition.final_spawn_weight)

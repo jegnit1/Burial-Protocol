@@ -70,12 +70,14 @@ func _build_resolved_definition(candidate: Dictionary, difficulty_definition: Di
 	var type_hp_multiplier := 1.0
 	var type_reward_multiplier := 1.0
 	var type_sand_units_multiplier := 1.0
+	var stagger_resistance := 0.0
 	var full_display_name := str(material_definition.display_name)
 	var special_result_type: StringName = material_definition.special_result_type
 	if type_definition != null:
 		type_hp_multiplier = float(type_definition.hp_multiplier)
 		type_reward_multiplier = float(type_definition.reward_multiplier)
 		type_sand_units_multiplier = float(type_definition.sand_units_multiplier)
+		stagger_resistance = maxf(float(type_definition.stagger_resistance), 0.0)
 		if str(type_definition.name_prefix).strip_edges() != "":
 			full_display_name = "%s %s" % [str(type_definition.name_prefix), full_display_name]
 		if str(type_definition.name_suffix).strip_edges() != "":
@@ -112,6 +114,7 @@ func _build_resolved_definition(candidate: Dictionary, difficulty_definition: Di
 	resolved.size_reward_multiplier = size_reward_multiplier
 	resolved.material_hp_multiplier = material_hp_multiplier
 	resolved.material_reward_multiplier = material_reward_multiplier
+	resolved.stagger_resistance = stagger_resistance
 	resolved.difficulty_hp_multiplier = difficulty_hp_multiplier
 	resolved.day_hp_multiplier = safe_day_hp_multiplier
 	resolved.material_spawn_weight = float(material_definition.base_spawn_weight)

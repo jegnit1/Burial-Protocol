@@ -21,7 +21,7 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
-	var font := ThemeDB.fallback_font
+	var font := GameConstants.get_ui_font()
 	if font == null:
 		return
 	var font_size := GameConstants.GOLD_POPUP_FONT_SIZE

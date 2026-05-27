@@ -1027,6 +1027,7 @@ display_name = "boss"
 name_prefix = "boss"
 can_spawn_randomly = false
 hp_multiplier = 3.0
+stagger_resistance = 999.0
 
 [resource]
 script = ExtResource("1_catalog")

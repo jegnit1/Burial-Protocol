@@ -127,6 +127,7 @@ func validate_block_catalog(
 		get_required_bool(row, "can_spawn_randomly", "block_types.tsv", errors)
 		get_required_float(row, "spawn_weight_multiplier", "block_types.tsv", errors)
 		get_required_float(row, "hp_multiplier", "block_types.tsv", errors)
+		get_optional_float(row, "stagger_resistance", 0.0)
 		get_required_float(row, "reward_multiplier", "block_types.tsv", errors)
 		get_required_float(row, "sand_units_multiplier", "block_types.tsv", errors)
 		get_required_string(row, "special_result_override", "block_types.tsv", errors)

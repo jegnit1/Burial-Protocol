@@ -183,6 +183,28 @@ func try_mine_in_shape(shape_data: Dictionary, mining_damage: int) -> Dictionary
 	return result
 
 
+func shake_mineable_in_shape(shape_data: Dictionary) -> int:
+	var hit_count := 0
+	var shape_bounds := GameConstants.get_shape_bounds(shape_data)
+	var min_cell := world_to_cell(shape_bounds.position)
+	var max_cell := world_to_cell(shape_bounds.position + shape_bounds.size - Vector2.ONE)
+	for y in range(min_cell.y, max_cell.y + 1):
+		for x in range(min_cell.x, max_cell.x + 1):
+			var cell := Vector2i(x, y)
+			if not wall_cells.has(cell):
+				continue
+			var cell_rect := get_cell_rect(cell)
+			if not cell_rect.intersects(shape_bounds):
+				continue
+			if not _cell_rect_intersects_shape(cell_rect, shape_data):
+				continue
+			_register_wall_hit_effect(cell)
+			hit_count += 1
+	if hit_count > 0:
+		queue_redraw()
+	return hit_count
+
+
 func has_mineable_in_shape(shape_data: Dictionary) -> bool:
 	var shape_bounds := GameConstants.get_shape_bounds(shape_data)
 	var min_cell := world_to_cell(shape_bounds.position)

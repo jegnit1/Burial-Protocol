@@ -51,7 +51,7 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
-	var font := ThemeDB.fallback_font
+	var font := GameConstants.get_ui_font()
 	if font == null:
 		return
 	var text := prefix + str(amount) + suffix

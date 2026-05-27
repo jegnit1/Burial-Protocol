@@ -1,17 +1,12 @@
 extends Node2D
 class_name AttackModuleVisual
 
-const SLOT_TEXTURE_PATHS := {
-	"D": "res://assets/attack_modules/module_d.png",
-	"C": "res://assets/attack_modules/module_c.png",
-	"B": "res://assets/attack_modules/module_b.png",
-	"A": "res://assets/attack_modules/module_a.png",
-	"S": "res://assets/attack_modules/module_s.png",
-}
 const WEAPON_ASSET_BASE_PATH := "res://assets/attack_modules/%s.png"
-const SLOT_TARGET_SIZE := Vector2(64.0, 64.0)
-const WEAPON_TARGET_SIZE := Vector2(56.0, 56.0)
 const VISUAL_ALPHA := 0.7
+const ANIMATION_TYPE_ONE_HAND_GUN: StringName = &"one_hand_gun"
+const ANIMATION_TYPE_TWO_HAND_GUN: StringName = &"two_hand_gun"
+const ANIMATION_TYPE_SWING: StringName = &"swing"
+const ANIMATION_TYPE_STAB: StringName = &"stab"
 
 @export var module_id: StringName
 @export var shape_style: StringName = &"sword"
@@ -20,11 +15,15 @@ const VISUAL_ALPHA := 0.7
 @export var visual_scale := 1.0
 
 var _slot_sprite: Sprite2D
+var _weapon_pivot: Node2D
 var _weapon_sprite: Sprite2D
+var _trail_visual: Node2D
+var _effect_spawn_point: Node2D
 var _slot_texture: Texture2D
 var _weapon_texture: Texture2D
 var _configured_grade := "D"
 var _configured_icon_path := ""
+var _animation_type: StringName = ANIMATION_TYPE_SWING
 var _warned_missing_weapon_paths: Dictionary = {}
 
 
@@ -51,6 +50,14 @@ func configure(module_entry: Dictionary, module_definition = null) -> void:
 	queue_redraw()
 
 
+func set_animation_type(animation_type: StringName) -> void:
+	if animation_type == StringName():
+		animation_type = ANIMATION_TYPE_SWING
+	_animation_type = animation_type
+	_apply_pivot_offset()
+	queue_redraw()
+
+
 func _apply_visual_alpha() -> void:
 	modulate.a = VISUAL_ALPHA
 
@@ -65,33 +72,47 @@ func _ensure_sprite_nodes() -> void:
 	_slot_sprite.centered = true
 	_slot_sprite.z_index = 0
 	_slot_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_slot_sprite.visible = false
+	if _weapon_pivot == null:
+		_weapon_pivot = get_node_or_null("WeaponPivot") as Node2D
+	if _weapon_pivot == null:
+		_weapon_pivot = Node2D.new()
+		_weapon_pivot.name = "WeaponPivot"
+		add_child(_weapon_pivot)
 	if _weapon_sprite == null:
-		_weapon_sprite = get_node_or_null("WeaponSprite") as Sprite2D
+		_weapon_sprite = _weapon_pivot.get_node_or_null("WeaponSprite") as Sprite2D
 	if _weapon_sprite == null:
 		_weapon_sprite = Sprite2D.new()
 		_weapon_sprite.name = "WeaponSprite"
-		add_child(_weapon_sprite)
+		_weapon_pivot.add_child(_weapon_sprite)
 	_weapon_sprite.centered = true
 	_weapon_sprite.z_index = 1
 	_weapon_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	if _trail_visual == null:
+		_trail_visual = get_node_or_null("TrailVisual") as Node2D
+	if _trail_visual == null:
+		_trail_visual = Node2D.new()
+		_trail_visual.name = "TrailVisual"
+		add_child(_trail_visual)
+	_trail_visual.visible = false
+	if _effect_spawn_point == null:
+		_effect_spawn_point = get_node_or_null("EffectSpawnPoint") as Node2D
+	if _effect_spawn_point == null:
+		_effect_spawn_point = Node2D.new()
+		_effect_spawn_point.name = "EffectSpawnPoint"
+		add_child(_effect_spawn_point)
 
 
 func _apply_asset_visuals() -> void:
 	_ensure_sprite_nodes()
-	_slot_texture = _get_slot_texture_for_grade(_configured_grade)
 	_weapon_texture = _load_weapon_texture()
-	_slot_sprite.texture = _slot_texture
+	_slot_texture = null
+	_slot_sprite.texture = null
 	_weapon_sprite.texture = _weapon_texture
-	_slot_sprite.visible = _slot_texture != null
+	_slot_sprite.visible = false
 	_weapon_sprite.visible = _weapon_texture != null
-	_fit_sprite_to_target(_slot_sprite, SLOT_TARGET_SIZE, false)
-	_fit_sprite_to_target(_weapon_sprite, _get_weapon_target_size(), true)
-
-
-func _get_slot_texture_for_grade(grade: String) -> Texture2D:
-	var normalized_grade := grade.strip_edges().to_upper()
-	var path := String(SLOT_TEXTURE_PATHS.get(normalized_grade, SLOT_TEXTURE_PATHS["D"]))
-	return _load_texture_if_available(path)
+	_weapon_sprite.scale = Vector2.ONE
+	_apply_pivot_offset()
 
 
 func _load_weapon_texture() -> Texture2D:
@@ -148,31 +169,39 @@ func _get_weapon_asset_key() -> String:
 			return key
 
 
-func _get_weapon_target_size() -> Vector2:
-	match _get_weapon_asset_key():
-		"greatsword", "lance":
-			return Vector2(64.0, 64.0)
-		"dagger", "pistol", "revolver":
-			return Vector2(48.0, 48.0)
+func _apply_pivot_offset() -> void:
+	_ensure_sprite_nodes()
+	if _weapon_sprite == null:
+		return
+	var target_size := _get_weapon_visual_size()
+	var pivot_ratio := _get_pivot_ratio()
+	var pivot_position := Vector2(target_size.x * pivot_ratio.x, target_size.y * pivot_ratio.y)
+	_weapon_sprite.position = target_size * 0.5 - pivot_position
+	_weapon_pivot.position = Vector2.ZERO
+	if _effect_spawn_point != null:
+		_effect_spawn_point.position = Vector2(target_size.x - pivot_position.x, 0.0)
+
+
+func _get_pivot_ratio() -> Vector2:
+	match _animation_type:
+		ANIMATION_TYPE_ONE_HAND_GUN:
+			return Vector2(0.36, 0.55)
+		ANIMATION_TYPE_TWO_HAND_GUN:
+			return Vector2(0.42, 0.52)
+		ANIMATION_TYPE_STAB:
+			return Vector2(0.18, 0.50)
 		_:
-			return WEAPON_TARGET_SIZE
+			return Vector2(0.20, 0.55)
 
 
-func _fit_sprite_to_target(sprite: Sprite2D, target_size: Vector2, apply_visual_scale: bool) -> void:
-	if sprite == null or sprite.texture == null:
-		return
-	var texture_size := sprite.texture.get_size()
-	if texture_size.x <= 0.0 or texture_size.y <= 0.0:
-		return
-	var fit_scale := minf(target_size.x / texture_size.x, target_size.y / texture_size.y)
-	var final_scale := fit_scale
-	if apply_visual_scale:
-		final_scale *= visual_scale
-	sprite.scale = Vector2.ONE * final_scale
+func _get_weapon_visual_size() -> Vector2:
+	if _weapon_sprite != null and _weapon_sprite.texture != null:
+		return _weapon_sprite.texture.get_size()
+	return Vector2(64.0, 64.0) * visual_scale
 
 
 func _uses_asset_visual() -> bool:
-	return _slot_texture != null and _weapon_texture != null
+	return _weapon_texture != null
 
 
 func _draw() -> void:

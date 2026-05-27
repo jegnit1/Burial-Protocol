@@ -7,6 +7,9 @@ const ATTACK_MODULE_STYLE_RESOLVER := preload("res://scripts/data/AttackModuleSt
 const CATEGORY_ATTACK_MODULE: StringName = &"attack_module"
 const CATEGORY_FUNCTION_MODULE: StringName = &"function_module"
 const CATEGORY_ENHANCE_MODULE: StringName = &"enhance_module"
+const CATEGORY_WEAPON: StringName = &"weapon"
+const CATEGORY_PART: StringName = &"part"
+const CATEGORY_ARTIFACT: StringName = &"artifact"
 const ATTACK_MODULE_OFFER_SEPARATOR := "@"
 const ATTACK_MODULE_SHOP_GRADES := ["D", "C", "B", "A", "S"]
 const ATTACK_MODULE_FALLBACK_PRICES := {
@@ -63,12 +66,16 @@ func get_item_definition(item_id: StringName) -> Dictionary:
 
 func get_items_by_category(category: StringName) -> Array[Dictionary]:
 	_rebuild_cache()
-	if not _items_by_category.has(category):
-		return []
 	var items: Array[Dictionary] = []
-	for raw_item in _items_by_category[category]:
-		var item: Dictionary = raw_item
-		items.append(normalize_item_definition(item))
+	var categories: Array[StringName] = [category]
+	if not _items_by_category.has(category):
+		categories = _get_compatible_query_categories(category)
+	for query_category in categories:
+		if not _items_by_category.has(query_category):
+			continue
+		for raw_item in _items_by_category[query_category]:
+			var item: Dictionary = raw_item
+			items.append(normalize_item_definition(item))
 	return items
 
 
@@ -81,9 +88,9 @@ func get_reward_candidate_items_for_rank(rank: String) -> Array[Dictionary]:
 		if not bool(item.get("shop_enabled", true)):
 			continue
 		var category := String(item.get("item_category", ""))
-		if category != String(CATEGORY_ATTACK_MODULE) and category != String(CATEGORY_FUNCTION_MODULE) and category != String(CATEGORY_ENHANCE_MODULE):
+		if category != String(CATEGORY_WEAPON) and category != String(CATEGORY_PART) and category != String(CATEGORY_ARTIFACT):
 			continue
-		if category == String(CATEGORY_ATTACK_MODULE):
+		if category == String(CATEGORY_WEAPON):
 			var offer := _build_reward_attack_module_candidate(item, normalized_rank)
 			if not offer.is_empty():
 				candidates.append(offer)
@@ -103,8 +110,13 @@ func has_item(item_id: StringName) -> bool:
 
 func normalize_item_definition(item: Dictionary) -> Dictionary:
 	var normalized := item.duplicate(true)
+	if String(normalized.get("module_type", "")).is_empty() and not String(normalized.get("weapon_type", "")).is_empty():
+		normalized["module_type"] = String(normalized.get("weapon_type", ""))
 	ATTACK_MODULE_STYLE_RESOLVER.normalize_item_dictionary(normalized)
-	if String(normalized.get("item_category", "")) == "attack_module":
+	_apply_reworked_item_category(normalized)
+	if String(normalized.get("item_category", "")) == "weapon":
+		if String(normalized.get("weapon_type", "")).is_empty():
+			normalized["weapon_type"] = String(normalized.get("module_type", ""))
 		normalized["module_base_damage"] = int(normalized.get("module_base_damage", 0))
 		normalized["base_damage_by_grade"] = _normalize_base_damage_by_grade(normalized.get("base_damage_by_grade", {}))
 		normalized["price_by_grade"] = _normalize_price_by_grade(normalized.get("price_by_grade", {}))
@@ -132,6 +144,44 @@ func normalize_item_definition(item: Dictionary) -> Dictionary:
 	normalized["tags"] = Array(normalized.get("tags", []))
 	_apply_damage_percent_display_text(normalized)
 	return normalized
+
+
+func _apply_reworked_item_category(item: Dictionary) -> void:
+	var category := String(item.get("item_category", ""))
+	match category:
+		"attack_module":
+			item["item_category"] = "weapon"
+			item["weapon_type"] = String(item.get("module_type", ""))
+		"function_module":
+			item["item_category"] = "artifact"
+		"enhance_module":
+			item["item_category"] = _classify_enhance_module_item(item)
+
+
+func _classify_enhance_module_item(item: Dictionary) -> String:
+	var effect_values: Dictionary = {}
+	if item.get("effect_values", {}) is Dictionary:
+		effect_values = (item.get("effect_values", {}) as Dictionary)
+	for raw_key in effect_values.keys():
+		match String(raw_key):
+			"attack_damage_flat", "attack_damage_percent", "damage_percent", "attack_speed_percent", "attack_range_percent", "melee_attack_damage_flat", "ranged_attack_damage_flat", "stagger_power", "weapon_stagger_power", "melee_stagger_power", "ranged_stagger_power":
+				return "part"
+	return "artifact"
+
+
+func _get_compatible_query_categories(category: StringName) -> Array[StringName]:
+	match String(category):
+		"attack_module":
+			var weapon_categories: Array[StringName] = [&"weapon"]
+			return weapon_categories
+		"function_module":
+			var artifact_categories: Array[StringName] = [&"artifact"]
+			return artifact_categories
+		"enhance_module":
+			var enhancement_categories: Array[StringName] = [&"part", &"artifact"]
+			return enhancement_categories
+	var categories: Array[StringName] = [category]
+	return categories
 
 
 func _normalize_base_damage_by_grade(raw_value: Variant) -> Dictionary:
@@ -225,7 +275,7 @@ func roll_shop_item_ids(
 			continue
 		if _should_skip_item_for_roll(item, context):
 			continue
-		if String(item.get("item_category", "")) == String(CATEGORY_ATTACK_MODULE):
+		if String(item.get("item_category", "")) == String(CATEGORY_WEAPON):
 			var module_id := String(item.get("item_id", ""))
 			if used_ids.has(_get_attack_module_used_key(module_id)):
 				continue
@@ -375,13 +425,13 @@ func _build_attack_module_offer_definition(base_item: Dictionary, grade: String)
 	offer["price_gold"] = _get_attack_module_price_for_grade(base_item, normalized_grade)
 	offer["stackable"] = false
 	offer["max_stack"] = 1
-	offer["equip_slot"] = "attack_module"
+	offer["equip_slot"] = "weapon"
 	offer["is_equippable"] = true
 	return offer
 
 
 func _can_offer_attack_module_grade(item: Dictionary, grade: String) -> bool:
-	var base_damage_by_grade: Dictionary = item.get("base_damage_by_grade", {})
+	var base_damage_by_grade: Dictionary = item.get("base_damage_by_grade", {}) as Dictionary
 	if int(base_damage_by_grade.get(grade, 0)) <= 0:
 		return false
 	return _get_attack_module_price_for_grade(item, grade) > 0
@@ -396,7 +446,7 @@ func _build_reward_attack_module_candidate(item: Dictionary, rank: String) -> Di
 
 
 func _get_attack_module_price_for_grade(item: Dictionary, grade: String) -> int:
-	var price_by_grade: Dictionary = item.get("price_by_grade", {})
+	var price_by_grade: Dictionary = item.get("price_by_grade", {}) as Dictionary
 	var price := int(price_by_grade.get(grade, 0))
 	if price > 0:
 		return price

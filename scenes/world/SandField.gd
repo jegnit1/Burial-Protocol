@@ -202,16 +202,22 @@ func try_clear_jump_space(player_rect: Rect2, facing_direction: int) -> bool:
 	if direction == 0:
 		direction = 1
 	var moved := false
-	var candidate_count := 0
-	for cell in candidates:
-		if candidate_count >= GameConstants.SAND_JUMP_CLEAR_CANDIDATE_LIMIT:
+	for clear_direction in [direction, -direction]:
+		jump_attempt_visited.clear()
+		jump_check_budget = GameConstants.SAND_JUMP_CLEAR_CHECK_LIMIT
+		jump_move_budget = GameConstants.SAND_JUMP_CLEAR_MOVE_LIMIT
+		var candidate_count := 0
+		for cell in candidates:
+			if candidate_count >= GameConstants.SAND_JUMP_CLEAR_CANDIDATE_LIMIT:
+				break
+			if jump_check_budget <= 0 or jump_move_budget <= 0:
+				break
+			if jump_attempt_visited.has(cell):
+				continue
+			moved = _try_jump_clear(cell, clear_direction, 0) or moved
+			candidate_count += 1
+		if moved:
 			break
-		if jump_check_budget <= 0 or jump_move_budget <= 0:
-			break
-		if jump_attempt_visited.has(cell):
-			continue
-		moved = _try_jump_clear(cell, direction, 0) or moved
-		candidate_count += 1
 	if moved:
 		blocked_jump_signature = ""
 		blocked_jump_retry_frame = -1

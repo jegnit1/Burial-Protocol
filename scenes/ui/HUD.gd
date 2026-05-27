@@ -323,7 +323,7 @@ func _update_skill_ui() -> void:
 		dash_remaining = _tracked_player.get_dash_cooldown_remaining()
 		dash_duration = _tracked_player.get_dash_cooldown_duration()
 		dash_ready = _tracked_player.can_dash()
-	_apply_skill_slot_state(0, "D", "DASH", "Z", dash_remaining, dash_duration, dash_ready, true)
+	_apply_skill_slot_state(0, "D", "DASH", "RMB", dash_remaining, dash_duration, dash_ready, true)
 	_apply_skill_slot_state(1, "2", "EMPTY", "", 0.0, 1.0, false, false)
 	_apply_skill_slot_state(2, "3", "EMPTY", "", 0.0, 1.0, false, false)
 
@@ -771,6 +771,6 @@ func _build_layout() -> void:
 	skill_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	skill_bar_anchor.add_child(skill_bar)
 
-	skill_bar.add_child(_create_skill_slot("D", "DASH", "Z"))
+	skill_bar.add_child(_create_skill_slot("D", "DASH", "RMB"))
 	skill_bar.add_child(_create_skill_slot("2", "EMPTY", ""))
 	skill_bar.add_child(_create_skill_slot("3", "EMPTY", ""))

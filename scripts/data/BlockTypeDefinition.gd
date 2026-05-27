@@ -9,6 +9,7 @@ class_name BlockTypeDefinition
 @export var can_spawn_randomly := true
 @export var spawn_weight_multiplier := 1.0
 @export var hp_multiplier := 1.0
+@export var stagger_resistance := 0.0
 @export var reward_multiplier := 1.0
 @export var sand_units_multiplier := 1.0
 @export var special_result_override: StringName = &"none"

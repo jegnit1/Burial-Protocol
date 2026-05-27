@@ -1,5 +1,9 @@
 extends Node
 
+const UI_FONT_PATH := "res://assets/fonts/Galmuri9.ttf"
+
+var _ui_font: Font
+
 # 레이아웃과 카메라 fit 계산의 기준이 되는 기본 뷰포트 크기.
 const VIEWPORT_SIZE := Vector2i(1920, 1080)
 # 월드 설계의 기본 픽셀 단위. 1U는 이 픽셀 수와 같다.
@@ -20,7 +24,7 @@ const FLOOR_ROW := WORLD_ROWS - 1
 const WORLD_PIXEL_WIDTH := WORLD_COLUMNS * CELL_SIZE
 # 월드 전체 세로 길이의 픽셀 값.
 const WORLD_PIXEL_HEIGHT := WORLD_ROWS * CELL_SIZE
-const WORLD_CAMERA_ZOOM := 0.75
+const WORLD_CAMERA_ZOOM := 0.8
 # 화면 상단 HUD 영역의 높이.
 const HUD_HEIGHT := 208
 # 화면 최상단과 HUD 패널 사이의 간격.
@@ -49,8 +53,6 @@ const WORLD_ORIGIN := Vector2i(WORLD_SIDE_MARGIN, WORLD_TOP_MARGIN)
 const WORLD_CAMERA_FIT_MARGIN_RATIO := 0.98
 const WORLD_PLAYABLE_TOP_EXTRA_SCREEN_MULTIPLIER := 2.0
 const WORLD_PLAYABLE_TOP_Y := float(WORLD_ORIGIN.y) - float(VIEWPORT_SIZE.y) * WORLD_PLAYABLE_TOP_EXTRA_SCREEN_MULTIPLIER
-const PLAYER_WALL_CLIMB_TOP_GUARD_UNITS := 4.0
-const PLAYER_WALL_CLIMB_TOP_LIMIT_Y := WORLD_PLAYABLE_TOP_Y + float(CELL_SIZE) * PLAYER_WALL_CLIMB_TOP_GUARD_UNITS
 const BLOCK_SPAWN_MIN_CAMERA_TOP_Y := WORLD_PLAYABLE_TOP_Y
 
 # 월드 기준 플레이어의 충돌/표시 크기.
@@ -85,12 +87,9 @@ const PLAYER_JUMP_SPEED := -853.0
 # 바닥을 떠난 뒤 추가로 사용할 수 있는 점프 횟수.
 const PLAYER_EXTRA_JUMPS := 1
 # 벽 점프 시 적용되는 가로 방향 초기 속도.
-const PLAYER_WALL_JUMP_SPEED_X := 480.0
 const PLAYER_BATTERY_MAX := 100.0
-const PLAYER_WALL_CLIMB_DRAIN_PER_SEC := 5.0
-const PLAYER_BATTERY_RECOVERY_PER_SEC := 5.0
-const PLAYER_WALL_CLIMB_FALL_SPEED := 110.0
-const PLAYER_WALL_CLIMB_INPUT_DEADZONE := 0.25
+const PLAYER_BATTERY_RECOVERY_PER_SEC := 1.0
+const PLAYER_MINING_BATTERY_COST := 5.0
 # 빠른 낙하 중 추가로 더해지는 아래쪽 가속도.
 const PLAYER_FAST_FALL_ACCELERATION := 2933.0
 # 빠른 낙하 중 허용되는 최대 아래쪽 속도.
@@ -118,6 +117,7 @@ const PLAYER_ATTACK_VISUAL_DURATION := 0.12
 const PLAYER_ATTACK_DIRECTION_DEADZONE := 12.0
 # 공격모듈은 전투 규칙상 슬롯 순서 의미 없이 최대 5개까지 장착한다.
 const ATTACK_MODULE_MAX_EQUIPPED := 5
+const PART_MAX_EQUIPPED := 5
 const ATTACK_MODULE_GRADE_ORDER := ["D", "C", "B", "A", "S"]
 const ATTACK_MODULE_GRADE_DAMAGE_MULTIPLIERS := {
 	"D": 1.0,
@@ -162,12 +162,22 @@ const PLAYER_MINING_RANGE_DISTANCE := float(CELL_SIZE) * 0.5
 # 채굴 범위: 세로 높이 (1U).
 const PLAYER_MINING_RANGE_HEIGHT := float(CELL_SIZE) * 0.5
 const PLAYER_UPWARD_SAND_CHECK_HEIGHT := 2.0
-const PLAYER_DASH_DISTANCE := CELL_SIZE * 4.0
-const PLAYER_DASH_DOUBLE_TAP_WINDOW := 0.22
+const DIG_START_HOLD_TIME := 0.45
+const DIG_PREPARE_MAX_FALL_SPEED := 80.0
+const DIGGING_MAX_FALL_SPEED := 0.0
+const DIG_CHAIN_GRACE_TIME := 0.45
+const BASE_DIG_EFFECT_INTERVAL := 0.25
+const MIN_DIG_EFFECT_INTERVAL := 0.08
+const BASE_DIG_EXECUTE_INTERVAL := 0.90
+const MIN_DIG_EXECUTE_INTERVAL := 0.30
+const DIG_EXECUTE_BATTERY_COST := 5.0
+const DIG_EFFECT_FEEDBACK_DURATION := 0.08
+const PLAYER_DASH_DISTANCE := CELL_SIZE * 5.0
 const PLAYER_DASH_DURATION := 0.08
 const PLAYER_DASH_COOLDOWN := 0.45
-const PLAYER_DASH_DOWN_ENABLED := true
-const PLAYER_DASH_UP_ENABLED := false
+const PLAYER_DASH_BATTERY_COST := 15.0
+const PLAYER_DASH_INPUT_GRACE_TIME := 0.10
+const PLAYER_DASH_RECOVERY_MOVE_MULT := 0.35
 const SAND_CELL_MAX_HP := 3
 const WALL_CELL_MAX_HP := 8
 
@@ -357,6 +367,10 @@ const BLOCK_SPECIAL_RESULT_BONUS_GOLD: StringName = &"bonus_gold"
 const BLOCK_SPECIAL_RESULT_EXPLOSION: StringName = &"explosion"
 
 # 블록/Day 콘텐츠 데이터는 GameData의 .tres 리소스가 소유한다.
+const STAGGER_SECONDS_PER_POWER := 0.05
+const BLOCK_STAGGER_IMMUNITY_SEC := 0.08
+const BLOCK_MAX_STAGGER_SEC := 0.15
+
 const INPUT_BINDINGS := {
 	"move_left": [
 		{"type": "key", "code": KEY_A},
@@ -376,7 +390,7 @@ const INPUT_BINDINGS := {
 		{"type": "key", "code": KEY_DOWN},
 	],
 	"dash_action": [
-		{"type": "key", "code": KEY_Z},
+		{"type": "mouse_button", "button_index": MOUSE_BUTTON_RIGHT},
 	],
 	"interact_action": [
 		{"type": "key", "code": KEY_E},
@@ -388,7 +402,6 @@ const INPUT_BINDINGS := {
 		{"type": "mouse_button", "button_index": MOUSE_BUTTON_LEFT},
 	],
 	"mine_action": [
-		{"type": "mouse_button", "button_index": MOUSE_BUTTON_RIGHT},
 	],
 	"restart": [
 		{"type": "key", "code": KEY_R},
@@ -403,7 +416,26 @@ const INPUT_BINDINGS := {
 
 
 func _ready() -> void:
+	_apply_default_font()
 	ensure_input_actions()
+
+
+func get_ui_font() -> Font:
+	if _ui_font == null:
+		_ui_font = load(UI_FONT_PATH) as Font
+	return _ui_font
+
+
+func _apply_default_font() -> void:
+	var font := get_ui_font()
+	if font == null:
+		push_warning("Failed to load UI font: %s" % UI_FONT_PATH)
+		return
+
+	ThemeDB.fallback_font = font
+	var project_theme := ThemeDB.get_project_theme()
+	if project_theme != null:
+		project_theme.default_font = font
 
 
 func ensure_input_actions() -> void:

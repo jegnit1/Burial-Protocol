@@ -647,7 +647,8 @@ func _get_shop_stat_bonus_by_rank() -> Dictionary:
 	var result := {}
 	for raw_item in _game_data.call("get_all_shop_items"):
 		var item: Dictionary = raw_item
-		if String(item.get("item_category", "")) != "enhance_module":
+		var category := String(item.get("item_category", ""))
+		if category != "part" and category != "artifact" and category != "enhance_module":
 			continue
 		var effect_type := String(item.get("effect_type", ""))
 		if effect_type != "stat_bonus" and effect_type != "conditional_stat_bonus":
@@ -678,7 +679,8 @@ func _get_shop_stat_bonus_rank_comparison() -> Dictionary:
 	var missing_doc_targets: Array[Dictionary] = []
 	for raw_item in _game_data.call("get_all_shop_items"):
 		var item: Dictionary = raw_item
-		if String(item.get("item_category", "")) != "enhance_module":
+		var category := String(item.get("item_category", ""))
+		if category != "part" and category != "artifact" and category != "enhance_module":
 			continue
 		var effect_type := String(item.get("effect_type", ""))
 		if effect_type != "stat_bonus" and effect_type != "conditional_stat_bonus":

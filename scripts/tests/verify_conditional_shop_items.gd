@@ -42,7 +42,7 @@ func _run_checks() -> void:
 	_check_existing_stat_bonus_purchase()
 	_check_melee_purity_core_condition()
 	_check_module_focus_circuit_condition()
-	_check_attack_module_add_and_synthesis_smoke()
+	_check_weapon_replacement_smoke()
 	_check_shop_item_price_deduction()
 	_check_shop_reroll_cost_progression()
 	_check_shop_reroll_gold_failure_and_reset()
@@ -72,11 +72,11 @@ func _check_catalog_loads_new_and_legacy_items() -> void:
 
 func _check_attack_module_style_fields() -> void:
 	var expected := {
-		"sword_module": {"attack_style": "slash", "effect_style": "slash_arc", "base": Vector2(1.0, 1.0), "growth": Vector2(1.0, 0.1)},
-		"dagger_module": {"attack_style": "stab", "effect_style": "short_stab", "base": Vector2(0.5, 0.5), "growth": Vector2(1.0, 0.0)},
-		"lance_module": {"attack_style": "pierce", "effect_style": "long_pierce", "base": Vector2(2.5, 0.5), "growth": Vector2(1.0, 0.0)},
-		"axe_module": {"attack_style": "smash", "effect_style": "blunt_smash", "base": Vector2(1.0, 1.0), "growth": Vector2(1.0, 0.1)},
-		"greatsword_module": {"attack_style": "cleave", "effect_style": "big_cleave", "base": Vector2(1.5, 1.0), "growth": Vector2(1.0, 0.2)},
+		"sword_module": {"attack_style": "slash", "effect_style": "slash_arc", "base": Vector2(1.0, 1.0), "growth": Vector2(1.0, 0.1), "stagger_power": 1.0},
+		"dagger_module": {"attack_style": "stab", "effect_style": "short_stab", "base": Vector2(0.5, 0.5), "growth": Vector2(1.0, 0.0), "stagger_power": 1.0},
+		"lance_module": {"attack_style": "pierce", "effect_style": "long_pierce", "base": Vector2(2.5, 0.5), "growth": Vector2(1.0, 0.0), "stagger_power": 2.0},
+		"axe_module": {"attack_style": "smash", "effect_style": "blunt_smash", "base": Vector2(1.0, 1.0), "growth": Vector2(1.0, 0.1), "stagger_power": 3.0},
+		"greatsword_module": {"attack_style": "cleave", "effect_style": "big_cleave", "base": Vector2(1.5, 1.0), "growth": Vector2(1.0, 0.2), "stagger_power": 4.0},
 	}
 	var loaded := {}
 	for module_id in expected.keys():
@@ -88,12 +88,14 @@ func _check_attack_module_style_fields() -> void:
 		loaded[module_id] = {
 			"attack_style": String(definition.attack_style),
 			"effect_style": String(definition.effect_style),
+			"stagger_power": definition.stagger_power,
 			"base_shape_units": {"x": definition.base_shape_units.x, "y": definition.base_shape_units.y},
 			"range_growth": {"width": definition.range_growth_width_scale, "height": definition.range_growth_height_scale},
 		}
 		_expect(String(definition.module_type) == "melee", "%s should remain melee" % module_id)
 		_expect(String(definition.attack_style) == String(expected_entry["attack_style"]), "%s attack_style should match" % module_id)
 		_expect(String(definition.effect_style) == String(expected_entry["effect_style"]), "%s effect_style should match" % module_id)
+		_expect(is_equal_approx(definition.stagger_power, float(expected_entry["stagger_power"])), "%s stagger_power should match" % module_id)
 		_expect(_is_vector_near(definition.base_shape_units, expected_entry["base"]), "%s base_shape_units should match" % module_id)
 		_expect(is_equal_approx(definition.range_growth_width_scale, (expected_entry["growth"] as Vector2).x), "%s width growth should match" % module_id)
 		_expect(is_equal_approx(definition.range_growth_height_scale, (expected_entry["growth"] as Vector2).y), "%s height growth should match" % module_id)
@@ -131,10 +133,10 @@ func _check_melee_style_shape_growth() -> void:
 
 func _check_ranged_attack_module_style_fields() -> void:
 	var expected := {
-		"pistol_module": {"attack_style": "revolver", "effect_style": "revolver_projectile", "projectile_count": 1, "spread_angle": 0.0, "pierce_count": 0, "is_hitscan": false},
-		"shotgun_module": {"attack_style": "shotgun", "effect_style": "shotgun_spread", "projectile_count": 3, "spread_angle": 26.0, "pierce_count": 0, "is_hitscan": false},
-		"sniper_module": {"attack_style": "sniper", "effect_style": "sniper_projectile", "projectile_count": 1, "spread_angle": 0.0, "pierce_count": 2, "is_hitscan": false},
-		"laser_module": {"attack_style": "laser", "effect_style": "laser_beam", "projectile_count": 0, "spread_angle": 0.0, "pierce_count": 0, "is_hitscan": true},
+		"pistol_module": {"attack_style": "revolver", "effect_style": "revolver_projectile", "projectile_count": 1, "spread_angle": 0.0, "pierce_count": 0, "is_hitscan": false, "stagger_power": 0.0},
+		"shotgun_module": {"attack_style": "shotgun", "effect_style": "shotgun_spread", "projectile_count": 3, "spread_angle": 26.0, "pierce_count": 0, "is_hitscan": false, "stagger_power": 0.0},
+		"sniper_module": {"attack_style": "sniper", "effect_style": "sniper_projectile", "projectile_count": 1, "spread_angle": 0.0, "pierce_count": 2, "is_hitscan": false, "stagger_power": 0.0},
+		"laser_module": {"attack_style": "laser", "effect_style": "laser_beam", "projectile_count": 0, "spread_angle": 0.0, "pierce_count": 0, "is_hitscan": true, "stagger_power": 0.0},
 	}
 	var loaded := {}
 	for module_id in expected.keys():
@@ -147,6 +149,7 @@ func _check_ranged_attack_module_style_fields() -> void:
 			"attack_style": String(definition.attack_style),
 			"effect_style": String(definition.effect_style),
 			"range_units": definition.range_units,
+			"stagger_power": definition.stagger_power,
 			"projectile_count": definition.projectile_count,
 			"spread_angle": definition.spread_angle,
 			"pierce_count": definition.pierce_count,
@@ -156,6 +159,7 @@ func _check_ranged_attack_module_style_fields() -> void:
 		_expect(String(definition.module_type) == "ranged", "%s should remain ranged" % module_id)
 		_expect(String(definition.attack_style) == String(expected_entry["attack_style"]), "%s attack_style should match" % module_id)
 		_expect(String(definition.effect_style) == String(expected_entry["effect_style"]), "%s effect_style should match" % module_id)
+		_expect(is_equal_approx(definition.stagger_power, float(expected_entry["stagger_power"])), "%s stagger_power should match" % module_id)
 		_expect(definition.projectile_count == int(expected_entry["projectile_count"]), "%s projectile_count should match" % module_id)
 		_expect(is_equal_approx(definition.spread_angle, float(expected_entry["spread_angle"])), "%s spread_angle should match" % module_id)
 		_expect(definition.pierce_count == int(expected_entry["pierce_count"]), "%s pierce_count should match" % module_id)
@@ -355,41 +359,35 @@ func _check_module_focus_circuit_condition() -> void:
 	_reset_with_gold()
 	_game_state.call("purchase_shop_item", &"dagger_module")
 	_game_state.call("purchase_shop_item", &"lance_module")
-	var three_module_before: int = _game_state.call("get_attack_damage")
-	var three_module_result: Dictionary = _game_state.call("purchase_shop_item", &"module_focus_circuit")
-	var three_module_after: int = _game_state.call("get_attack_damage")
-	_record("focus_satisfied_before", three_module_before)
-	_record("focus_satisfied_after", three_module_after)
-	_record("focus_satisfied_purchase", three_module_result)
-	_expect(bool(three_module_result.get("ok", false)), "module_focus_circuit three-module purchase should succeed")
-	_expect(three_module_before == 10, "three-module baseline should remain 10 before focus circuit")
-	_expect(three_module_after == 12, "module_focus_circuit should add +2 attack with 3 equipped modules")
+	var replacement_before: int = _game_state.call("get_attack_damage")
+	var replacement_result: Dictionary = _game_state.call("purchase_shop_item", &"module_focus_circuit")
+	var replacement_after: int = _game_state.call("get_attack_damage")
+	_record("focus_replacement_before", replacement_before)
+	_record("focus_replacement_after", replacement_after)
+	_record("focus_replacement_purchase", replacement_result)
+	_expect(bool(replacement_result.get("ok", false)), "module_focus_circuit purchase should still succeed")
+	_expect(_get_equipped_attack_module_entries().size() == 1, "weapon rework should keep one equipped weapon")
+	_expect(replacement_after == replacement_before, "module_focus_circuit should stay inactive because three weapons can no longer be equipped")
 
 
-func _check_attack_module_add_and_synthesis_smoke() -> void:
+func _check_weapon_replacement_smoke() -> void:
 	_reset_with_gold()
 	var add_result: Dictionary = _game_state.call("purchase_shop_item", &"dagger_module")
-	_record("attack_module_add_result", add_result)
-	_record("attack_module_count_after_add", _get_equipped_attack_module_entries().size())
-	_expect(bool(add_result.get("ok", false)), "dagger_module add purchase should succeed")
-	_expect(String(add_result.get("reason", "")) == "add", "dagger_module first purchase should add")
+	_record("weapon_equip_result", add_result)
+	_record("weapon_count_after_equip", _get_equipped_attack_module_entries().size())
+	_expect(bool(add_result.get("ok", false)), "dagger_module weapon purchase should succeed")
+	_expect(String(add_result.get("reason", "")) == "equip_weapon", "dagger_module purchase should equip one weapon")
+	_expect(_get_equipped_attack_module_entries().size() == 1, "weapon purchase should keep one equipped weapon")
 
 	_game_state.call("purchase_shop_item", &"lance_module")
-	_game_state.call("purchase_shop_item", &"axe_module")
-	_game_state.call("purchase_shop_item", &"greatsword_module")
-	var synth_result: Dictionary = _game_state.call("purchase_shop_item", &"dagger_module")
-	var dagger_grade := ""
-	for entry in _get_equipped_attack_module_entries():
-		if String(entry.get("module_id", "")) == "dagger_module":
-			dagger_grade = String(entry.get("grade", ""))
-			break
-	_record("attack_module_synth_result", synth_result)
-	_record("attack_module_count_after_synth", _get_equipped_attack_module_entries().size())
-	_record("attack_module_dagger_grade_after_synth", dagger_grade)
-	_expect(bool(synth_result.get("ok", false)), "dagger_module synth purchase should succeed when slots are full")
-	_expect(String(synth_result.get("reason", "")) == "synthesize", "dagger_module duplicate should synthesize at full slots")
-	_expect(_get_equipped_attack_module_entries().size() == 5, "synthesis should keep equipped module count capped")
-	_expect(dagger_grade == "B", "C dagger duplicate should synthesize to B")
+	var entries := _get_equipped_attack_module_entries()
+	var equipped_module_id := ""
+	if not entries.is_empty():
+		equipped_module_id = String((entries[0] as Dictionary).get("module_id", ""))
+	_record("weapon_count_after_replacement", entries.size())
+	_record("weapon_id_after_replacement", equipped_module_id)
+	_expect(entries.size() == 1, "weapon replacement should not add extra attack module slots")
+	_expect(equipped_module_id == "lance_module", "latest purchased weapon should replace the equipped weapon")
 
 
 func _check_shop_item_price_deduction() -> void:

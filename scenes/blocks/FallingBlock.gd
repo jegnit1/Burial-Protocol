@@ -12,6 +12,8 @@ var sand_field: SandField
 var player: Player
 var current_health := 1
 var fall_remainder := 0.0
+var hit_stun_remaining := 0.0
+var hit_stun_immunity_remaining := 0.0
 var active := false
 var frame_motion := Vector2.ZERO
 # HP 오버레이 상태. 피격 시 타이머를 설정해 잠깐 표시한다.
@@ -35,6 +37,8 @@ func setup(data: BlockData, spawn_position: Vector2, target_world: WorldGrid, ta
 	current_health = block_data.get_effective_health()
 	_max_health_cache = current_health
 	_hp_overlay_timer = 0.0
+	hit_stun_remaining = 0.0
+	hit_stun_immunity_remaining = 0.0
 	active = true
 	frame_motion = Vector2.ZERO
 	collision_layer = 1
@@ -52,20 +56,23 @@ func _physics_process(delta: float) -> void:
 			_hp_overlay_timer = 0.0
 			queue_redraw()  # 오버레이 숨김을 위한 1회 갱신
 	frame_motion = Vector2.ZERO
+	hit_stun_immunity_remaining = maxf(hit_stun_immunity_remaining - delta, 0.0)
+	if hit_stun_remaining > 0.0:
+		hit_stun_remaining = maxf(hit_stun_remaining - delta, 0.0)
+		return
 	fall_remainder += GameConstants.BLOCK_FALL_SPEED * delta
 	var step_pixels := int(floor(fall_remainder))
 	fall_remainder -= step_pixels
 	for _index in range(step_pixels):
 		var next_rect := get_block_rect()
 		next_rect.position.y += 1.0
-		if player != null and player.is_crushable_under(next_rect):
-			if player.receive_crush_hit(_get_player_crush_damage()):
-				_emit_decompose("player_crush")
-				return
 		if player != null and next_rect.intersects(player.get_body_rect()):
-			position.y = player.get_head_y() - get_block_rect().size.y * 0.5
-			fall_remainder = 0.0
-			queue_redraw()
+			if player.try_push_down_by_falling_block(self):
+				position.y += 1.0
+				frame_motion.y += 1.0
+				continue
+			player.receive_crush_hit(_get_player_crush_damage())
+			_emit_decompose("player_crush")
 			return
 		if world_grid.rect_collides_static(next_rect) or sand_field.rect_collides(next_rect):
 			_emit_decompose("settled")
@@ -103,7 +110,7 @@ func get_block_base_debug_text() -> String:
 	return block_data.get_block_base_debug_text()
 
 
-func apply_damage(amount: int, is_critical: bool = false) -> void:
+func apply_damage(amount: int, is_critical: bool = false, attacker_stagger_power: float = 0.0) -> void:
 	if not active:
 		return
 	_spawn_damage_popup(amount, is_critical)
@@ -113,8 +120,24 @@ func apply_damage(amount: int, is_critical: bool = false) -> void:
 		destroyed.emit(self)
 		queue_free()
 	else:
+		_try_apply_hit_stun(attacker_stagger_power)
 		_hp_overlay_timer = GameConstants.BLOCK_HP_OVERLAY_DURATION
 		queue_redraw()
+
+
+func _try_apply_hit_stun(attacker_stagger_power: float) -> void:
+	if hit_stun_immunity_remaining > 0.0:
+		return
+	var block_stagger_resistance := 0.0
+	if block_data != null:
+		block_stagger_resistance = maxf(block_data.stagger_resistance, 0.0)
+	var effective_stagger_power := maxf(attacker_stagger_power - block_stagger_resistance, 0.0)
+	var stun_seconds := effective_stagger_power * GameConstants.STAGGER_SECONDS_PER_POWER
+	if stun_seconds <= 0.0:
+		return
+	var applied_stun := minf(stun_seconds, GameConstants.BLOCK_MAX_STAGGER_SEC)
+	hit_stun_remaining = maxf(hit_stun_remaining, applied_stun)
+	hit_stun_immunity_remaining = GameConstants.BLOCK_STAGGER_IMMUNITY_SEC
 
 
 func _emit_decompose(reason: StringName) -> void:

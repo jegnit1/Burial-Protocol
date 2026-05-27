@@ -228,6 +228,12 @@ func _on_close_pressed() -> void:
 
 func _format_category(category: String) -> String:
 	match category:
+		"weapon":
+			return "Weapon"
+		"part":
+			return "Part"
+		"artifact":
+			return "Artifact"
 		"attack_module":
 			return "Attack Module"
 		"function_module":

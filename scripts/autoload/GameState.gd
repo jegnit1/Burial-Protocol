@@ -158,6 +158,8 @@ var run_bonus_battery_recovery := 0.0
 var owned_attack_module_ids: PackedStringArray = PackedStringArray()
 var equipped_attack_module_id: StringName = StringName()
 var equipped_attack_modules: Array[Dictionary] = []
+var equipped_parts: Array[Dictionary] = []
+var owned_artifact_counts: Dictionary = {}
 var attack_module_instance_sequence := 0
 var attack_module_runtime_state: Dictionary = {}
 var owned_function_module_ids: PackedStringArray = PackedStringArray()
@@ -376,7 +378,7 @@ func heal_player(amount: int) -> void:
 
 
 func get_player_max_health() -> int:
-	return GameConstants.PLAYER_MAX_HEALTH + run_bonus_max_hp
+	return GameConstants.PLAYER_MAX_HEALTH + run_bonus_max_hp + int(get_stat_query_effect_value("max_hp_flat"))
 
 
 func get_attack_damage() -> int:
@@ -405,11 +407,11 @@ func get_base_attack_damage() -> int:
 
 
 func get_melee_base_attack_damage() -> int:
-	return maxi(GameConstants.PLAYER_ATTACK_DAMAGE + run_bonus_melee_attack_damage, 1)
+	return maxi(GameConstants.PLAYER_ATTACK_DAMAGE + run_bonus_melee_attack_damage + int(get_stat_query_effect_value("melee_attack_damage_flat")), 1)
 
 
 func get_ranged_base_attack_damage() -> int:
-	return maxi(GameConstants.PLAYER_ATTACK_DAMAGE + run_bonus_ranged_attack_damage, 1)
+	return maxi(GameConstants.PLAYER_ATTACK_DAMAGE + run_bonus_ranged_attack_damage + int(get_stat_query_effect_value("ranged_attack_damage_flat")), 1)
 
 
 func get_melee_attack_damage_flat() -> int:
@@ -513,15 +515,16 @@ func get_attack_base_damage_for_module(module_entry: Dictionary) -> int:
 		return get_base_attack_damage()
 	var grade := String(module_entry.get("grade", ATTACK_MODULE_DEFAULT_GRADE))
 	var module_base_damage := get_attack_module_base_damage_for_grade(module_definition, grade)
+	var weapon_flat := int(_get_active_part_effect_value("weapon_damage_flat"))
 	match String(module_definition.module_type):
 		"melee":
-			return maxi(module_base_damage + get_melee_attack_damage_flat(), 1)
+			return maxi(module_base_damage + get_melee_attack_damage_flat() + weapon_flat + int(_get_active_part_effect_value("weapon_melee_damage_flat") + _get_active_part_effect_value("melee_attack_damage_flat")), 1)
 		"ranged":
-			return maxi(module_base_damage + get_ranged_attack_damage_flat(), 1)
+			return maxi(module_base_damage + get_ranged_attack_damage_flat() + weapon_flat + int(_get_active_part_effect_value("weapon_ranged_damage_flat") + _get_active_part_effect_value("ranged_attack_damage_flat")), 1)
 		"mechanic":
-			return module_base_damage
+			return maxi(module_base_damage + weapon_flat, 1)
 		_:
-			return module_base_damage
+			return maxi(module_base_damage + weapon_flat, 1)
 
 
 func get_attack_module_damage(module_entry: Dictionary) -> int:
@@ -529,7 +532,26 @@ func get_attack_module_damage(module_entry: Dictionary) -> int:
 	if module_definition == null:
 		return maxi(int(floor(float(get_base_attack_damage()) * get_global_damage_multiplier())), 1)
 	var base_damage := get_attack_base_damage_for_module(module_entry)
-	return maxi(int(floor(float(base_damage) * get_global_damage_multiplier())), 1)
+	var part_damage_percent := _get_active_part_effect_value("weapon_damage_percent") + _get_active_part_effect_value("damage_percent")
+	return maxi(int(floor(float(base_damage) * maxf(get_global_damage_multiplier() + part_damage_percent, 0.0))), 1)
+
+
+func get_attack_module_stagger_power(module_entry: Dictionary) -> float:
+	var module_definition = get_attack_module_definition_from_entry(module_entry)
+	if module_definition == null:
+		return 0.0
+	var base_stagger_power := 0.0
+	if module_definition is Dictionary:
+		base_stagger_power = float(module_definition.get("stagger_power", 0.0))
+	else:
+		base_stagger_power = float(module_definition.stagger_power)
+	var part_stagger_power := _get_active_part_effect_value("weapon_stagger_power") + _get_active_part_effect_value("stagger_power")
+	match String(module_definition.module_type):
+		"melee":
+			part_stagger_power += _get_active_part_effect_value("weapon_melee_stagger_power") + _get_active_part_effect_value("melee_stagger_power")
+		"ranged":
+			part_stagger_power += _get_active_part_effect_value("weapon_ranged_stagger_power") + _get_active_part_effect_value("ranged_stagger_power")
+	return maxf(base_stagger_power + part_stagger_power, 0.0)
 
 
 func get_mechanic_attack_module_damage(module_entry: Dictionary) -> int:
@@ -546,6 +568,7 @@ func get_attack_module_cooldown_duration(module_entry: Dictionary) -> float:
 	var module_speed := 1.0
 	if module_definition != null:
 		module_speed = maxf(module_definition.attack_speed_multiplier, 0.01)
+		module_speed *= maxf(1.0 + _get_active_part_effect_value("weapon_attack_speed_percent") + _get_active_part_effect_value("attack_speed_percent"), 0.01)
 		module_speed *= _get_attack_module_grade_multiplier(
 			String(module_entry.get("grade", ATTACK_MODULE_DEFAULT_GRADE)),
 			GameConstants.ATTACK_MODULE_GRADE_SPEED_MULTIPLIERS
@@ -557,7 +580,10 @@ func get_attack_module_cooldown_duration(module_entry: Dictionary) -> float:
 
 
 func get_attack_range_multiplier() -> float:
-	return GameConstants.PLAYER_ATTACK_RANGE_MULTIPLIER * run_attack_range_mult
+	return GameConstants.PLAYER_ATTACK_RANGE_MULTIPLIER * run_attack_range_mult * maxf(
+		1.0 + _get_active_part_effect_value("weapon_attack_range_percent") + _get_active_part_effect_value("attack_range_percent"),
+		0.01
+	)
 
 
 func get_equipped_attack_module_id() -> StringName:
@@ -734,6 +760,8 @@ func get_attack_module_shop_snapshot() -> Dictionary:
 		"equipped_module_id": String(get_equipped_attack_module_id()),
 		"equipped_module_name": get_equipped_attack_module_display_name(),
 		"owned_module_ids": Array(owned_attack_module_ids),
+		"equipped_parts": get_equipped_part_entries(),
+		"owned_artifact_counts": owned_artifact_counts.duplicate(true),
 		"module_entries": module_entries,
 	}
 
@@ -743,6 +771,8 @@ func get_shop_roll_context() -> Dictionary:
 		"stage_number": current_day,
 		"current_day": current_day,
 		"owned_attack_module_ids": get_owned_attack_module_ids(),
+		"equipped_parts": get_equipped_part_entries(),
+		"owned_artifact_counts": owned_artifact_counts.duplicate(true),
 		"owned_function_module_ids": get_owned_function_module_ids(),
 		"luck": get_luck(),
 		"shop_locked_slots": get_current_shop_locked_slots(),
@@ -755,6 +785,25 @@ func get_owned_function_module_ids() -> PackedStringArray:
 
 func get_owned_enhance_module_counts() -> Dictionary:
 	return owned_enhance_module_counts.duplicate(true)
+
+
+func get_equipped_part_entries() -> Array[Dictionary]:
+	var entries: Array[Dictionary] = []
+	for raw_entry in equipped_parts:
+		var entry: Dictionary = raw_entry
+		var snapshot := entry.duplicate(true)
+		snapshot["active"] = _is_part_entry_active(entry)
+		snapshot["inactive_reason"] = _get_part_inactive_reason(entry)
+		entries.append(snapshot)
+	return entries
+
+
+func get_owned_artifact_counts() -> Dictionary:
+	return owned_artifact_counts.duplicate(true)
+
+
+func get_artifact_stack_count(item_id: StringName) -> int:
+	return int(owned_artifact_counts.get(String(item_id), 0))
 
 
 func get_enhance_module_stack_count(item_id: StringName) -> int:
@@ -784,7 +833,7 @@ func get_current_run_effect_entries(effect_type: StringName = StringName()) -> A
 
 func get_stat_query_effect_value(effect_key: String, context: Dictionary = {}) -> float:
 	var total := 0.0
-	for raw_entry in get_current_run_effect_entries(&"conditional_stat_bonus"):
+	for raw_entry in get_current_run_effect_entries():
 		var entry: Dictionary = raw_entry
 		if String(entry.get("apply_timing", "")) != "stat_query":
 			continue
@@ -818,6 +867,8 @@ func get_day_shop_snapshot(item_ids: PackedStringArray) -> Dictionary:
 		"equipped_attack_module_id": String(get_equipped_attack_module_id()),
 		"equipped_attack_module_name": get_equipped_attack_module_display_name(),
 		"owned_attack_module_ids": Array(owned_attack_module_ids),
+		"equipped_parts": get_equipped_part_entries(),
+		"owned_artifact_counts": owned_artifact_counts.duplicate(true),
 		"owned_function_module_ids": Array(owned_function_module_ids),
 		"owned_enhance_module_counts": owned_enhance_module_counts.duplicate(true),
 		"current_run_effects": current_run_effects.duplicate(true),
@@ -837,19 +888,20 @@ func purchase_shop_item(item_id: StringName) -> Dictionary:
 	var price_gold := get_effective_shop_item_price(definition)
 	if category == &"function_module" and is_function_module_owned(item_id):
 		return {"ok": false, "reason": "already_owned"}
-	if category != &"attack_module" and category != &"function_module" and category != &"enhance_module":
+	if not _is_supported_shop_category(category):
 		return {"ok": false, "reason": "unsupported_category"}
-	if category == &"attack_module":
-		var module_id := _get_shop_attack_module_id(definition)
-		var grade := _get_shop_attack_module_grade(definition)
-		var equip_result := can_add_or_synthesize_attack_module(module_id, grade)
-		if not bool(equip_result.get("ok", false)):
-			return equip_result
+	var purchase_state := _get_item_purchase_state(definition)
+	if not bool(purchase_state.get("ok", false)):
+		return purchase_state
 	if not try_spend_gold(price_gold):
 		return {"ok": false, "reason": "insufficient_gold"}
 	match String(category):
-		"attack_module":
+		"weapon", "attack_module":
 			return _register_owned_attack_module(_get_shop_attack_module_id(definition), _get_shop_attack_module_grade(definition))
+		"part":
+			return _register_part_purchase(definition)
+		"artifact":
+			return _register_artifact_purchase(definition)
 		"function_module":
 			_register_function_module_purchase(definition)
 		"enhance_module":
@@ -869,8 +921,12 @@ func grant_shop_item_reward(item_id: StringName, source: String = "treasure_ches
 	var category := StringName(String(definition.get("item_category", "")))
 	var result := {}
 	match String(category):
-		"attack_module":
+		"weapon", "attack_module":
 			result = _register_owned_attack_module(_get_shop_attack_module_id(definition), _get_shop_attack_module_grade(definition))
+		"part":
+			result = _register_part_purchase(definition)
+		"artifact":
+			result = _register_artifact_purchase(definition)
 		"function_module":
 			_register_function_module_purchase(definition)
 			run_items_changed.emit()
@@ -890,11 +946,12 @@ func grant_attack_module(module_id: StringName, auto_equip := false, grade := AT
 	var module_definition = GameData.get_attack_module_definition(module_id)
 	if module_definition == null:
 		return false
-	owned_attack_module_ids.append(String(module_id))
+	if not owned_attack_module_ids.has(String(module_id)):
+		owned_attack_module_ids.append(String(module_id))
 	owned_attack_modules_changed.emit(get_owned_attack_module_ids())
 	if auto_equip:
 		var entry := _make_attack_module_entry(module_id, grade)
-		equipped_attack_modules.append(entry)
+		equipped_attack_modules = [entry]
 		_sync_primary_equipped_attack_module_id()
 		attack_module_changed.emit(equipped_attack_module_id)
 		run_items_changed.emit()
@@ -912,15 +969,9 @@ func can_add_or_synthesize_attack_module(module_id: StringName, grade: String = 
 	if module_definition == null:
 		return {"ok": false, "reason": "missing_definition"}
 	var normalized_grade := _normalize_attack_module_grade(grade)
-	if equipped_attack_modules.size() < GameConstants.ATTACK_MODULE_MAX_EQUIPPED:
-		return {"ok": true, "mode": "add"}
-	var merge_index := _find_first_synthesis_candidate(module_id, normalized_grade)
-	if merge_index >= 0:
-		var next_grade := _get_next_attack_module_grade(normalized_grade)
-		if next_grade.is_empty():
-			return {"ok": false, "reason": "no_next_grade"}
-		return {"ok": true, "mode": "synthesize", "target_index": merge_index, "next_grade": next_grade}
-	return {"ok": false, "reason": "attack_module_slots_full"}
+	if normalized_grade.is_empty():
+		return {"ok": false, "reason": "invalid_grade"}
+	return {"ok": true, "mode": "equip_weapon"}
 
 
 func get_critical_chance_ratio() -> float:
@@ -977,6 +1028,11 @@ func get_mining_damage() -> int:
 
 func get_mining_cooldown_duration() -> float:
 	return GameConstants.PLAYER_MINING_COOLDOWN * run_mining_speed_mult
+
+
+func get_mining_speed_bonus_percent() -> float:
+	var speed_multiplier := 1.0 / maxf(run_mining_speed_mult, 0.01)
+	return maxf((speed_multiplier - 1.0) * 100.0, 0.0)
 
 
 func get_mines_per_second() -> float:
@@ -1349,6 +1405,7 @@ func _update_best_record(character_id: String, difficulty_id: String, stage_reac
 func _reset_run_attack_modules() -> void:
 	owned_attack_module_ids = PackedStringArray()
 	equipped_attack_modules = []
+	equipped_parts = []
 	attack_module_instance_sequence = 0
 	attack_module_runtime_state = {}
 	var default_module_id := GameData.get_default_attack_module_id()
@@ -1424,6 +1481,7 @@ func _get_equipped_attack_module_summary() -> String:
 func _reset_run_shop_items() -> void:
 	owned_function_module_ids = PackedStringArray()
 	owned_enhance_module_counts = {}
+	owned_artifact_counts = {}
 	current_run_items = PackedStringArray()
 	current_run_effects = {}
 	reset_shop_reroll_count()
@@ -1436,11 +1494,21 @@ func _build_shop_item_snapshot(definition: Dictionary, slot_index: int = -1) -> 
 	var owned := false
 	var equipped := false
 	var stack_count := 0
+	var active := true
+	var inactive_reason := ""
 	match category:
-		"attack_module":
+		"weapon", "attack_module":
 			var module_id := _get_shop_attack_module_id(definition)
 			owned = is_attack_module_owned(module_id)
 			equipped = _has_equipped_attack_module(module_id)
+		"part":
+			stack_count = _get_equipped_part_count(StringName(item_id))
+			owned = stack_count > 0
+			active = is_part_definition_active(definition)
+			inactive_reason = _get_part_definition_inactive_reason(definition)
+		"artifact":
+			stack_count = get_artifact_stack_count(StringName(item_id))
+			owned = stack_count > 0
 		"function_module":
 			owned = is_function_module_owned(StringName(item_id))
 		"enhance_module":
@@ -1450,13 +1518,9 @@ func _build_shop_item_snapshot(definition: Dictionary, slot_index: int = -1) -> 
 	var can_afford := can_afford_gold(price_gold)
 	var can_buy := can_afford
 	var purchase_reason := ""
-	if category == "attack_module":
-		var attack_purchase_state := can_add_or_synthesize_attack_module(
-			_get_shop_attack_module_id(definition),
-			_get_shop_attack_module_grade(definition)
-		)
-		can_buy = can_afford and bool(attack_purchase_state.get("ok", false))
-		purchase_reason = String(attack_purchase_state.get("reason", ""))
+	var purchase_state := _get_item_purchase_state(definition)
+	can_buy = can_afford and bool(purchase_state.get("ok", false))
+	purchase_reason = String(purchase_state.get("reason", ""))
 	var locked_item_id := get_shop_locked_item_id(slot_index)
 	var is_locked := is_shop_slot_locked(slot_index)
 	if is_locked and locked_item_id != StringName() and String(locked_item_id) != item_id:
@@ -1476,6 +1540,8 @@ func _build_shop_item_snapshot(definition: Dictionary, slot_index: int = -1) -> 
 		"owned": owned,
 		"equipped": equipped,
 		"stack_count": stack_count,
+		"active": active,
+		"inactive_reason": inactive_reason,
 		"can_afford": can_afford,
 		"can_buy": can_buy,
 		"is_locked": is_locked,
@@ -1489,16 +1555,9 @@ func _validate_shop_item_can_be_granted(definition: Dictionary, item_id: StringN
 	var category := StringName(String(definition.get("item_category", "")))
 	if category == &"function_module" and is_function_module_owned(item_id):
 		return {"ok": false, "reason": "already_owned"}
-	if category != &"attack_module" and category != &"function_module" and category != &"enhance_module":
+	if not _is_supported_shop_category(category):
 		return {"ok": false, "reason": "unsupported_category"}
-	if category == &"attack_module":
-		var equip_result := can_add_or_synthesize_attack_module(
-			_get_shop_attack_module_id(definition),
-			_get_shop_attack_module_grade(definition)
-		)
-		if not bool(equip_result.get("ok", false)):
-			return equip_result
-	return {"ok": true}
+	return _get_item_purchase_state(definition)
 
 
 func _register_owned_attack_module(module_id: StringName, grade: String = ATTACK_MODULE_DEFAULT_GRADE) -> Dictionary:
@@ -1509,23 +1568,242 @@ func _register_owned_attack_module(module_id: StringName, grade: String = ATTACK
 	var equip_result := can_add_or_synthesize_attack_module(module_id, normalized_grade)
 	if not bool(equip_result.get("ok", false)):
 		return equip_result
-	owned_attack_module_ids.append(String(module_id))
+	if not owned_attack_module_ids.has(String(module_id)):
+		owned_attack_module_ids.append(String(module_id))
 	current_run_items.append(String(module_id))
-	var mode := String(equip_result.get("mode", "add"))
-	if mode == "synthesize":
-		var target_index := int(equip_result.get("target_index", -1))
-		if target_index < 0 or target_index >= equipped_attack_modules.size():
-			return {"ok": false, "reason": "invalid_synthesis_target"}
-		var upgraded_entry := (equipped_attack_modules[target_index] as Dictionary).duplicate(true)
-		upgraded_entry["grade"] = String(equip_result.get("next_grade", normalized_grade))
-		equipped_attack_modules[target_index] = upgraded_entry
-	else:
-		equipped_attack_modules.append(_make_attack_module_entry(module_id, normalized_grade))
+	var mode := String(equip_result.get("mode", "equip_weapon"))
+	equipped_attack_modules = [_make_attack_module_entry(module_id, normalized_grade)]
 	_sync_primary_equipped_attack_module_id()
 	owned_attack_modules_changed.emit(get_owned_attack_module_ids())
 	attack_module_changed.emit(equipped_attack_module_id)
 	run_items_changed.emit()
-	return {"ok": true, "reason": mode, "category": "attack_module"}
+	return {"ok": true, "reason": mode, "category": "weapon"}
+
+
+func _register_part_purchase(definition: Dictionary) -> Dictionary:
+	var item_id := String(definition.get("item_id", ""))
+	if item_id.is_empty():
+		return {"ok": false, "reason": "missing_item_id"}
+	var purchase_state := _can_purchase_part(definition)
+	if not bool(purchase_state.get("ok", false)):
+		return purchase_state
+	equipped_parts.append(_make_part_entry(StringName(item_id)))
+	current_run_items.append(item_id)
+	run_items_changed.emit()
+	return {"ok": true, "reason": "equipped_part", "category": "part"}
+
+
+func _register_artifact_purchase(definition: Dictionary) -> Dictionary:
+	var item_id := String(definition.get("item_id", ""))
+	if item_id.is_empty():
+		return {"ok": false, "reason": "missing_item_id"}
+	var purchase_state := _can_purchase_artifact(definition)
+	if not bool(purchase_state.get("ok", false)):
+		return purchase_state
+	owned_artifact_counts[item_id] = get_artifact_stack_count(StringName(item_id)) + 1
+	current_run_items.append(item_id)
+	_register_runtime_effect_entry(definition)
+	_apply_shop_effect_values(definition)
+	run_items_changed.emit()
+	return {"ok": true, "reason": "artifact_added", "category": "artifact"}
+
+
+func _make_part_entry(item_id: StringName) -> Dictionary:
+	attack_module_instance_sequence += 1
+	return {
+		"instance_id": "part_%s_%d" % [String(item_id), attack_module_instance_sequence],
+		"item_id": String(item_id),
+	}
+
+
+func _is_supported_shop_category(category: StringName) -> bool:
+	match String(category):
+		"weapon", "part", "artifact", "attack_module", "function_module", "enhance_module":
+			return true
+	return false
+
+
+func _get_item_purchase_state(definition: Dictionary) -> Dictionary:
+	match String(definition.get("item_category", "")):
+		"weapon", "attack_module":
+			return can_add_or_synthesize_attack_module(
+				_get_shop_attack_module_id(definition),
+				_get_shop_attack_module_grade(definition)
+			)
+		"part":
+			return _can_purchase_part(definition)
+		"artifact":
+			return _can_purchase_artifact(definition)
+		"function_module":
+			var item_id := StringName(String(definition.get("item_id", "")))
+			if is_function_module_owned(item_id):
+				return {"ok": false, "reason": "already_owned"}
+			return {"ok": true, "mode": "purchase"}
+		"enhance_module":
+			var item_id := StringName(String(definition.get("item_id", "")))
+			var max_stack := _get_item_max_stack(definition)
+			if get_enhance_module_stack_count(item_id) >= max_stack:
+				return {"ok": false, "reason": "stack_full"}
+			return {"ok": true, "mode": "purchase"}
+	return {"ok": false, "reason": "unsupported_category"}
+
+
+func _can_purchase_part(definition: Dictionary) -> Dictionary:
+	if equipped_parts.size() >= GameConstants.PART_MAX_EQUIPPED:
+		return {"ok": false, "reason": "part_slots_full"}
+	var item_id := StringName(String(definition.get("item_id", "")))
+	if item_id == StringName():
+		return {"ok": false, "reason": "missing_item_id"}
+	var max_stack := _get_item_max_stack(definition)
+	if _get_equipped_part_count(item_id) >= max_stack:
+		return {"ok": false, "reason": "part_stack_full"}
+	var exclusive_group := String(definition.get("exclusive_group", ""))
+	if not exclusive_group.is_empty() and _has_equipped_part_exclusive_group(exclusive_group):
+		return {"ok": false, "reason": "part_exclusive_conflict"}
+	return {"ok": true, "mode": "equip_part"}
+
+
+func _can_purchase_artifact(definition: Dictionary) -> Dictionary:
+	var item_id := StringName(String(definition.get("item_id", "")))
+	if item_id == StringName():
+		return {"ok": false, "reason": "missing_item_id"}
+	var max_stack := _get_item_max_stack(definition)
+	if get_artifact_stack_count(item_id) >= max_stack:
+		return {"ok": false, "reason": "artifact_stack_full"}
+	return {"ok": true, "mode": "purchase_artifact"}
+
+
+func _get_item_max_stack(definition: Dictionary) -> int:
+	var max_stack := int(definition.get("max_stack", 1))
+	if max_stack <= 0:
+		max_stack = 999 if bool(definition.get("stackable", false)) else 1
+	return max_stack
+
+
+func _has_equipped_part_exclusive_group(exclusive_group: String) -> bool:
+	for raw_entry in equipped_parts:
+		var entry: Dictionary = raw_entry
+		var part_definition := GameData.get_shop_item_definition(StringName(String(entry.get("item_id", ""))))
+		if part_definition.is_empty():
+			continue
+		if String(part_definition.get("exclusive_group", "")) == exclusive_group:
+			return true
+	return false
+
+
+func _get_equipped_part_count(item_id: StringName) -> int:
+	var count := 0
+	for raw_entry in equipped_parts:
+		var entry: Dictionary = raw_entry
+		if String(entry.get("item_id", "")) == String(item_id):
+			count += 1
+	return count
+
+
+func _get_active_part_effect_value(effect_key: String) -> float:
+	var total := 0.0
+	for raw_entry in equipped_parts:
+		var entry: Dictionary = raw_entry
+		if not _is_part_entry_active(entry):
+			continue
+		var part_definition := GameData.get_shop_item_definition(StringName(String(entry.get("item_id", ""))))
+		if part_definition.is_empty():
+			continue
+		for effect in _get_effect_entries(part_definition):
+			if String(effect.get("type", "")) == effect_key:
+				total += float(effect.get("value", 0.0))
+	return total
+
+
+func _is_part_entry_active(entry: Dictionary) -> bool:
+	var part_definition := GameData.get_shop_item_definition(StringName(String(entry.get("item_id", ""))))
+	if part_definition.is_empty():
+		return false
+	return is_part_definition_active(part_definition)
+
+
+func _get_part_inactive_reason(entry: Dictionary) -> String:
+	var part_definition := GameData.get_shop_item_definition(StringName(String(entry.get("item_id", ""))))
+	if part_definition.is_empty():
+		return "Missing part definition"
+	return _get_part_definition_inactive_reason(part_definition)
+
+
+func is_part_definition_active(definition: Dictionary) -> bool:
+	if String(definition.get("item_category", "")) != "part":
+		return false
+	return _part_matches_current_weapon(definition)
+
+
+func _get_part_definition_inactive_reason(definition: Dictionary) -> String:
+	if is_part_definition_active(definition):
+		return ""
+	if _has_any_part_restriction(definition):
+		return "Inactive with current weapon"
+	return "Invalid part"
+
+
+func _part_matches_current_weapon(definition: Dictionary) -> bool:
+	var context := _get_equipped_weapon_context()
+	if String(context.get("weapon_id", "")).is_empty():
+		return false
+	if not _matches_allowed_strings(String(context.get("weapon_id", "")), _get_string_array(definition, "allowed_weapon_ids")):
+		return false
+	if not _matches_allowed_strings(String(context.get("weapon_type", "")), _get_string_array(definition, "allowed_weapon_types")):
+		return false
+	if not _matches_allowed_strings(String(context.get("attack_style", "")), _get_string_array(definition, "allowed_attack_styles")):
+		return false
+	return true
+
+
+func _get_equipped_weapon_context() -> Dictionary:
+	var weapon_definition = get_equipped_attack_module_definition()
+	var weapon_id := String(get_equipped_attack_module_id())
+	var weapon_type := ""
+	var attack_style := ""
+	if weapon_definition != null:
+		weapon_type = String(weapon_definition.module_type)
+		attack_style = String(ATTACK_MODULE_STYLE_RESOLVER.get_attack_style(weapon_definition))
+	return {
+		"weapon_id": weapon_id,
+		"weapon_type": weapon_type,
+		"attack_style": attack_style,
+	}
+
+
+func _has_any_part_restriction(definition: Dictionary) -> bool:
+	return (
+		not _get_string_array(definition, "allowed_weapon_ids").is_empty()
+		or not _get_string_array(definition, "allowed_weapon_types").is_empty()
+		or not _get_string_array(definition, "allowed_attack_styles").is_empty()
+	)
+
+
+func _matches_allowed_strings(value: String, allowed_values: Array[String]) -> bool:
+	if allowed_values.is_empty():
+		return true
+	return allowed_values.has(value)
+
+
+func _get_string_array(source: Dictionary, key: String) -> Array[String]:
+	var result: Array[String] = []
+	var raw_value = source.get(key, [])
+	if raw_value is PackedStringArray:
+		for raw_entry in raw_value:
+			var entry := String(raw_entry)
+			if not entry.is_empty():
+				result.append(entry)
+		return result
+	if raw_value is Array:
+		for raw_entry in raw_value:
+			var entry := String(raw_entry)
+			if not entry.is_empty():
+				result.append(entry)
+		return result
+	var single_value := String(raw_value)
+	if not single_value.is_empty():
+		result.append(single_value)
+	return result
 
 
 func _get_shop_attack_module_id(definition: Dictionary) -> StringName:
@@ -1586,7 +1864,7 @@ func _apply_shop_effect_values(definition: Dictionary) -> void:
 		return
 	if _get_item_apply_timing(definition) != "on_purchase":
 		return
-	var effect_values: Dictionary = definition.get("effect_values", {})
+	var effect_values: Dictionary = definition.get("effect_values", {}) as Dictionary
 	for raw_key in effect_values.keys():
 		var effect_key := String(raw_key)
 		var effect_value = effect_values[raw_key]

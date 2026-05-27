@@ -1,7 +1,7 @@
 # Burial Protocol - Roadmap
 
-기준일: `2026-05-01`
-기준 브랜치: `visual-density-camera-hud`
+기준일: `2026-04-28`
+기준 브랜치: `main`
 
 ---
 
@@ -31,8 +31,8 @@
 - 모래 생성과 모래 시뮬레이션
 - 중량 한도 기반 실패
 - 좌우 벽 채굴
-- 마우스 방향 기반 채굴
-- 점프, 추가 점프, 대시, 벽타기
+- 방향키 기반 `is_digging` 벽 채굴
+- 점프, 추가 점프, 마우스 방향 대시
 - 공격모듈 기반 공격
 - melee/ranged/mechanic 공격모듈 타입
 - Day 종료 후 intermission
@@ -53,12 +53,6 @@
 - 근거리/원거리 공격력 분리 (`run_bonus_melee_attack_damage`, `run_bonus_ranged_attack_damage`)
 - 공격모듈 attack_style/effect_style 시스템 (`AttackModuleStyleResolver`)
 - 상점 아이템 랭크별 가격 티어링 (`SHOP_ITEM_RANK_FALLBACK_PRICES`)
-- 공격모듈 `base_damage_by_grade` 기반 등급별 데미지 구조
-- 공격모듈 직접 `damage_multiplier` 제거
-- TSV -> TRES 데이터 파이프라인 검증
-- v2 블록 Spawn Pool + Weight Modifier 시뮬레이션 경로
-- Day별 HP/스폰/모래 압박 계측 리포트
-- 상점 lock 아이템 다음 상점 보존 동작
 - 런타임 스탯 증가
 - HUD와 ESC 스탯 패널
 - 저장 파일과 최고 기록 저장
@@ -256,47 +250,6 @@
 - `LevelUpUI`에서 카드 제시 수를 3장 → 5장으로 확장
 - `GameConstants.LEVEL_UP_CARD_COUNT` 기준
 
-### 2-15. 공격모듈 데이터 정합성 정리
-
-완료:
-
-- 공격모듈 데미지 기준을 `base_damage_by_grade[current_grade]` 우선으로 정리
-- `module_base_damage`를 등급별 값 누락 시 fallback으로 유지
-- 공격모듈 직접 필드 `damage_multiplier` 제거
-- legacy projectile alias를 `spread_angle`, `pierce_count`, `is_hitscan`, `projectile_visual_size`로 통일
-- `attack_module_dps_snapshot.gd`가 모든 모듈 x D/C/B/A/S 비교표를 출력
-
-### 2-16. TSV -> TRES 파이프라인 점검
-
-완료:
-
-- attack module / block material / block size / block type / stage day TSV import-export 검증
-- v2 rule TSV(`block_size_spawn_rules.tsv`, `block_material_size_weight_rules.tsv`) schema/import/export/validation 연결
-- 결과 리포트: `docs/reports/tsv_to_tres_pipeline_audit.md`
-
-### 2-17. 블록 스폰 v2 시뮬레이션 기반
-
-완료:
-
-- 기존 v1 실스폰을 유지한 채 v2 Spawn Pool + Weight Modifier 시뮬레이션 경로 추가
-- v1/v2 material, size, pair, pressure 분포 비교 리포트 생성
-- 결과 리포트: `docs/reports/spawn_distribution_snapshot.md`
-
-### 2-18. Day 압박 계측
-
-완료:
-
-- v1 라이브 스폰 기준 Day별 HP/스폰/모래 압박 계측
-- normal/hard 기준 Day 1, 5, 10, 15, 20, 25, 30 비교
-- 결과 리포트: `docs/reports/day_pressure_snapshot.md`
-
-### 2-19. 문서 정리
-
-완료:
-
-- `06_attack_module_style_spec.md`와 `attack_module_system_spec.md`를 `06_attack_modules.md`로 통합
-- 공격모듈 데미지/데이터 설명을 현재 코드 기준으로 갱신
-
 ---
 
 ## 3. 현재 보류 중인 항목
@@ -349,80 +302,150 @@
 현재 권장 순서는 아래를 따른다.
 
 ```text
-1. 문서와 실제 코드/데이터 기준 계속 동기화
-2. Day pressure snapshot 기반 실제 플레이 테스트
-3. 플레이 테스트 후 StageTable 스폰 tempo / HP / reward / sand 튜닝
-4. v2 Spawn Pool + Weight Modifier를 live resolver로 전환할지 결정
-5. v2 전환 전 material-size pair 분포와 위험 조합 튜닝
-6. 상점 UI/lock UX와 HUD 가독성 추가 검증
-7. 채굴 확장: 보물상자/크립 시스템 설계
+1. 공격모듈 기본 장비/수치 정리
+2. 블록 material/size/type 스펙 정리 및 데이터 구조 점검
+3. 블록 size spawn weight / 난이도 / Stage 조건 설계
+4. Google Sheets import/export 데이터 파이프라인 정리
+5. Day별 블록 HP/스폰/모래 압박 테스트
+6. 채굴 확장: 보물상자/크립 시스템 설계
+7. HUD/상점 UI 한글화 및 가독성 개선
 8. 모래 렌더링 고도화
 9. 아트 적용 기준 확정
 ```
 
-현재는 데이터 구조와 계측 기반이 정리된 상태다.
-다음 큰 축은 `플레이 테스트 기반 밸런스 조정`과 `v2 스폰 구조의 live 전환 여부 판단`이다.
+현재는 밸런스 기반과 레벨업 시스템이 어느 정도 정리되었으므로, 다음 큰 축은 `공격모듈 정리`와 `블록 시스템 정리`다.
 
 ---
 
 ## 5. 최우선 작업
 
-### 5-1. Day pressure 기반 밸런스 판단
+### 5-1. 공격모듈 기본 장비/수치 정리
 
 목표:
 
-- `day_pressure_snapshot.md`에서 확인한 HP/스폰/모래 압박 곡선을 실제 플레이 감각과 대조한다.
-- 수치 조정 전, 문제가 되는 Day 구간과 원인을 분리한다.
+- 공격모듈을 임시 테스트 구조에서 실제 장비 구조로 정리한다.
+- 시작 장비, 모듈 등급, 합성, 타입별 전투 감각을 안정화한다.
 
 작업:
 
-- Day 1~4 입문 압박 확인
-- Day 5/15 Rush spike 확인
-- Day 10/20/30 Boss spike 확인
-- Day 21~29 후반 일반 Day 압박 정체 여부 확인
-- reward가 HP/sand 압박을 과하게 보상하는지 확인
+- 현재 공격모듈 목록 정리
+- 각 모듈의 melee/ranged/mechanic 타입 확인
+- damage multiplier / attack speed multiplier / range / shape 확인
+- 등급 D/C/B/A/S 배율 적용 후 예상 DPS 비교
+- 현재 시작 모듈 지급 위치 확인
+- 기본 시작 모듈을 캐릭터 데이터로 이전할지 검토
+- melee/ranged/mechanic 간 밸런스 차이 확인
+- 모듈 합성 시 DPS 상승폭 확인
+- 투사체/레이저/메카닉 피드백 강화
+- 오라형 공격모듈 세부 동작 확정 여부 결정
 
 주의:
 
-- `StageTable.tres` 수치 조정은 플레이 테스트 후 별도 작업으로 한다.
-- 조정 전후 `balance_snapshot.gd`, `spawn_distribution_snapshot.gd`, `day_pressure_snapshot.gd`를 다시 비교한다.
+- mechanic 모듈은 플레이어 공격력 보너스 영향을 받지 않는 예외를 유지한다.
+- ranged/melee는 플레이어 공격력/공속/범위 성장과 연결된다.
+- 먼저 비교표/진단을 만들고, 실제 수치 변경은 별도로 판단한다.
 
-### 5-2. v2 스폰 live 전환 여부 판단
+### 5-2. 블록 material/size/type 스펙 정리 및 데이터 구조 점검
 
 목표:
 
-- 현재 v1 material gate 방식에서 v2 Spawn Pool + Weight Modifier 방식으로 넘어갈지 결정한다.
-- 전환한다면 먼저 시뮬레이션 weight를 튜닝하고, live resolver 교체는 마지막에 한다.
+- 블록 시스템을 `Material x Size + optional Type` 기준으로 완전히 정리한다.
+- Material은 재질만 정의하고, Size는 별도 랜덤 축으로 분리한다.
+- 블록 size의 스폰 확률/최소 등장 조건을 난이도와 Stage에 따라 제어할 수 있게 한다.
+- Google Sheets에서 작성/import/export 가능한 구조를 설계한다.
 
 핵심 원칙:
 
-- v1 실스폰은 전환 전까지 유지한다.
-- `max_allowed_area/width/height`는 v1 live gate로 남아 있다.
-- v2에서는 material이 size를 hard block하지 않고 multiplier로만 조정한다.
-- 위험 조합은 0이 아니라 epsilon multiplier로 제어한다.
+- 블록 베이스/base/material에는 사이즈가 포함되면 안 된다.
+- Material은 재질을 정의한다.
+- Material은 HP 배율, 보상 배율, 색상, 스폰 확률, 등장 제한 등을 가진다.
+- Size는 Material과 별개로 랜덤 선택된다.
+- Type은 optional modifier/affix로 유지한다.
+
+HP 원칙:
+
+```text
+final_hp =
+  BLOCK_HP_PER_UNIT
+  x material_hp_multiplier
+  x size_area_multiplier
+  x difficulty_hp_multiplier
+  x day_hp_multiplier
+  x type_hp_multiplier
+```
+
+Size 기본 HP 배율:
+
+```text
+1U x 1U = 1x
+2U x 1U = 2x
+1U x 2U = 2x
+2U x 2U = 4x
+```
+
+즉, size는 기본적으로 `width_u * height_u` 면적만큼 HP 요구치를 늘린다.
+
+가로/세로 size의 게임플레이 의미:
+
+- 가로 size 증가는 플레이어의 회피 공간을 직접 제한한다.
+- 가로 size 증가는 공격스탯 요구치와 회피 요구치를 동시에 올린다.
+- 세로 size 증가는 주로 공격스탯 요구치를 올린다.
+- 세로 size는 공간 압박이 없지는 않지만, 가로 size만큼 즉각적인 회피 공간 제한을 만들지는 않는다.
+
+Size 스폰 정책:
+
+- size별 등장 확률은 난이도와 Stage에 따라 달라져야 한다.
+- 높은 난이도일수록 큰 블록이 등장할 확률이 높아진다.
+- 높은 Stage일수록 큰 블록이 등장할 확률이 높아진다.
+- size별 최소 난이도와 최소 Stage를 설정할 수 있어야 한다.
+
+예시 제한:
+
+- Normal 저Stage에서 가로 4U 블록은 등장하면 안 된다.
+- 가로세로 합 8U 수준의 대형 블록은 Hard 이상부터 등장해야 한다.
+
+데이터/툴링 요구:
+
+- Material / Size / Type / Size Spawn Rule은 Google Spreadsheet에서 관리 가능해야 한다.
+- TSV/CSV import/export를 지원해야 한다.
+- Godot `.tres` 데이터와 spreadsheet source가 서로 동기화 가능해야 한다.
+- 데이터 파이프라인은 `data_tsv` 또는 별도 pipeline 로그와 함께 검증 가능해야 한다.
 
 점검 작업:
 
-- `spawn_distribution_snapshot.md`의 v1/v2 분포 차이 확인
-- large/huge, width 9~10, gold/bomb/glass 위험 조합 출현률 확인
-- material-size pair L1 delta가 플레이 감각상 허용 가능한지 확인
-- 전환 전 `balance_snapshot.gd` 기준값 변화 예상치를 따로 기록
+- 현재 BlockCatalog의 material/size/type 분리 상태 확인
+- 기존 코드에 size가 base/material에 섞여 있는지 확인
+- size별 HP/보상/모래량/등장 제한 확인
+- size spawn weight가 난이도/Stage별로 분리 가능한지 확인
+- BlockSpawnResolver가 material 선택과 size 선택을 독립적으로 수행하는지 확인
+- Google Sheets import/export에서 size spawn rule을 표현할 수 있는지 확인
 
-### 5-3. 공격모듈 후속 밸런스/피드백
+### 5-3. Day별 블록 HP/스폰/모래 압박 테스트
 
 목표:
 
-- 데이터 구조는 정리되었으므로, 이제 실제 플레이 감각과 시각 피드백을 검증한다.
+- 공식과 데이터가 실제 플레이 감각에서 맞는지 검증한다.
 
-- melee/ranged 간 DPS 차이와 체감 처리력 확인
-- `shotgun_module` 전탄 명중/단일 projectile DPS 차이 확인
-- mechanic/drone 구현 범위 결정
-- 공격 이펙트, 투사체 가독성, hit feedback 개선 후보 정리
+검증 Day:
 
-주의:
+- Day 1
+- Day 5
+- Day 10
+- Day 15
+- Day 20
+- Day 25
+- Day 30
 
-- 공격모듈 직접 `damage_multiplier`는 다시 도입하지 않는다.
-- 수치 조정 시 `attack_module_dps_snapshot.gd`를 반드시 갱신한다.
+확인 항목:
+
+- 평균 블록 처리 시간
+- 평균 모래 생성량
+- 중량 실패까지 걸리는 시간
+- 상점 구매 후 다음 Day 체감 변화
+- 공격모듈 빌드와 채굴 빌드의 차이
+- 보스 Day 압박감
+- 가로로 큰 블록이 회피 공간을 과도하게 막는지
+- 세로로 큰 블록이 공격스탯 요구만 과도하게 올리는지
 
 ### 5-4. 채굴 확장: 보물상자/크립 시스템 설계
 
@@ -573,8 +596,8 @@
 - 채굴 확장용 보물상자/크립 시스템 미구현
 - 보물상자 등급별 D~S 보상 테이블 미정
 - 크립 종류/효과/등장 조건 미정
-- 블록 v2 spawn rule live 전환 여부 미정
-- TSV -> TRES 파이프라인은 연결되어 있으나, live resolver 전환 전 추가 검증 필요
+- 블록 size spawn rule / 난이도 / Stage별 weight 미정
+- Google Sheets import/export 데이터 파이프라인 정리 필요
 - 보스 보상 구조 미정
 - 최종 아트 미적용
 
@@ -612,8 +635,8 @@
 ```text
 공격모듈 수치 정리
 → 블록 material/size/type 스펙 정리
-→ TSV 기반 size spawn rule / material-size weight rule 검증
-→ Day별 실전 테스트와 pressure snapshot 비교
+→ size spawn rule / spreadsheet pipeline 정리
+→ Day별 실전 테스트
 → 채굴 확장 보상/리스크 시스템 설계
 ```
 
@@ -624,7 +647,7 @@
 - 가로 size는 회피 난이도에 직접 영향을 준다.
 - 세로 size는 공격스탯 요구치를 주로 올린다.
 - size별 spawn weight는 난이도와 Stage에 따라 달라져야 한다.
-- 현재 데이터 편집/반영 기준은 `data_tsv/*.tsv` -> `.tres` 변환 파이프라인이다.
+- Google Sheets 기반 데이터 관리가 가능해야 한다.
 
 ### 10-3. 환경대응 카드 원칙
 
@@ -648,44 +671,16 @@
 다음 Codex 작업은 아래 순서가 좋다.
 
 ```text
-1. Day pressure snapshot 기반 실제 플레이 테스트
-2. normal/hard 문제 Day 구간을 StageTable 조정 후보로 분리
-3. v2 spawn distribution snapshot의 위험 조합 weight 튜닝
-4. v2 resolver live 전환 전 v1/v2 비교 리포트 재생성
-5. 공격모듈 DPS/피드백 플레이테스트 후 수치 조정 여부 결정
-6. 상점 lock UX와 HUD 가독성 확인
-7. 채굴 확장용 보물상자/크립 데이터 구조 초안 작성
-8. 보물상자 보상 항목을 D~S 등급 보상 아이템 체계로 설계
+1. 공격모듈별 실제 DPS 비교표 작성
+2. 현재 시작 모듈 지급 위치와 캐릭터 데이터 이전 필요성 조사
+3. BlockCatalog의 Material/Size/Type 분리 상태 조사
+4. size가 material/base에 섞여 있는 코드/데이터가 있는지 확인
+5. size별 HP/보상/모래량/등장 제한 비교표 작성
+6. size spawn rule을 난이도/Stage별로 표현하는 데이터 구조 초안 작성
+7. Google Sheets/TSV import-export 파이프라인 요구사항 정리
+8. Day별 블록 HP/스폰/모래 압박 계측
+9. 채굴 확장용 보물상자/크립 데이터 구조 초안 작성
+10. 보물상자 보상 항목을 D~S 등급 보상 아이템 체계로 설계
 ```
 
 이 작업들은 우선 조사/비교표/데이터 구조 초안 중심으로 진행하고, 실제 수치 변경은 별도 판단 후 진행한다.
----
-
-## 12. Treasure Chest 구현 완료 상태
-
-기준일: `2026-05-17`
-
-완료:
-
-- Phase 1: marker 데이터 구조, marker 생성, bounds/overlap/rarity snapshot
-- Phase 2: wall mining 연동, 채굴 전 preview, partial reveal, fully revealed 판정
-- Phase 3: fully revealed chest `E` 상호작용, prompt, popup 최소 UI, pause 처리
-- Phase 4: reward rank roll, ShopItemCatalog 후보 roll, 획득/판매, grant helper, consumed 처리
-- Phase 5: canonical 문서 갱신과 treasure snapshot 확장
-
-검증 기준:
-
-- `scripts/tests/treasure_chest_snapshot.gd`
-- Godot headless project load
-- Main scene headless load
-- treasure 관련 파일 대상 `git diff --check`
-
-남은 TODO:
-
-- creep 계열 wall hidden object는 아직 구현하지 않는다.
-- treasure 전용 완성 아트와 sprite 기반 reveal은 후속 polish로 분리한다.
-- marker 6개 생성은 현재 테스트/런타임 기본값이므로, 실제 밸런스 확정 시 별도 작업으로 조정한다.
-- reward popup 아이콘, 획득 불가 사유 UX, slot full UX는 후속 UI polish로 분리한다.
-- `verify_conditional_shop_items.gd`의 기존 실패 항목은 treasure scope와 별도로 정리한다.
-
-공식 treasure chest 계획서의 Phase 1~5는 완료 상태이며, 이후 작업은 새 계획으로 분리한다.

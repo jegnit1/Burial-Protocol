@@ -100,6 +100,7 @@ func import_from_directory(input_dir: String) -> Dictionary:
 		block_type.can_spawn_randomly = _validation.get_required_bool(row, "can_spawn_randomly", TSV_SCHEMA.BLOCK_TYPES_FILE, errors)
 		block_type.spawn_weight_multiplier = _validation.get_required_float(row, "spawn_weight_multiplier", TSV_SCHEMA.BLOCK_TYPES_FILE, errors)
 		block_type.hp_multiplier = _validation.get_required_float(row, "hp_multiplier", TSV_SCHEMA.BLOCK_TYPES_FILE, errors)
+		block_type.stagger_resistance = _validation.get_optional_float(row, "stagger_resistance", 0.0)
 		block_type.reward_multiplier = _validation.get_required_float(row, "reward_multiplier", TSV_SCHEMA.BLOCK_TYPES_FILE, errors)
 		block_type.sand_units_multiplier = _validation.get_required_float(row, "sand_units_multiplier", TSV_SCHEMA.BLOCK_TYPES_FILE, errors)
 		block_type.special_result_override = StringName(_validation.get_required_string(row, "special_result_override", TSV_SCHEMA.BLOCK_TYPES_FILE, errors))

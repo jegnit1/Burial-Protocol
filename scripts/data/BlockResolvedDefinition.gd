@@ -19,6 +19,7 @@ var size_hp_multiplier := 1.0
 var size_reward_multiplier := 1.0
 var material_hp_multiplier := 1.0
 var material_reward_multiplier := 1.0
+var stagger_resistance := 0.0
 var difficulty_hp_multiplier := 1.0
 var day_hp_multiplier := 1.0
 var material_spawn_weight := 1.0

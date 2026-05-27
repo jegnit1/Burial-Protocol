@@ -11,6 +11,8 @@ const ATTACK_MODULE_STYLE_RESOLVER := preload("res://scripts/data/AttackModuleSt
 const WALL_TREASURE_MANAGER_SCRIPT := preload("res://scripts/data/WallTreasureManager.gd")
 const TREASURE_REWARD_POPUP_SCENE := preload("res://scenes/ui/TreasureRewardPopup.tscn")
 const CAMERA_PLAYER_Y_OFFSET := 110.0
+const CAMERA_FOLLOW_SPEED_NORMAL := 10.0
+const CAMERA_FOLLOW_SPEED_DASH := 3.0
 const RANGED_PROJECTILE_LANE_GAP_UNITS := 0.26
 
 @onready var world_grid: WorldGrid = $WorldGrid
@@ -65,6 +67,8 @@ func _ready() -> void:
 	_configure_camera()
 	sand_field.setup(world_grid)
 	player.setup(world_grid, sand_field, blocks_root)
+	if not player.dig_execute_requested.is_connected(_on_player_dig_execute_requested):
+		player.dig_execute_requested.connect(_on_player_dig_execute_requested)
 	_ensure_projectiles_root()
 	_ensure_fade_overlay()
 	_setup_wall_treasure_manager()
@@ -77,7 +81,6 @@ func _ready() -> void:
 	if GameData.is_boss_day(_current_day):
 		_spawn_boss_block()
 	_refresh_debug()
-	GameState.grant_attack_module(&"laser_module", true)
 
 
 func _physics_process(delta: float) -> void:
@@ -103,16 +106,7 @@ func _physics_process(delta: float) -> void:
 	if run_finished:
 		return
 
-	if _shop_ui_open or _is_next_day_transitioning or _is_intermission_locked:
-		player.stop_mining_visual()
-	if not _shop_ui_open and not _is_next_day_transitioning and not _is_intermission_locked:
-		_update_continuous_mining_visual()
-		var mine_direction := player.consume_mining_direction()
-		if mine_direction != Vector2.ZERO:
-			_handle_mining_action(mine_direction)
-	elif player.consume_mining_direction() != Vector2.ZERO and _is_intermission_locked:
-		player.stop_mining_visual()
-		GameState.set_status_text("상점 단계에서는 채굴이 정지됩니다.")
+	player.set_digging_enabled(not _shop_ui_open and not _is_next_day_transitioning and not _is_intermission_locked)
 
 	if _is_day_active:
 		_day_time_remaining -= delta
@@ -140,7 +134,7 @@ func _physics_process(delta: float) -> void:
 	if run_finished:
 		return
 
-	_update_camera_y()
+	_update_camera_y(delta)
 	_refresh_debug()
 
 
@@ -227,6 +221,7 @@ func _handle_attack_module_action(trigger: Dictionary, is_mechanic := false) -> 
 	var crit_count := 0
 	var hit_once: Dictionary = {}
 	var module_damage := GameState.get_attack_module_damage(module_entry)
+	var module_stagger_power := GameState.get_attack_module_stagger_power(module_entry)
 	for result in results:
 		var block := result["collider"] as FallingBlock
 		if block != null and not hit_once.has(block):
@@ -236,7 +231,7 @@ func _handle_attack_module_action(trigger: Dictionary, is_mechanic := false) -> 
 			if is_critical:
 				damage = int(round(float(damage) * GameState.get_critical_damage_multiplier()))
 				crit_count += 1
-			block.apply_damage(damage, is_critical)
+			block.apply_damage(damage, is_critical, module_stagger_power)
 			hit_count += 1
 	if hit_count > 0:
 		var status_text := "%s: %s" % [GameState.get_attack_module_entry_label(module_entry), Locale.ltr("status_attack_hit") % hit_count]
@@ -304,6 +299,7 @@ func _fire_projectile_burst(module_entry: Dictionary, module_definition, fire_di
 		_projectiles_root.add_child(projectile)
 		var is_critical := rng.randf() < GameState.get_critical_chance_ratio()
 		var damage := GameState.get_attack_module_damage(module_entry)
+		var stagger_power := GameState.get_attack_module_stagger_power(module_entry)
 		if is_critical:
 			damage = int(round(float(damage) * GameState.get_critical_damage_multiplier()))
 		projectile.call("setup", {
@@ -317,6 +313,7 @@ func _fire_projectile_burst(module_entry: Dictionary, module_definition, fire_di
 			"effect_style": effect_style,
 			"damage": damage,
 			"is_critical": is_critical,
+			"stagger_power": stagger_power,
 			"pierce_count": pierce_count,
 			"homing": module_definition.projectile_homing,
 			"blocks_root": blocks_root,
@@ -344,6 +341,7 @@ func _fire_laser_placeholder(module_entry: Dictionary, module_definition, fire_d
 	var results: Array[Dictionary] = space_state.intersect_shape(query, 32)
 	var hit_count := 0
 	var hit_once: Dictionary = {}
+	var stagger_power := GameState.get_attack_module_stagger_power(module_entry)
 	for result in results:
 		var block := result["collider"] as FallingBlock
 		if block == null or hit_once.has(block):
@@ -353,7 +351,7 @@ func _fire_laser_placeholder(module_entry: Dictionary, module_definition, fire_d
 		var damage := GameState.get_attack_module_damage(module_entry)
 		if is_critical:
 			damage = int(round(float(damage) * GameState.get_critical_damage_multiplier()))
-		block.apply_damage(damage, is_critical)
+		block.apply_damage(damage, is_critical, stagger_power)
 		hit_count += 1
 	_spawn_laser_line(
 		player.global_position + lane_offset,
@@ -468,7 +466,8 @@ func _handle_mechanic_attack_module_action(module_entry: Dictionary) -> void:
 	if target == null:
 		return
 	var damage := GameState.get_mechanic_attack_module_damage(module_entry)
-	target.apply_damage(damage, false)
+	var stagger_power := GameState.get_attack_module_stagger_power(module_entry)
+	target.apply_damage(damage, false, stagger_power)
 	GameState.set_status_text("%s auto hit." % GameState.get_attack_module_entry_label(module_entry))
 
 
@@ -488,36 +487,18 @@ func _find_nearest_attackable_block(max_distance: float) -> FallingBlock:
 	return best_block
 
 
-func _update_continuous_mining_visual() -> void:
-	if not Input.is_action_pressed("mine_action") or player.is_dashing:
-		player.stop_mining_visual()
-		return
-	var mining_direction := player.get_mining_direction(player.get_attack_direction())
-	if mining_direction == Vector2.ZERO:
-		player.stop_mining_visual()
-		return
-	var mining_shape_data := player.get_mining_shape_data(mining_direction)
-	if sand_field.has_mineable_in_shape(mining_shape_data) or world_grid.has_mineable_in_shape(mining_shape_data):
-		player.start_or_update_mining_visual(mining_direction)
-		return
-	player.stop_mining_visual()
+func _on_player_dig_execute_requested(direction: int) -> void:
+	_handle_wall_dig_execute(direction)
 
 
-func _handle_mining_action(direction: Vector2) -> void:
-	var mining_direction := player.get_mining_direction(direction)
-	if mining_direction == Vector2.ZERO:
-		_set_mining_idle_status(Locale.ltr("status_mine_blocked"))
+func _handle_wall_dig_execute(direction: int) -> void:
+	if direction == 0:
 		return
+	var mining_direction := Vector2(float(direction), 0.0)
 	var mining_shape_data := player.get_mining_shape_data(mining_direction)
 	var final_mining_damage := GameState.get_mining_damage()
-	var sand_result: Dictionary = sand_field.try_mine_in_shape(mining_shape_data, final_mining_damage)
-	var sand_hits := int(sand_result["hit_count"])
-	var sand_removed := int(sand_result["removed_count"])
-	if sand_hits > 0:
-		_spawn_mining_damage_popups(sand_result.get("hit_cells", []), final_mining_damage, true)
-		if sand_removed > 0:
-			GameState.add_sand_removed_xp(sand_removed)
-		GameState.set_status_text(Locale.ltr("status_mine_sand") % [sand_hits, sand_removed])
+	if not world_grid.has_mineable_in_shape(mining_shape_data):
+		_set_mining_idle_status(Locale.ltr("status_mine_nothing"))
 		return
 	var wall_result: Dictionary = world_grid.try_mine_in_shape(mining_shape_data, final_mining_damage)
 	var wall_hits := int(wall_result["hit_count"])
@@ -1203,13 +1184,21 @@ func _configure_camera() -> void:
 	world_camera.limit_top = int(GameConstants.WORLD_PLAYABLE_TOP_Y)
 	world_camera.limit_bottom = GameConstants.WORLD_ORIGIN.y + GameConstants.WORLD_PIXEL_HEIGHT
 	world_camera.position = Vector2(
-		float(GameConstants.WORLD_ORIGIN.x) + float(GameConstants.WORLD_PIXEL_WIDTH) * 0.5,
+		_get_camera_center_x(),
 		_get_clamped_camera_y(player.position.y - CAMERA_PLAYER_Y_OFFSET)
 	)
 
 
-func _update_camera_y() -> void:
-	world_camera.position.y = _get_clamped_camera_y(player.position.y - CAMERA_PLAYER_Y_OFFSET)
+func _update_camera_y(delta: float) -> void:
+	var target_y := _get_clamped_camera_y(player.position.y - CAMERA_PLAYER_Y_OFFSET)
+	var follow_speed := CAMERA_FOLLOW_SPEED_DASH if player.is_dashing else CAMERA_FOLLOW_SPEED_NORMAL
+	var alpha := 1.0 - exp(-follow_speed * delta)
+	world_camera.position.x = _get_camera_center_x()
+	world_camera.position.y = lerpf(world_camera.position.y, target_y, alpha)
+
+
+func _get_camera_center_x() -> float:
+	return float(GameConstants.WORLD_ORIGIN.x) + float(GameConstants.WORLD_PIXEL_WIDTH) * 0.5
 
 
 func _get_camera_half_height_world() -> float:
