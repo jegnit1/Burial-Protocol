@@ -25,6 +25,31 @@ const VALID_ITEM_CATEGORIES := {
 	"enhance_module": true,
 }
 
+const VALID_EQUIPMENT_CATEGORIES := {
+	"weapon": true,
+	"drone": true,
+	"drone_protocol": true,
+	"passive_module": true,
+}
+
+const VALID_EQUIPMENT_ATTRIBUTES := {
+	"electric": true,
+	"fire": true,
+	"physical": true,
+	"energy": true,
+	"chemical": true,
+	"none": true,
+}
+
+const VALID_EQUIPMENT_ATTACK_TYPES := {
+	"support": true,
+	"projectile": true,
+	"area": true,
+	"beam": true,
+	"chain": true,
+	"explosion": true,
+}
+
 const VALID_ITEM_RANKS := {
 	"D": true,
 	"C": true,
@@ -48,6 +73,12 @@ const VALID_APPLY_TIMINGS := {
 	"": true,
 	"on_purchase": true,
 	"stat_query": true,
+	"on_weapon_attack_start": true,
+	"on_weapon_hit": true,
+	"on_protocol_trigger": true,
+	"on_protocol_hit": true,
+	"on_sand_removed": true,
+	"on_player_healed": true,
 }
 
 
@@ -433,6 +464,15 @@ func _validate_item_rows(file_label: String, rows: Array, expected_category: Str
 		get_required_float(row, "shop_spawn_weight", file_label, errors)
 		get_required_string(row, "short_desc", file_label, errors)
 		get_required_string(row, "desc", file_label, errors)
+		var equipment_category := get_required_string(row, "equipment_category", file_label, errors)
+		if not equipment_category.is_empty() and not VALID_EQUIPMENT_CATEGORIES.has(equipment_category):
+			errors.append(_location(file_label, row, "equipment_category") + "must be weapon/drone/drone_protocol/passive_module.")
+		var attribute := get_required_string(row, "attribute", file_label, errors)
+		if not attribute.is_empty() and not VALID_EQUIPMENT_ATTRIBUTES.has(attribute):
+			errors.append(_location(file_label, row, "attribute") + "must be electric/fire/physical/energy/chemical/none.")
+		var attack_type := get_required_string(row, "attack_type", file_label, errors)
+		if not attack_type.is_empty() and not VALID_EQUIPMENT_ATTACK_TYPES.has(attack_type):
+			errors.append(_location(file_label, row, "attack_type") + "must be support/projectile/area/beam/chain/explosion.")
 		if str(expected_category) == "function_module" or str(expected_category) == "enhance_module":
 			var rank := get_required_string(row, "rank", file_label, errors)
 			if not rank.is_empty() and not VALID_ITEM_RANKS.has(rank):
@@ -448,6 +488,8 @@ func _validate_item_rows(file_label: String, rows: Array, expected_category: Str
 				errors.append(_location(file_label, row, "apply_timing") + "must be blank/on_purchase/stat_query.")
 		match str(expected_category):
 			"attack_module":
+				if equipment_category != "weapon" and equipment_category != "drone_protocol":
+					errors.append(_location(file_label, row, "equipment_category") + "must be weapon or drone_protocol for legacy attack_module rows.")
 				get_required_bool(row, "default_start_module", file_label, errors)
 				get_required_string(row, "module_type", file_label, errors)
 				get_required_float(row, "base_shape_units_x", file_label, errors)
@@ -464,10 +506,14 @@ func _validate_item_rows(file_label: String, rows: Array, expected_category: Str
 				get_required_float(row, "attack_speed_multiplier", file_label, errors)
 				get_required_string(row, "world_visual_scene_path", file_label, errors)
 			"function_module":
+				if equipment_category != "drone_protocol":
+					errors.append(_location(file_label, row, "equipment_category") + "must be drone_protocol for legacy function_module rows.")
 				var effect_type := get_required_string(row, "effect_type", file_label, errors)
 				if not effect_type.is_empty() and not VALID_FUNCTION_EFFECT_TYPES.has(effect_type):
 					errors.append(_location(file_label, row, "effect_type") + "must be combat_drone/sand_cleaner/aura_damage.")
 			"enhance_module":
+				if equipment_category != "passive_module":
+					errors.append(_location(file_label, row, "equipment_category") + "must be passive_module for legacy enhance_module rows.")
 				var enhance_effect_type := get_required_string(row, "effect_type", file_label, errors)
 				if not enhance_effect_type.is_empty() and not VALID_ENHANCE_EFFECT_TYPES.has(enhance_effect_type):
 					errors.append(_location(file_label, row, "effect_type") + "must be stat_bonus/conditional_stat_bonus.")

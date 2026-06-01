@@ -149,6 +149,9 @@ const ITEM_COMMON_HEADERS := [
 	"max_stack",
 	"equip_slot",
 	"is_equippable",
+	"equipment_category",
+	"attribute",
+	"attack_type",
 	"allowed_weapon_ids",
 	"allowed_weapon_types",
 	"allowed_attack_styles",
@@ -170,6 +173,9 @@ const ATTACK_MODULE_ITEM_BASE_HEADERS := [
 	"short_desc",
 	"desc",
 	"tags",
+	"equipment_category",
+	"attribute",
+	"attack_type",
 ]
 
 const EFFECT_HEADERS := [
@@ -179,6 +185,7 @@ const EFFECT_HEADERS := [
 	"effect_tick_interval_sec",
 	"effect_radius_u",
 	"effect_attack_damage_flat",
+	"effect_damage_percent",
 	"effect_attack_speed_percent",
 	"effect_attack_range_percent",
 	"effect_max_hp_flat",
@@ -196,6 +203,9 @@ const EFFECT_HEADERS := [
 	"effect_luck_flat",
 	"effect_interest_rate_percent",
 	"effect_battery_recovery_flat",
+	"effect_weapon_damage_percent",
+	"effect_drone_damage_percent",
+	"effect_protocol_cooldown_reduction_percent",
 ]
 
 const EFFECT_METADATA_HEADERS := [
@@ -211,6 +221,7 @@ const EFFECT_COLUMN_TO_KEY := {
 	"effect_tick_interval_sec": "tick_interval_sec",
 	"effect_radius_u": "radius_u",
 	"effect_attack_damage_flat": "attack_damage_flat",
+	"effect_damage_percent": "damage_percent",
 	"effect_attack_speed_percent": "attack_speed_percent",
 	"effect_attack_range_percent": "attack_range_percent",
 	"effect_max_hp_flat": "max_hp_flat",
@@ -228,6 +239,9 @@ const EFFECT_COLUMN_TO_KEY := {
 	"effect_luck_flat": "luck_flat",
 	"effect_interest_rate_percent": "interest_rate_percent",
 	"effect_battery_recovery_flat": "battery_recovery_flat",
+	"effect_weapon_damage_percent": "weapon_damage_percent",
+	"effect_drone_damage_percent": "drone_damage_percent",
+	"effect_protocol_cooldown_reduction_percent": "protocol_cooldown_reduction_percent",
 }
 
 
@@ -245,6 +259,11 @@ static func get_attack_module_item_headers() -> Array:
 		"range_growth_scale",
 		"range_width_u",
 		"range_height_u",
+		"weapon_base_cooldown",
+		"protocol_base_damage",
+		"protocol_base_cooldown",
+		"protocol_behavior",
+		"targeting",
 		"base_damage_D",
 		"base_damage_C",
 		"base_damage_B",
@@ -274,6 +293,12 @@ static func get_attack_module_item_headers() -> Array:
 
 static func get_function_module_item_headers() -> Array:
 	var headers := ITEM_COMMON_HEADERS.duplicate()
+	headers.append_array([
+		"protocol_base_damage",
+		"protocol_base_cooldown",
+		"protocol_behavior",
+		"targeting",
+	])
 	headers.append("effect_type")
 	headers.append_array(EFFECT_METADATA_HEADERS)
 	headers.append_array(EFFECT_HEADERS)

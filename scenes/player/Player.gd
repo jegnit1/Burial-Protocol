@@ -1,7 +1,7 @@
 extends Node2D
 class_name Player
 
-signal dig_execute_requested(direction: int)
+signal mining_execute_requested(direction: Vector2)
 
 const IDLE_ANIMATION: StringName = &"idle"
 const RUN_ANIMATION: StringName = &"run"
@@ -35,6 +35,7 @@ const WEAPON_ATTACK_STAB_DISTANCE := 20.0
 const WEAPON_ATTACK_SWING_ROTATION := PI * 0.35
 const WEAPON_ATTACK_SCALE_PUNCH := 0.08
 const DAMAGE_POPUP_SCRIPT := preload("res://scenes/ui/DamagePopup.gd")
+const BASIC_DRONE_VISUAL_SCRIPT := preload("res://scenes/player/modules/BasicDroneVisual.gd")
 const DRILL_TEXTURE := preload("res://assets/characters/drill.png")
 const DRILL_FRAME_SIZE := Vector2(17.0, 15.0)
 const DRILL_FRAME_COUNT := 4
@@ -59,24 +60,16 @@ var attack_cooldown := 0.0
 var attack_buffer_remaining := 0.0
 var pending_attack_direction := Vector2.ZERO
 var attack_module_cooldowns: Dictionary = {}
+var drone_protocol_cooldowns: Dictionary = {}
 var attack_visual_direction := Vector2.RIGHT
 var attack_visual_time := 0.0
 var mining_cooldown := 0.0
-var mining_buffer_remaining := 0.0
-var pending_mine_direction := Vector2.ZERO
 var mining_visual_direction := Vector2.RIGHT
 var mining_visual_time := 0.0
 var mining_visual_active := false
+var mining_input_held := false
 var drill_animation_time := 0.0
-var digging_enabled := true
-var is_digging := false
-var is_dig_prepare_active := false
-var dig_direction := 0
-var dig_hold_timer := 0.0
-var dig_chain_grace_timer := 0.0
-var dig_effect_timer := 0.0
-var dig_execute_timer := 0.0
-var dig_feedback_time := 0.0
+var mining_enabled := true
 var is_dashing := false
 var dash_requested := false
 var dash_direction := Vector2.ZERO
@@ -105,6 +98,13 @@ var weapon_animation_type: StringName = WEAPON_ANIMATION_TYPE_SWING
 var weapon_bob_time := 0.0
 var weapon_attack_direction := Vector2.RIGHT
 var weapon_attack_visual_time := 0.0
+var right_weapon_visual_root: Node2D
+var right_weapon_visual: Node2D
+var right_weapon_visual_instance_id := ""
+var right_weapon_animation_type: StringName = WEAPON_ANIMATION_TYPE_SWING
+var right_weapon_attack_visual_time := 0.0
+var drone_visual: Node2D
+var drone_bob_time := 0.0
 var drill_visual: Sprite2D
 
 @onready var animated_sprite: AnimatedSprite2D = $AnimatedSprite2D
@@ -115,6 +115,7 @@ func _ready() -> void:
 	current_battery = GameConstants.PLAYER_BATTERY_MAX
 	_cache_sprite_base_scale()
 	_ensure_drill_visual()
+	_ensure_drone_visual()
 	_update_sprite_visuals(0.0)
 	_update_drill_visual()
 	queue_redraw()
@@ -126,6 +127,11 @@ func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("attack_action"):
 		attack_buffer_remaining = GameConstants.PLAYER_ATTACK_BUFFER_TIME
 		pending_attack_direction = _resolve_attack_direction()
+	if event.is_action_pressed("mine_action", false, false):
+		mining_input_held = true
+		_try_execute_mining_event()
+	if event.is_action_released("mine_action"):
+		mining_input_held = Input.is_action_pressed("mine_action")
 	if event.is_action_pressed("dash_action", false, false):
 		var dash_input_direction := _resolve_mouse_dash_direction()
 		if dash_input_direction != Vector2.ZERO:
@@ -139,7 +145,10 @@ func setup(target_world: WorldGrid, target_sand: SandField, target_blocks: Node2
 	current_battery = GameConstants.PLAYER_BATTERY_MAX
 	if not GameState.attack_module_changed.is_connected(_on_attack_module_changed):
 		GameState.attack_module_changed.connect(_on_attack_module_changed)
+	if not GameState.weapons_changed.is_connected(_on_weapons_changed):
+		GameState.weapons_changed.connect(_on_weapons_changed)
 	_sync_attack_module_visual()
+	_ensure_drone_visual()
 	_refresh_contacts()
 
 
@@ -153,12 +162,12 @@ func _physics_process(delta: float) -> void:
 	attack_cooldown = max(attack_cooldown - delta, 0.0)
 	attack_buffer_remaining = max(attack_buffer_remaining - delta, 0.0)
 	_update_attack_module_cooldowns(delta)
+	_update_drone_protocol_cooldowns(delta)
 	
 	if Input.is_action_pressed("attack_action"):
 		attack_buffer_remaining = GameConstants.PLAYER_ATTACK_BUFFER_TIME
 		pending_attack_direction = _resolve_attack_direction()
 	mining_cooldown = max(mining_cooldown - delta, 0.0)
-	mining_buffer_remaining = max(mining_buffer_remaining - delta, 0.0)
 	dash_cooldown_remaining = max(dash_cooldown_remaining - delta, 0.0)
 	dash_time_remaining = max(dash_time_remaining - delta, 0.0)
 	dash_input_grace_timer = max(dash_input_grace_timer - delta, 0.0)
@@ -167,8 +176,9 @@ func _physics_process(delta: float) -> void:
 	hurt_flash_remaining = max(hurt_flash_remaining - delta, 0.0)
 	attack_visual_time = max(attack_visual_time - delta, 0.0)
 	mining_visual_time = max(mining_visual_time - delta, 0.0)
-	dig_feedback_time = max(dig_feedback_time - delta, 0.0)
-	if is_digging:
+	if mining_visual_time <= 0.0:
+		mining_visual_active = false
+	if mining_visual_active:
 		drill_animation_time += delta
 	_process_pending_dash_request()
 	_update_dash_state()
@@ -176,11 +186,9 @@ func _physics_process(delta: float) -> void:
 	_refresh_contacts()
 	_refresh_ground_jump_state()
 	_update_battery_recovery(delta)
-	_update_digging_state(delta)
+	_process_mining_input()
 	if is_dashing:
 		_apply_dash_movement(delta)
-	elif is_digging:
-		_apply_digging_motion_constraint()
 	else:
 		_apply_jump_input()
 		_apply_gravity(delta)
@@ -191,13 +199,13 @@ func _physics_process(delta: float) -> void:
 	_update_sprite_visuals(position.x - previous_position.x)
 	_update_drill_visual()
 	_update_weapon_visual(delta)
+	_update_drone_visual(delta)
 	var _has_active_visuals := (
 		is_dashing
 		or dash_feedback_time > 0.0
 		or attack_visual_time > 0.0
-		or is_digging
-		or is_dig_prepare_active
-		or dig_feedback_time > 0.0
+		or mining_visual_active
+		or mining_visual_time > 0.0
 		or damage_cooldown > 0.0
 		or hurt_flash_remaining > 0.0
 	)
@@ -242,10 +250,10 @@ func get_dash_cooldown_duration() -> float:
 	return GameConstants.PLAYER_DASH_COOLDOWN
 
 
-func set_digging_enabled(enabled: bool) -> void:
-	digging_enabled = enabled
-	if not digging_enabled:
-		_stop_digging()
+func set_mining_enabled(enabled: bool) -> void:
+	mining_enabled = enabled
+	if not mining_enabled:
+		stop_mining_visual()
 
 
 func can_spend_mining_battery() -> bool:
@@ -256,17 +264,6 @@ func try_spend_mining_battery() -> bool:
 	if not can_spend_mining_battery():
 		return false
 	current_battery = maxf(current_battery - GameConstants.PLAYER_MINING_BATTERY_COST, 0.0)
-	return true
-
-
-func can_spend_dig_battery() -> bool:
-	return current_battery >= GameConstants.DIG_EXECUTE_BATTERY_COST
-
-
-func try_spend_dig_battery() -> bool:
-	if not can_spend_dig_battery():
-		return false
-	current_battery = maxf(current_battery - GameConstants.DIG_EXECUTE_BATTERY_COST, 0.0)
 	return true
 
 
@@ -330,22 +327,24 @@ func consume_attack_module_triggers() -> Array[Dictionary]:
 
 
 func consume_mechanic_attack_module_triggers() -> Array[Dictionary]:
+	return []
+
+
+func consume_drone_protocol_triggers() -> Array[Dictionary]:
 	var triggers: Array[Dictionary] = []
 	if is_dashing:
 		return triggers
-	for module_entry in GameState.get_mechanic_attack_module_entries():
-		var instance_id := String(module_entry.get("instance_id", ""))
+	for protocol_entry in GameState.get_equipped_drone_protocol_entries():
+		var instance_id := String(protocol_entry.get("instance_id", ""))
 		if instance_id.is_empty():
 			continue
-		if float(attack_module_cooldowns.get(instance_id, 0.0)) > 0.0:
+		if float(drone_protocol_cooldowns.get(instance_id, 0.0)) > 0.0:
 			continue
-		attack_module_cooldowns[instance_id] = GameState.get_attack_module_cooldown_duration(module_entry)
+		drone_protocol_cooldowns[instance_id] = GameState.get_drone_protocol_cooldown_duration(protocol_entry)
 		triggers.append({
-			"module_entry": module_entry,
-			"direction": Vector2.ZERO,
+			"protocol_entry": protocol_entry,
+			"drone_position": get_drone_global_position(),
 		})
-	if not triggers.is_empty():
-		_play_weapon_attack_visual(Vector2.RIGHT)
 	return triggers
 
 
@@ -366,8 +365,6 @@ func start_or_update_mining_visual(direction: Vector2) -> void:
 func stop_mining_visual() -> void:
 	mining_visual_active = false
 	mining_visual_time = 0.0
-	if is_digging or is_dig_prepare_active:
-		_stop_digging()
 	_update_drill_visual()
 
 
@@ -486,7 +483,7 @@ func _process_pending_dash_request() -> void:
 		return
 	if not can_dash():
 		return
-	_stop_digging()
+	stop_mining_visual()
 	current_battery = maxf(current_battery - GameConstants.PLAYER_DASH_BATTERY_COST, 0.0)
 	is_dashing = true
 	dash_direction = pending_dash_direction
@@ -507,6 +504,12 @@ func _update_attack_module_cooldowns(delta: float) -> void:
 	for raw_key in attack_module_cooldowns.keys():
 		var key := String(raw_key)
 		attack_module_cooldowns[key] = maxf(float(attack_module_cooldowns[key]) - delta, 0.0)
+
+
+func _update_drone_protocol_cooldowns(delta: float) -> void:
+	for raw_key in drone_protocol_cooldowns.keys():
+		var key := String(raw_key)
+		drone_protocol_cooldowns[key] = maxf(float(drone_protocol_cooldowns[key]) - delta, 0.0)
 
 
 func _update_dash_state() -> void:
@@ -551,9 +554,10 @@ func _update_sprite_visuals(horizontal_motion: float) -> void:
 	else:
 		animated_sprite.scale = animated_sprite_base_scale
 	_align_sprite_to_body_bottom()
-	if is_digging and dig_feedback_time > 0.0:
-		var feedback_ratio := dig_feedback_time / GameConstants.DIG_EFFECT_FEEDBACK_DURATION
-		animated_sprite.position.x += -float(dig_direction) * DIG_CHARACTER_RECOIL_PIXELS * sin(clampf(feedback_ratio, 0.0, 1.0) * PI)
+	if mining_visual_time > 0.0 and mining_visual_direction != Vector2.ZERO:
+		var feedback_ratio := mining_visual_time / GameConstants.DIG_EFFECT_FEEDBACK_DURATION
+		var recoil_direction := mining_visual_direction.normalized()
+		animated_sprite.position += -recoil_direction * DIG_CHARACTER_RECOIL_PIXELS * sin(clampf(feedback_ratio, 0.0, 1.0) * PI)
 
 
 func _align_sprite_to_body_bottom() -> void:
@@ -586,7 +590,7 @@ func _update_drill_visual() -> void:
 	_ensure_drill_visual()
 	if drill_visual == null:
 		return
-	if not is_digging or not mining_visual_active or mining_visual_direction == Vector2.ZERO:
+	if not mining_visual_active or mining_visual_direction == Vector2.ZERO:
 		drill_visual.visible = false
 		return
 	var direction := mining_visual_direction.normalized()
@@ -602,7 +606,7 @@ func _update_drill_visual() -> void:
 	var drill_half_width := DRILL_FRAME_SIZE.x * drill_scale.x * 0.5
 	var feedback_ratio := 0.0
 	if GameConstants.DIG_EFFECT_FEEDBACK_DURATION > 0.0:
-		feedback_ratio = dig_feedback_time / GameConstants.DIG_EFFECT_FEEDBACK_DURATION
+		feedback_ratio = mining_visual_time / GameConstants.DIG_EFFECT_FEEDBACK_DURATION
 	var feedback_offset := -direction * 3.0 * sin(clampf(feedback_ratio, 0.0, 1.0) * PI)
 	drill_visual.position = direction * (support_distance + drill_half_width - DRILL_EDGE_OVERLAP) + feedback_offset
 	drill_visual.visible = true
@@ -640,6 +644,62 @@ func _spawn_player_damage_popup(amount: int) -> void:
 	)
 
 
+func _process_mining_input() -> void:
+	mining_input_held = Input.is_action_pressed("mine_action")
+	if not mining_input_held:
+		return
+	_try_execute_mining_event()
+
+
+func _try_execute_mining_event() -> void:
+	if not mining_enabled or is_dashing or mining_cooldown > 0.0:
+		return
+	var mining_direction := _resolve_mining_direction()
+	if mining_direction == Vector2.ZERO:
+		return
+	var mining_shape_data := get_mining_shape_data(mining_direction)
+	var has_wall_target := world_grid != null and world_grid.has_mineable_in_shape(mining_shape_data)
+	if not has_wall_target:
+		return
+	if not try_spend_mining_battery():
+		return
+	mining_cooldown = _get_mining_interval()
+	_play_mining_feedback(mining_direction)
+	mining_execute_requested.emit(mining_direction)
+
+
+func _resolve_mining_direction() -> Vector2:
+	var to_mouse := get_global_mouse_position() - get_body_rect().get_center()
+	if to_mouse.length() <= GameConstants.PLAYER_ATTACK_DIRECTION_DEADZONE:
+		return Vector2.ZERO
+	if to_mouse.x > 0.0:
+		facing = Vector2i.RIGHT
+	elif to_mouse.x < 0.0:
+		facing = Vector2i.LEFT
+	return to_mouse.normalized()
+
+
+func _play_mining_feedback(direction: Vector2) -> void:
+	var resolved_direction := direction.normalized()
+	if resolved_direction == Vector2.ZERO:
+		return
+	mining_visual_direction = resolved_direction
+	mining_visual_active = true
+	mining_visual_time = GameConstants.DIG_EFFECT_FEEDBACK_DURATION
+	if world_grid != null:
+		world_grid.shake_mineable_in_shape(get_mining_shape_data(resolved_direction))
+	_update_drill_visual()
+	queue_redraw()
+
+
+func _get_mining_interval() -> float:
+	var mining_speed_bonus_percent := GameState.get_mining_speed_bonus_percent()
+	return maxf(
+		GameConstants.MIN_MINING_INTERVAL,
+		GameConstants.BASE_MINING_INTERVAL / (1.0 + mining_speed_bonus_percent / 100.0)
+	)
+
+
 func _cache_sprite_base_scale() -> void:
 	if animated_sprite == null:
 		return
@@ -665,169 +725,6 @@ func _get_sprite_fit_scale() -> Vector2:
 	return Vector2(
 		GameConstants.PLAYER_VISUAL_SIZE.x / frame_size.x,
 		GameConstants.PLAYER_VISUAL_SIZE.y / frame_size.y
-	)
-
-
-func _update_digging_state(delta: float) -> void:
-	is_dig_prepare_active = false
-	if not digging_enabled or is_dashing:
-		_stop_digging()
-		return
-	if _has_dig_cancel_input():
-		_stop_digging()
-		return
-	var target_direction := _get_wall_dig_input_direction()
-	if target_direction == 0:
-		_stop_digging()
-		return
-	var has_target := _has_wall_dig_target(target_direction)
-	if is_digging:
-		_update_active_digging(delta, target_direction, has_target)
-		return
-	_update_digging_prepare(delta, target_direction, has_target)
-
-
-func _update_digging_prepare(delta: float, target_direction: int, has_target: bool) -> void:
-	if not has_target or not can_spend_dig_battery():
-		_stop_digging()
-		return
-	is_dig_prepare_active = true
-	if dig_direction != 0 and dig_direction != target_direction:
-		dig_hold_timer = 0.0
-	dig_direction = target_direction
-	dig_hold_timer += delta
-	if dig_hold_timer < GameConstants.DIG_START_HOLD_TIME:
-		return
-	_start_digging(target_direction)
-
-
-func _update_active_digging(delta: float, target_direction: int, has_target: bool) -> void:
-	if target_direction != dig_direction or not can_spend_dig_battery():
-		_stop_digging()
-		return
-	if has_target:
-		dig_chain_grace_timer = GameConstants.DIG_CHAIN_GRACE_TIME
-	else:
-		dig_chain_grace_timer = maxf(dig_chain_grace_timer - delta, 0.0)
-		if dig_chain_grace_timer <= 0.0:
-			_stop_digging()
-			return
-	_update_dig_effect_timer(delta)
-	_update_dig_execute_timer(delta, has_target)
-	_sync_dig_visual()
-
-
-func _start_digging(target_direction: int) -> void:
-	is_digging = true
-	is_dig_prepare_active = false
-	dig_direction = target_direction
-	dig_hold_timer = 0.0
-	dig_chain_grace_timer = GameConstants.DIG_CHAIN_GRACE_TIME
-	dig_effect_timer = _get_dig_effect_interval()
-	dig_execute_timer = _get_dig_execute_interval()
-	_sync_dig_visual()
-
-
-func _stop_digging() -> void:
-	is_digging = false
-	is_dig_prepare_active = false
-	dig_direction = 0
-	dig_hold_timer = 0.0
-	dig_chain_grace_timer = 0.0
-	dig_effect_timer = 0.0
-	dig_execute_timer = 0.0
-	dig_feedback_time = 0.0
-	mining_visual_active = false
-	mining_visual_direction = Vector2.ZERO
-	_update_drill_visual()
-
-
-func _has_dig_cancel_input() -> bool:
-	return (
-		attack_buffer_remaining > 0.0
-		or attack_visual_time > 0.0
-		or jump_buffer_remaining > 0.0
-		or Input.is_action_pressed("attack_action")
-		or Input.is_action_pressed("jump")
-	)
-
-
-func _get_wall_dig_input_direction() -> int:
-	var left_pressed := Input.is_action_pressed("move_left")
-	var right_pressed := Input.is_action_pressed("move_right")
-	if left_pressed == right_pressed:
-		return 0
-	if left_pressed and is_on_left_wall:
-		return -1
-	if right_pressed and is_on_right_wall:
-		return 1
-	return 0
-
-
-func _has_wall_dig_target(direction: int) -> bool:
-	if direction == 0 or world_grid == null:
-		return false
-	var mining_shape_data := get_mining_shape_data(Vector2(float(direction), 0.0))
-	return world_grid.has_mineable_in_shape(mining_shape_data)
-
-
-func _update_dig_effect_timer(delta: float) -> void:
-	dig_effect_timer = maxf(dig_effect_timer - delta, 0.0)
-	if dig_effect_timer > 0.0:
-		return
-	_play_dig_effect()
-	dig_effect_timer += _get_dig_effect_interval()
-
-
-func _update_dig_execute_timer(delta: float, has_target: bool) -> void:
-	if not has_target:
-		return
-	dig_execute_timer = maxf(dig_execute_timer - delta, 0.0)
-	if dig_execute_timer > 0.0:
-		return
-	if not try_spend_dig_battery():
-		_stop_digging()
-		return
-	dig_execute_requested.emit(dig_direction)
-	dig_execute_timer += _get_dig_execute_interval()
-
-
-func _play_dig_effect() -> void:
-	dig_feedback_time = GameConstants.DIG_EFFECT_FEEDBACK_DURATION
-	if world_grid != null and dig_direction != 0:
-		var mining_shape_data := get_mining_shape_data(Vector2(float(dig_direction), 0.0))
-		world_grid.shake_mineable_in_shape(mining_shape_data)
-	queue_redraw()
-
-
-func _sync_dig_visual() -> void:
-	mining_visual_active = is_digging
-	if is_digging:
-		mining_visual_direction = Vector2(float(dig_direction), 0.0)
-	_update_drill_visual()
-
-
-func _apply_digging_motion_constraint() -> void:
-	velocity.x = 0.0
-	velocity.y = GameConstants.DIGGING_MAX_FALL_SPEED
-	motion_remainder = Vector2.ZERO
-
-
-func _get_dig_speed_multiplier() -> float:
-	return 1.0 + GameState.get_mining_speed_bonus_percent() / 100.0
-
-
-func _get_dig_effect_interval() -> float:
-	return maxf(
-		GameConstants.MIN_DIG_EFFECT_INTERVAL,
-		GameConstants.BASE_DIG_EFFECT_INTERVAL / _get_dig_speed_multiplier()
-	)
-
-
-func _get_dig_execute_interval() -> float:
-	return maxf(
-		GameConstants.MIN_DIG_EXECUTE_INTERVAL,
-		GameConstants.BASE_DIG_EXECUTE_INTERVAL / _get_dig_speed_multiplier()
 	)
 
 
@@ -976,8 +873,6 @@ func _apply_gravity(delta: float) -> void:
 			velocity.y + GameConstants.PLAYER_FAST_FALL_ACCELERATION * delta,
 			GameConstants.PLAYER_FAST_FALL_SPEED
 		)
-	if is_dig_prepare_active and velocity.y > GameConstants.DIG_PREPARE_MAX_FALL_SPEED:
-		velocity.y = GameConstants.DIG_PREPARE_MAX_FALL_SPEED
 
 
 # 고정 벽 접촉 + 벽 방향 입력 + 배터리 보유 상태일 때만 벽타기를 유지한다.
@@ -1356,6 +1251,10 @@ func _on_attack_module_changed(_module_id: StringName) -> void:
 	_sync_attack_module_visual()
 
 
+func _on_weapons_changed(_left_weapon: Dictionary, _right_weapon: Dictionary) -> void:
+	_sync_attack_module_visual()
+
+
 func _ensure_weapon_visual_root() -> void:
 	if weapon_visual_root != null and is_instance_valid(weapon_visual_root):
 		return
@@ -1367,21 +1266,59 @@ func _ensure_weapon_visual_root() -> void:
 	weapon_visual_root.position = Vector2.ZERO
 
 
+func _ensure_right_weapon_visual_root() -> void:
+	if right_weapon_visual_root != null and is_instance_valid(right_weapon_visual_root):
+		return
+	right_weapon_visual_root = get_node_or_null("RightWeaponVisualRoot") as Node2D
+	if right_weapon_visual_root == null:
+		right_weapon_visual_root = Node2D.new()
+		right_weapon_visual_root.name = "RightWeaponVisualRoot"
+		add_child(right_weapon_visual_root)
+	right_weapon_visual_root.position = Vector2.ZERO
+
+
 func _sync_attack_module_visual() -> void:
 	_ensure_weapon_visual_root()
-	var entries := GameState.get_equipped_attack_module_entries()
-	if entries.is_empty():
+	_ensure_right_weapon_visual_root()
+	var left_entry := GameState.get_equipped_weapon_left()
+	if left_entry.is_empty():
 		_clear_weapon_visual()
-		return
-	var module_entry: Dictionary = entries[0]
+	else:
+		_sync_weapon_visual_for_entry(left_entry, false)
+	var right_entry := GameState.get_equipped_weapon_right()
+	if right_entry.is_empty():
+		_clear_right_weapon_visual()
+	else:
+		_sync_weapon_visual_for_entry(right_entry, true)
+
+
+func _sync_weapon_visual_for_entry(module_entry: Dictionary, is_right_slot: bool) -> void:
 	var instance_id := String(module_entry.get("instance_id", ""))
 	if instance_id.is_empty():
-		_clear_weapon_visual()
+		if is_right_slot:
+			_clear_right_weapon_visual()
+		else:
+			_clear_weapon_visual()
 		return
 	var module_definition = GameState.get_attack_module_definition_from_entry(module_entry)
 	var scene_path := ""
 	if module_definition != null:
 		scene_path = module_definition.visual_scene_path
+	if is_right_slot:
+		if right_weapon_visual == null or not is_instance_valid(right_weapon_visual) or right_weapon_visual_instance_id != instance_id:
+			_clear_right_weapon_visual()
+			right_weapon_visual = _instantiate_attack_module_visual(scene_path)
+			if right_weapon_visual == null:
+				return
+			right_weapon_visual_root.add_child(right_weapon_visual)
+			right_weapon_visual_instance_id = instance_id
+			right_weapon_visual.position = Vector2.ZERO
+		_configure_attack_module_visual(right_weapon_visual, module_entry, module_definition)
+		right_weapon_animation_type = _get_weapon_animation_type(module_definition)
+		if right_weapon_visual.has_method("set_animation_type"):
+			right_weapon_visual.call("set_animation_type", right_weapon_animation_type)
+		_update_right_weapon_idle_pose()
+		return
 	if weapon_visual == null or not is_instance_valid(weapon_visual) or weapon_visual_instance_id != instance_id:
 		_clear_weapon_visual()
 		weapon_visual = _instantiate_attack_module_visual(scene_path)
@@ -1398,11 +1335,13 @@ func _sync_attack_module_visual() -> void:
 
 
 func _update_weapon_visual(delta: float) -> void:
-	if weapon_visual == null or not is_instance_valid(weapon_visual):
-		return
 	weapon_bob_time += delta * WEAPON_IDLE_BOB_SPEED
 	weapon_attack_visual_time = maxf(weapon_attack_visual_time - delta, 0.0)
-	_update_weapon_idle_pose()
+	right_weapon_attack_visual_time = maxf(right_weapon_attack_visual_time - delta, 0.0)
+	if weapon_visual != null and is_instance_valid(weapon_visual):
+		_update_weapon_idle_pose()
+	if right_weapon_visual != null and is_instance_valid(right_weapon_visual):
+		_update_right_weapon_idle_pose()
 
 
 func _instantiate_attack_module_visual(scene_path: String) -> Node2D:
@@ -1429,7 +1368,9 @@ func _play_weapon_attack_visual(direction: Vector2) -> void:
 	if weapon_attack_direction == Vector2.ZERO:
 		weapon_attack_direction = Vector2.RIGHT
 	weapon_attack_visual_time = WEAPON_ATTACK_VISUAL_DURATION
+	right_weapon_attack_visual_time = WEAPON_ATTACK_VISUAL_DURATION
 	_update_weapon_idle_pose()
+	_update_right_weapon_idle_pose()
 
 
 func _clear_weapon_visual() -> void:
@@ -1438,6 +1379,14 @@ func _clear_weapon_visual() -> void:
 	weapon_visual = null
 	weapon_visual_instance_id = ""
 	weapon_attack_visual_time = 0.0
+
+
+func _clear_right_weapon_visual() -> void:
+	if right_weapon_visual != null and is_instance_valid(right_weapon_visual):
+		right_weapon_visual.queue_free()
+	right_weapon_visual = null
+	right_weapon_visual_instance_id = ""
+	right_weapon_attack_visual_time = 0.0
 
 
 func _set_weapon_visual_depth(is_combat_depth: bool) -> void:
@@ -1452,7 +1401,7 @@ func _update_weapon_idle_pose() -> void:
 		return
 	if weapon_visual == null or not is_instance_valid(weapon_visual):
 		return
-	var pose := _get_weapon_idle_pose()
+	var pose := _get_weapon_idle_pose(false)
 	var bob_offset := Vector2(0.0, sin(weapon_bob_time) * WEAPON_IDLE_BOB_AMPLITUDE)
 	var pose_position: Vector2 = pose.get("position", Vector2.ZERO)
 	var pose_rotation := float(pose.get("rotation", 0.0))
@@ -1468,7 +1417,30 @@ func _update_weapon_idle_pose() -> void:
 	_set_weapon_visual_depth(false)
 
 
-func _get_weapon_idle_pose() -> Dictionary:
+func _update_right_weapon_idle_pose() -> void:
+	if right_weapon_visual_root == null or not is_instance_valid(right_weapon_visual_root):
+		return
+	if right_weapon_visual == null or not is_instance_valid(right_weapon_visual):
+		return
+	var pose := _get_weapon_idle_pose(true)
+	var bob_offset := Vector2(0.0, sin(weapon_bob_time + PI) * WEAPON_IDLE_BOB_AMPLITUDE)
+	var pose_position: Vector2 = pose.get("position", Vector2.ZERO)
+	var pose_rotation := float(pose.get("rotation", 0.0))
+	var attack_transform := _get_weapon_attack_visual_transform_for(
+		pose_rotation,
+		right_weapon_attack_visual_time,
+		right_weapon_animation_type
+	)
+	right_weapon_visual_root.position = pose_position + bob_offset + Vector2(0.0, -4.0) + attack_transform.get("offset", Vector2.ZERO)
+	right_weapon_visual.position = Vector2.ZERO
+	right_weapon_visual.rotation = pose_rotation + float(attack_transform.get("rotation", 0.0))
+	right_weapon_visual.scale = Vector2.ONE * float(attack_transform.get("scale", 1.0))
+	right_weapon_visual.visible = true
+	var body_z := animated_sprite.z_index if animated_sprite != null else 0
+	right_weapon_visual_root.z_index = body_z + 1
+
+
+func _get_weapon_idle_pose(is_right_slot: bool = false) -> Dictionary:
 	var body := _get_body_local_rect()
 	var unit := float(GameConstants.CELL_SIZE)
 	var is_facing_left := facing.x < 0
@@ -1484,7 +1456,8 @@ func _get_weapon_idle_pose() -> Dictionary:
 			rotation = WEAPON_IDLE_GUN_LEFT_ROTATION if is_facing_left else WEAPON_IDLE_GUN_RIGHT_ROTATION
 		_:
 			rotation = WEAPON_IDLE_GUN_LEFT_ROTATION if is_facing_left else WEAPON_IDLE_GUN_RIGHT_ROTATION
-	var x := body.position.x + x_inset_u * unit if is_facing_left else body.end.x - x_inset_u * unit
+	var visual_on_left := is_facing_left != is_right_slot
+	var x := body.position.x + x_inset_u * unit if visual_on_left else body.end.x - x_inset_u * unit
 	var y := body.end.y + y_offset_u * unit
 	return {
 		"position": Vector2(x, y),
@@ -1493,14 +1466,18 @@ func _get_weapon_idle_pose() -> Dictionary:
 
 
 func _get_weapon_attack_visual_transform(base_rotation: float) -> Dictionary:
-	if weapon_attack_visual_time <= 0.0 or WEAPON_ATTACK_VISUAL_DURATION <= 0.0:
+	return _get_weapon_attack_visual_transform_for(base_rotation, weapon_attack_visual_time, weapon_animation_type)
+
+
+func _get_weapon_attack_visual_transform_for(base_rotation: float, visual_time: float, animation_type: StringName) -> Dictionary:
+	if visual_time <= 0.0 or WEAPON_ATTACK_VISUAL_DURATION <= 0.0:
 		return {"offset": Vector2.ZERO, "rotation": 0.0, "scale": 1.0}
-	var progress := 1.0 - weapon_attack_visual_time / WEAPON_ATTACK_VISUAL_DURATION
+	var progress := 1.0 - visual_time / WEAPON_ATTACK_VISUAL_DURATION
 	progress = clampf(progress, 0.0, 1.0)
 	var impulse := sin(progress * PI)
 	var direction := Vector2.RIGHT.rotated(base_rotation)
 	var facing_sign := -1.0 if facing.x < 0 else 1.0
-	match weapon_animation_type:
+	match animation_type:
 		WEAPON_ANIMATION_TYPE_ONE_HAND_GUN:
 			return {
 				"offset": -direction * WEAPON_ATTACK_GUN_RECOIL_DISTANCE * impulse,
@@ -1543,6 +1520,41 @@ func _get_weapon_animation_type(module_definition) -> StringName:
 			return WEAPON_ANIMATION_TYPE_STAB
 		_:
 			return WEAPON_ANIMATION_TYPE_SWING
+
+
+func _ensure_drone_visual() -> void:
+	if drone_visual != null and is_instance_valid(drone_visual):
+		return
+	drone_visual = get_node_or_null("BasicDroneVisual") as Node2D
+	if drone_visual == null:
+		drone_visual = BASIC_DRONE_VISUAL_SCRIPT.new() as Node2D
+		drone_visual.name = "BasicDroneVisual"
+		add_child(drone_visual)
+	drone_visual.z_index = (animated_sprite.z_index if animated_sprite != null else 0) + 2
+	_update_drone_visual(0.0)
+
+
+func _update_drone_visual(delta: float) -> void:
+	_ensure_drone_visual()
+	drone_bob_time += delta * 2.2
+	drone_visual.position = Vector2(30.0, -54.0 + sin(drone_bob_time) * 4.0)
+
+
+func get_drone_global_position() -> Vector2:
+	if drone_visual == null or not is_instance_valid(drone_visual):
+		return global_position + Vector2(30.0, -54.0)
+	return drone_visual.global_position
+
+
+func get_equipment_trigger_debug_snapshot() -> Dictionary:
+	return {
+		"weapon_cooldowns": attack_module_cooldowns.duplicate(true),
+		"protocol_cooldowns": drone_protocol_cooldowns.duplicate(true),
+		"has_left_weapon_visual": weapon_visual != null and is_instance_valid(weapon_visual),
+		"has_right_weapon_visual": right_weapon_visual != null and is_instance_valid(right_weapon_visual),
+		"has_drone_visual": drone_visual != null and is_instance_valid(drone_visual),
+		"drone_position": get_drone_global_position(),
+	}
 
 
 func _get_dash_visual_color() -> Color:

@@ -14,6 +14,21 @@ const CAMERA_PLAYER_Y_OFFSET := 110.0
 const CAMERA_FOLLOW_SPEED_NORMAL := 10.0
 const CAMERA_FOLLOW_SPEED_DASH := 3.0
 const RANGED_PROJECTILE_LANE_GAP_UNITS := 0.26
+const INTERMISSION_HAZARD_GLITCH_INTERVAL := 0.25
+const INTERMISSION_HAZARD_GLITCH_TEXTS := [
+	"#%$@! HAZARD ##",
+	"유ㅎㅐㅁㅜㄹㅈㅣㄹ",
+	"D4NG3R",
+	"!! 오염 !!",
+]
+
+enum IntermissionHazardState {
+	NONE,
+	COUNTDOWN,
+	WARNING,
+	DANGER,
+	CRITICAL,
+}
 
 @onready var world_grid: WorldGrid = $WorldGrid
 @onready var sand_field: SandField = $SandField
@@ -31,10 +46,13 @@ var run_finished := false
 # Day 진행과 상점 전환 상태를 최소 범위로 분리한다.
 var _is_day_active := true
 var _is_intermission := false
-var _is_intermission_locked := false
 var _is_next_day_transitioning := false
 var _shop_ui_open := false
-var _intermission_elapsed := 0.0
+var _intermission_hazard_state := IntermissionHazardState.NONE
+var _intermission_hazard_time_remaining := 0.0
+var _intermission_hazard_state_elapsed := 0.0
+var _intermission_hazard_damage_accumulator := 0.0
+var _intermission_hazard_glitch_elapsed := 0.0
 var _day_kiosk: Node2D
 var _day_shop_ui
 var _fade_overlay: ColorRect
@@ -66,9 +84,11 @@ func _ready() -> void:
 	rng.randomize()
 	_configure_camera()
 	sand_field.setup(world_grid)
+	if not sand_field.sand_cells_removed.is_connected(_on_sand_cells_removed):
+		sand_field.sand_cells_removed.connect(_on_sand_cells_removed)
 	player.setup(world_grid, sand_field, blocks_root)
-	if not player.dig_execute_requested.is_connected(_on_player_dig_execute_requested):
-		player.dig_execute_requested.connect(_on_player_dig_execute_requested)
+	if not player.mining_execute_requested.is_connected(_on_player_mining_execute_requested):
+		player.mining_execute_requested.connect(_on_player_mining_execute_requested)
 	_ensure_projectiles_root()
 	_ensure_fade_overlay()
 	_setup_wall_treasure_manager()
@@ -80,6 +100,7 @@ func _ready() -> void:
 	spawn_timer.start()
 	if GameData.is_boss_day(_current_day):
 		_spawn_boss_block()
+	_reset_intermission_hazard()
 	_refresh_debug()
 
 
@@ -100,13 +121,13 @@ func _physics_process(delta: float) -> void:
 		_assign_ranged_attack_lanes(attack_triggers)
 		for attack_trigger in attack_triggers:
 			_handle_attack_module_action(attack_trigger)
-		for mechanic_trigger in player.consume_mechanic_attack_module_triggers():
-			_handle_attack_module_action(mechanic_trigger, true)
+		for protocol_trigger in player.consume_drone_protocol_triggers():
+			_handle_drone_protocol_action(protocol_trigger)
 
 	if run_finished:
 		return
 
-	player.set_digging_enabled(not _shop_ui_open and not _is_next_day_transitioning and not _is_intermission_locked)
+	player.set_mining_enabled(not _shop_ui_open and not _is_next_day_transitioning)
 
 	if _is_day_active:
 		_day_time_remaining -= delta
@@ -233,6 +254,7 @@ func _handle_attack_module_action(trigger: Dictionary, is_mechanic := false) -> 
 				crit_count += 1
 			block.apply_damage(damage, is_critical, module_stagger_power)
 			hit_count += 1
+	sand_field.apply_weapon_damage_in_shape(attack_shape_data, module_damage, &"weapon")
 	if hit_count > 0:
 		var status_text := "%s: %s" % [GameState.get_attack_module_entry_label(module_entry), Locale.ltr("status_attack_hit") % hit_count]
 		if crit_count > 0:
@@ -299,6 +321,7 @@ func _fire_projectile_burst(module_entry: Dictionary, module_definition, fire_di
 		_projectiles_root.add_child(projectile)
 		var is_critical := rng.randf() < GameState.get_critical_chance_ratio()
 		var damage := GameState.get_attack_module_damage(module_entry)
+		var weapon_damage_for_sand := damage
 		var stagger_power := GameState.get_attack_module_stagger_power(module_entry)
 		if is_critical:
 			damage = int(round(float(damage) * GameState.get_critical_damage_multiplier()))
@@ -312,11 +335,13 @@ func _fire_projectile_burst(module_entry: Dictionary, module_definition, fire_di
 			"size": projectile_visual_size,
 			"effect_style": effect_style,
 			"damage": damage,
+			"weapon_damage_for_sand": weapon_damage_for_sand,
 			"is_critical": is_critical,
 			"stagger_power": stagger_power,
 			"pierce_count": pierce_count,
 			"homing": module_definition.projectile_homing,
 			"blocks_root": blocks_root,
+			"sand_field": sand_field,
 		})
 	GameState.set_status_text("%s fired x%d." % [GameState.get_attack_module_entry_label(module_entry), projectile_count])
 
@@ -324,8 +349,9 @@ func _fire_projectile_burst(module_entry: Dictionary, module_definition, fire_di
 func _fire_laser_placeholder(module_entry: Dictionary, module_definition, fire_direction: Vector2, lane_offset: Vector2) -> void:
 	var range_distance := _get_ranged_attack_distance(module_entry)
 	var shape_size := GameState.get_attack_module_shape_size_pixels(module_entry)
+	var beam_origin := player.global_position + lane_offset
 	var attack_shape_data := {
-		"center": player.global_position + fire_direction * (range_distance * 0.5),
+		"center": beam_origin + fire_direction * (range_distance * 0.5),
 		"size": Vector2(range_distance, shape_size.y),
 		"rotation": fire_direction.angle(),
 	}
@@ -339,26 +365,77 @@ func _fire_laser_placeholder(module_entry: Dictionary, module_definition, fire_d
 	query.collision_mask = 1
 	var space_state: PhysicsDirectSpaceState2D = get_world_2d().direct_space_state
 	var results: Array[Dictionary] = space_state.intersect_shape(query, 32)
-	var hit_count := 0
-	var hit_once: Dictionary = {}
-	var stagger_power := GameState.get_attack_module_stagger_power(module_entry)
+	var collision_candidates: Array[Dictionary] = []
 	for result in results:
 		var block := result["collider"] as FallingBlock
-		if block == null or hit_once.has(block):
+		if block == null or not block.active:
 			continue
-		hit_once[block] = true
-		var is_critical := rng.randf() < GameState.get_critical_chance_ratio()
-		var damage := GameState.get_attack_module_damage(module_entry)
-		if is_critical:
-			damage = int(round(float(damage) * GameState.get_critical_damage_multiplier()))
-		block.apply_damage(damage, is_critical, stagger_power)
+		var block_rect := block.get_block_rect()
+		collision_candidates.append({
+			"type": &"block",
+			"target": block,
+			"position": block_rect.get_center(),
+			"distance": _get_forward_collision_distance(block_rect, beam_origin, fire_direction),
+		})
+	for cell in sand_field.get_sand_cells_in_shape(attack_shape_data):
+		var cell_rect := sand_field.get_sand_cell_rect(cell)
+		collision_candidates.append({
+			"type": &"sand",
+			"target": cell,
+			"position": cell_rect.get_center(),
+			"distance": _get_forward_collision_distance(cell_rect, beam_origin, fire_direction),
+		})
+	collision_candidates.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var distance_a := float(a["distance"])
+		var distance_b := float(b["distance"])
+		if is_equal_approx(distance_a, distance_b):
+			return String(a["type"]) < String(b["type"])
+		return distance_a < distance_b
+	)
+	var hit_count := 0
+	var hit_once: Dictionary = {}
+	var hit_sand_once: Dictionary = {}
+	var stagger_power := GameState.get_attack_module_stagger_power(module_entry)
+	var weapon_damage := GameState.get_attack_module_damage(module_entry)
+	var remaining_pierce := ATTACK_MODULE_STYLE_RESOLVER.get_ranged_pierce_count(module_definition)
+	var beam_end := beam_origin + fire_direction * range_distance
+	for collision in collision_candidates:
+		match StringName(collision["type"]):
+			&"block":
+				var block := collision["target"] as FallingBlock
+				if block == null or not block.active or hit_once.has(block):
+					continue
+				hit_once[block] = true
+				var is_critical := rng.randf() < GameState.get_critical_chance_ratio()
+				var damage := weapon_damage
+				if is_critical:
+					damage = int(round(float(damage) * GameState.get_critical_damage_multiplier()))
+				block.apply_damage(damage, is_critical, stagger_power)
+			&"sand":
+				var cell: Vector2i = collision["target"]
+				if hit_sand_once.has(cell):
+					continue
+				hit_sand_once[cell] = true
+				sand_field.apply_weapon_damage_to_sand_cell(cell, weapon_damage, &"weapon")
 		hit_count += 1
+		if remaining_pierce <= 0:
+			beam_end = collision["position"]
+			break
+		remaining_pierce -= 1
 	_spawn_laser_line(
-		player.global_position + lane_offset,
-		player.global_position + fire_direction * range_distance + lane_offset,
+		beam_origin,
+		beam_end,
 		String(ATTACK_MODULE_STYLE_RESOLVER.get_effect_style(module_definition))
 	)
 	GameState.set_status_text("%s laser hit %d." % [GameState.get_attack_module_entry_label(module_entry), hit_count])
+
+
+func _get_forward_collision_distance(target_rect: Rect2, start_position: Vector2, travel_direction: Vector2) -> float:
+	var projected_half_extent := (
+		absf(travel_direction.x) * target_rect.size.x
+		+ absf(travel_direction.y) * target_rect.size.y
+	) * 0.5
+	return (target_rect.get_center() - start_position).dot(travel_direction) - projected_half_extent
 
 
 func _spawn_laser_line(from_position: Vector2, to_position: Vector2, effect_style: String = "laser_beam") -> void:
@@ -471,6 +548,76 @@ func _handle_mechanic_attack_module_action(module_entry: Dictionary) -> void:
 	GameState.set_status_text("%s auto hit." % GameState.get_attack_module_entry_label(module_entry))
 
 
+func _handle_drone_protocol_action(trigger: Dictionary) -> void:
+	var protocol_entry: Dictionary = trigger.get("protocol_entry", {})
+	if protocol_entry.is_empty():
+		return
+	var item_id := StringName(String(protocol_entry.get("item_id", "")))
+	var definition := GameData.get_shop_item_definition(item_id)
+	if definition.is_empty():
+		return
+	match String(definition.get("protocol_behavior", "")):
+		"auto_attack", "combat_drone":
+			_handle_drone_single_target_protocol(protocol_entry, definition)
+		"sand_cleaner":
+			_handle_sand_cleaner_protocol(definition)
+		"aura_damage":
+			_handle_drone_aura_protocol(protocol_entry, definition)
+
+
+func _handle_drone_single_target_protocol(protocol_entry: Dictionary, definition: Dictionary) -> void:
+	var target := _find_nearest_attackable_block(GameConstants.DRONE_PROTOCOL_TARGET_RANGE)
+	if target == null:
+		return
+	var damage := GameState.get_drone_protocol_damage(protocol_entry)
+	target.apply_damage(damage, false, 0.0)
+	GameState.set_status_text("%s protocol hit." % String(definition.get("name", protocol_entry.get("item_id", ""))))
+
+
+func _handle_sand_cleaner_protocol(definition: Dictionary) -> void:
+	var effect_values: Dictionary = definition.get("effect_values", {}) as Dictionary
+	var removed_cells := sand_field.remove_nearest_sand_cells(
+		player.global_position,
+		maxi(int(effect_values.get("sand_remove_count", 1)), 1)
+	)
+	if removed_cells.is_empty():
+		return
+	GameState.set_status_text("%s removed %d sand." % [String(definition.get("name", "Cleaner protocol")), removed_cells.size()])
+
+
+func _handle_drone_aura_protocol(protocol_entry: Dictionary, definition: Dictionary) -> void:
+	var effect_values: Dictionary = definition.get("effect_values", {}) as Dictionary
+	var radius := maxf(float(effect_values.get("radius_u", 1.0)) * float(GameConstants.CELL_SIZE), 1.0)
+	var damage := GameState.get_drone_protocol_damage(protocol_entry)
+	var hit_count := 0
+	for child in blocks_root.get_children():
+		var block := child as FallingBlock
+		if block == null or not block.active:
+			continue
+		if player.global_position.distance_to(block.global_position) > radius:
+			continue
+		block.apply_damage(damage, false, 0.0)
+		hit_count += 1
+	_spawn_drone_aura_pulse(radius)
+	if hit_count > 0:
+		GameState.set_status_text("%s pulse hit %d." % [String(definition.get("name", "Aura protocol")), hit_count])
+
+
+func _spawn_drone_aura_pulse(radius: float) -> void:
+	_ensure_projectiles_root()
+	var line := Line2D.new()
+	line.width = 3.0
+	line.default_color = Color(0.42, 0.9, 1.0, 0.75)
+	var points := PackedVector2Array()
+	for index in range(25):
+		var angle := TAU * float(index) / 24.0
+		points.append(player.global_position + Vector2.RIGHT.rotated(angle) * radius)
+	line.points = points
+	line.z_index = 36
+	_projectiles_root.add_child(line)
+	_fade_and_free(line, 0.18)
+
+
 func _find_nearest_attackable_block(max_distance: float) -> FallingBlock:
 	var best_block: FallingBlock = null
 	var best_distance := INF
@@ -487,17 +634,18 @@ func _find_nearest_attackable_block(max_distance: float) -> FallingBlock:
 	return best_block
 
 
-func _on_player_dig_execute_requested(direction: int) -> void:
-	_handle_wall_dig_execute(direction)
+func _on_player_mining_execute_requested(direction: Vector2) -> void:
+	_handle_environment_mining_execute(direction)
 
 
-func _handle_wall_dig_execute(direction: int) -> void:
-	if direction == 0:
+func _handle_environment_mining_execute(direction: Vector2) -> void:
+	var mining_direction := direction.normalized()
+	if mining_direction == Vector2.ZERO:
 		return
-	var mining_direction := Vector2(float(direction), 0.0)
 	var mining_shape_data := player.get_mining_shape_data(mining_direction)
 	var final_mining_damage := GameState.get_mining_damage()
-	if not world_grid.has_mineable_in_shape(mining_shape_data):
+	var has_wall_target := world_grid.has_mineable_in_shape(mining_shape_data)
+	if not has_wall_target:
 		_set_mining_idle_status(Locale.ltr("status_mine_nothing"))
 		return
 	var wall_result: Dictionary = world_grid.try_mine_in_shape(mining_shape_data, final_mining_damage)
@@ -552,6 +700,11 @@ func _spawn_gold_popup(spawn_pos: Vector2, amount: int) -> void:
 	blocks_root.add_child(popup)
 	popup.global_position = spawn_pos
 	popup.call("setup", amount)
+
+
+func _on_sand_cells_removed(removed_count: int, _removal_source: StringName) -> void:
+	# 모래 제거는 골드를 지급하지 않는다. 기존 XP 정책만 한 경로에서 유지한다.
+	GameState.add_sand_removed_xp(removed_count)
 
 
 func _on_block_decomposed(block: FallingBlock, reason: StringName) -> void:
@@ -645,8 +798,6 @@ func _enter_intermission() -> void:
 		return
 	_is_day_active = false
 	_is_intermission = true
-	_is_intermission_locked = false
-	_intermission_elapsed = 0.0
 	_shop_ui_open = false
 	_waiting_for_day_kiosk = true
 	_kiosk_spawn_delay_remaining = -1.0
@@ -661,12 +812,128 @@ func _enter_intermission() -> void:
 
 func _update_intermission(delta: float) -> void:
 	_update_day_kiosk_deployment(delta)
-	if _is_intermission_locked:
+	_update_intermission_hazard(delta)
+
+
+func _start_intermission_hazard() -> void:
+	_intermission_hazard_damage_accumulator = 0.0
+	_intermission_hazard_glitch_elapsed = 0.0
+	_set_intermission_hazard_state(IntermissionHazardState.COUNTDOWN)
+
+
+func _reset_intermission_hazard() -> void:
+	_intermission_hazard_state = IntermissionHazardState.NONE
+	_intermission_hazard_time_remaining = 0.0
+	_intermission_hazard_state_elapsed = 0.0
+	_intermission_hazard_damage_accumulator = 0.0
+	_intermission_hazard_glitch_elapsed = 0.0
+	GameState.set_health_recovery_blocked(false)
+	if hud != null:
+		hud.set_intermission_hazard_visible(false)
+
+
+func _set_intermission_hazard_state(next_state: IntermissionHazardState) -> void:
+	_intermission_hazard_state = next_state
+	_intermission_hazard_state_elapsed = 0.0
+	match _intermission_hazard_state:
+		IntermissionHazardState.NONE:
+			_intermission_hazard_time_remaining = 0.0
+			GameState.set_health_recovery_blocked(false)
+			hud.set_intermission_hazard_visible(false)
+		IntermissionHazardState.COUNTDOWN:
+			_intermission_hazard_time_remaining = GameConstants.INTERMISSION_HAZARD_COUNTDOWN_SECONDS
+			GameState.set_health_recovery_blocked(false)
+			hud.set_intermission_hazard_visible(true)
+			hud.set_intermission_hazard_countdown(_intermission_hazard_time_remaining)
+		IntermissionHazardState.WARNING:
+			_intermission_hazard_time_remaining = GameConstants.INTERMISSION_HAZARD_WARNING_SECONDS
+			GameState.set_health_recovery_blocked(true)
+			hud.set_intermission_hazard_state_text("유해물질 경고", "warning")
+		IntermissionHazardState.DANGER:
+			_intermission_hazard_time_remaining = GameConstants.INTERMISSION_HAZARD_DANGER_SECONDS
+			GameState.set_health_recovery_blocked(true)
+			hud.set_intermission_hazard_state_text("유해물질 위험", "danger")
+		IntermissionHazardState.CRITICAL:
+			_intermission_hazard_time_remaining = 0.0
+			GameState.set_health_recovery_blocked(true)
+			_intermission_hazard_glitch_elapsed = 0.0
+			_update_intermission_hazard_glitch_text()
+
+
+func _update_intermission_hazard(delta: float) -> void:
+	if _intermission_hazard_state == IntermissionHazardState.NONE or _is_intermission_hazard_progress_paused():
 		return
-	_intermission_elapsed += delta
-	if _intermission_elapsed >= GameConstants.DAY_INTERMISSION_GRACE_DURATION:
-		_is_intermission_locked = true
-		GameState.set_status_text("유예 시간이 끝났습니다. 채굴만 정지되고 모래 반응은 유지됩니다.")
+	var remaining_delta := delta
+	while remaining_delta > 0.0:
+		if _intermission_hazard_state == IntermissionHazardState.CRITICAL:
+			_intermission_hazard_state_elapsed += remaining_delta
+			_apply_intermission_hazard_damage(remaining_delta)
+			_update_intermission_hazard_glitch(remaining_delta)
+			return
+		var consumed_delta := minf(remaining_delta, _intermission_hazard_time_remaining)
+		_intermission_hazard_time_remaining = maxf(_intermission_hazard_time_remaining - consumed_delta, 0.0)
+		_intermission_hazard_state_elapsed += consumed_delta
+		remaining_delta -= consumed_delta
+		_apply_intermission_hazard_damage(consumed_delta)
+		if _intermission_hazard_state == IntermissionHazardState.COUNTDOWN:
+			hud.set_intermission_hazard_countdown(_intermission_hazard_time_remaining)
+		if _intermission_hazard_time_remaining > 0.0:
+			return
+		_advance_intermission_hazard_state()
+
+
+func _advance_intermission_hazard_state() -> void:
+	match _intermission_hazard_state:
+		IntermissionHazardState.COUNTDOWN:
+			_set_intermission_hazard_state(IntermissionHazardState.WARNING)
+		IntermissionHazardState.WARNING:
+			_set_intermission_hazard_state(IntermissionHazardState.DANGER)
+		IntermissionHazardState.DANGER:
+			_set_intermission_hazard_state(IntermissionHazardState.CRITICAL)
+
+
+func _apply_intermission_hazard_damage(delta: float) -> void:
+	var damage_per_second := _get_intermission_hazard_damage_per_second()
+	if damage_per_second <= 0.0 or GameState.player_health <= 0:
+		return
+	_intermission_hazard_damage_accumulator += damage_per_second * delta
+	var damage_to_apply := int(floor(_intermission_hazard_damage_accumulator))
+	if damage_to_apply <= 0:
+		return
+	_intermission_hazard_damage_accumulator -= float(damage_to_apply)
+	GameState.damage_player_environment(damage_to_apply)
+
+
+func _get_intermission_hazard_damage_per_second() -> float:
+	match _intermission_hazard_state:
+		IntermissionHazardState.WARNING:
+			return GameConstants.INTERMISSION_HAZARD_WARNING_DAMAGE_PER_SECOND
+		IntermissionHazardState.DANGER:
+			return GameConstants.INTERMISSION_HAZARD_DANGER_DAMAGE_PER_SECOND
+		IntermissionHazardState.CRITICAL:
+			return GameConstants.INTERMISSION_HAZARD_CRITICAL_DAMAGE_PER_SECOND
+	return 0.0
+
+
+func _update_intermission_hazard_glitch(delta: float) -> void:
+	_intermission_hazard_glitch_elapsed += delta
+	while _intermission_hazard_glitch_elapsed >= INTERMISSION_HAZARD_GLITCH_INTERVAL:
+		_intermission_hazard_glitch_elapsed -= INTERMISSION_HAZARD_GLITCH_INTERVAL
+		_update_intermission_hazard_glitch_text()
+
+
+func _update_intermission_hazard_glitch_text() -> void:
+	var glitch_text: String = INTERMISSION_HAZARD_GLITCH_TEXTS[rng.randi_range(0, INTERMISSION_HAZARD_GLITCH_TEXTS.size() - 1)]
+	hud.set_intermission_hazard_state_text(glitch_text, "critical")
+
+
+func _is_intermission_hazard_progress_paused() -> bool:
+	return (
+		get_tree().paused
+		or _shop_ui_open
+		or (_pause_menu != null and is_instance_valid(_pause_menu))
+		or _treasure_reward_popup != null
+	)
 
 
 func _spawn_day_kiosk() -> void:
@@ -686,6 +953,8 @@ func _spawn_day_kiosk() -> void:
 		_day_kiosk.call("setup", world_grid, sand_field, blocks_root, spawn_position)
 	else:
 		_day_kiosk.global_position = spawn_position
+	if _is_intermission and _intermission_hazard_state == IntermissionHazardState.NONE:
+		_start_intermission_hazard()
 	_update_day_kiosk_prompt()
 
 
@@ -932,14 +1201,13 @@ func _request_next_day_transition() -> void:
 
 func _start_next_day_transition() -> void:
 	_is_next_day_transitioning = true
+	_reset_intermission_hazard()
 	_close_day_shop()
 	_despawn_day_kiosk()
 	await _play_fade(1.0, GameConstants.DAY_TRANSITION_FADE_DURATION)
 	_apply_next_day_interest()
 	_apply_pending_wall_reset_for_next_day()
 	_is_intermission = false
-	_is_intermission_locked = false
-	_intermission_elapsed = 0.0
 	_is_day_active = true
 	_advance_to_next_day()
 	spawn_timer.start()
@@ -1125,6 +1393,9 @@ func _on_pause_menu_closed() -> void:
 func _update_player_regen(delta: float) -> void:
 	if _shop_ui_open or _is_next_day_transitioning:
 		return
+	if GameState.is_health_recovery_blocked():
+		_player_regen_accumulator = 0.0
+		return
 	if GameState.player_health <= 0 or GameState.player_health >= GameState.get_player_max_health():
 		return
 	var regen_interval := GameState.get_hp_regen_interval()
@@ -1292,6 +1563,7 @@ func _finish_temporary_run(reason_id: String = "run_end", reason_label: String =
 		return
 	run_finished = true
 	spawn_timer.stop()
+	_reset_intermission_hazard()
 	GameState.finish_temporary_run(reason_id, reason_label)
 	get_tree().change_scene_to_file("res://scenes/ui/Result.tscn")
 

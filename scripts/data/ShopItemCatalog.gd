@@ -8,9 +8,13 @@ const CATEGORY_ATTACK_MODULE: StringName = &"attack_module"
 const CATEGORY_FUNCTION_MODULE: StringName = &"function_module"
 const CATEGORY_ENHANCE_MODULE: StringName = &"enhance_module"
 const CATEGORY_WEAPON: StringName = &"weapon"
+const CATEGORY_DRONE: StringName = &"drone"
+const CATEGORY_DRONE_PROTOCOL: StringName = &"drone_protocol"
+const CATEGORY_PASSIVE_MODULE: StringName = &"passive_module"
 const CATEGORY_PART: StringName = &"part"
 const CATEGORY_ARTIFACT: StringName = &"artifact"
 const ATTACK_MODULE_OFFER_SEPARATOR := "@"
+const LEGACY_BASE_ATTACK_COOLDOWN_SECONDS := 0.30
 const ATTACK_MODULE_SHOP_GRADES := ["D", "C", "B", "A", "S"]
 const ATTACK_MODULE_FALLBACK_PRICES := {
 	"D": 15,
@@ -110,10 +114,12 @@ func has_item(item_id: StringName) -> bool:
 
 func normalize_item_definition(item: Dictionary) -> Dictionary:
 	var normalized := item.duplicate(true)
+	normalized["legacy_item_category"] = String(normalized.get("item_category", ""))
 	if String(normalized.get("module_type", "")).is_empty() and not String(normalized.get("weapon_type", "")).is_empty():
 		normalized["module_type"] = String(normalized.get("weapon_type", ""))
 	ATTACK_MODULE_STYLE_RESOLVER.normalize_item_dictionary(normalized)
 	_apply_reworked_item_category(normalized)
+	_apply_equipment_schema_metadata(normalized)
 	if String(normalized.get("item_category", "")) == "weapon":
 		if String(normalized.get("weapon_type", "")).is_empty():
 			normalized["weapon_type"] = String(normalized.get("module_type", ""))
@@ -146,6 +152,111 @@ func normalize_item_definition(item: Dictionary) -> Dictionary:
 	return normalized
 
 
+func _apply_equipment_schema_metadata(item: Dictionary) -> void:
+	var equipment_category := String(item.get("equipment_category", "")).strip_edges()
+	if equipment_category.is_empty():
+		equipment_category = _infer_equipment_category(item)
+	item["equipment_category"] = equipment_category
+	var attribute := String(item.get("attribute", "")).strip_edges()
+	var inferred_attribute := _infer_equipment_attribute(item)
+	if attribute.is_empty() or (attribute == "none" and inferred_attribute != "none"):
+		attribute = inferred_attribute
+	item["attribute"] = attribute if not attribute.is_empty() else "none"
+	var attack_type := String(item.get("attack_type", "")).strip_edges()
+	var inferred_attack_type := _infer_equipment_attack_type(item)
+	if attack_type.is_empty() or (attack_type == "support" and inferred_attack_type != "support"):
+		attack_type = inferred_attack_type
+	item["attack_type"] = attack_type if not attack_type.is_empty() else "support"
+	if equipment_category == String(CATEGORY_WEAPON):
+		var weapon_base_cooldown := float(item.get("weapon_base_cooldown", 0.0))
+		item["weapon_base_cooldown"] = weapon_base_cooldown if weapon_base_cooldown > 0.0 else LEGACY_BASE_ATTACK_COOLDOWN_SECONDS
+	if equipment_category == String(CATEGORY_DRONE_PROTOCOL):
+		var protocol_base_damage := int(item.get("protocol_base_damage", 0))
+		if protocol_base_damage <= 0 and String(item.get("module_type", "")) == "mechanic":
+			protocol_base_damage = int(item.get("module_base_damage", 0))
+		item["protocol_base_damage"] = maxi(protocol_base_damage, 0)
+		var protocol_base_cooldown := float(item.get("protocol_base_cooldown", 0.0))
+		if protocol_base_cooldown <= 0.0:
+			protocol_base_cooldown = _infer_protocol_base_cooldown(item)
+		item["protocol_base_cooldown"] = maxf(protocol_base_cooldown, 0.0)
+		if String(item.get("protocol_behavior", "")).is_empty():
+			item["protocol_behavior"] = _infer_protocol_behavior(item)
+		if String(item.get("targeting", "")).is_empty():
+			item["targeting"] = String(item.get("mechanic_targeting", "nearest"))
+
+
+func _infer_equipment_category(item: Dictionary) -> String:
+	var category := String(item.get("item_category", ""))
+	var legacy_category := String(item.get("legacy_item_category", category))
+	if legacy_category == "function_module":
+		return String(CATEGORY_DRONE_PROTOCOL)
+	if legacy_category == "enhance_module":
+		return String(CATEGORY_PASSIVE_MODULE)
+	if category == "weapon" and String(item.get("module_type", "")) == "mechanic":
+		return String(CATEGORY_DRONE_PROTOCOL)
+	match category:
+		"attack_module", "weapon":
+			return String(CATEGORY_WEAPON)
+		"drone":
+			return String(CATEGORY_DRONE)
+		"function_module", "drone_protocol":
+			return String(CATEGORY_DRONE_PROTOCOL)
+		"enhance_module", "part", "artifact", "passive_module":
+			return String(CATEGORY_PASSIVE_MODULE)
+	return ""
+
+
+func _infer_equipment_attribute(item: Dictionary) -> String:
+	var tags: Array = item.get("tags", [])
+	for attribute_id in ["electric", "fire", "physical", "energy", "chemical"]:
+		if tags.has(attribute_id):
+			return attribute_id
+	var attack_style := String(item.get("attack_style", ""))
+	if attack_style == "laser":
+		return "energy"
+	if String(item.get("effect_type", "")) == "combat_drone":
+		return "physical"
+	if String(item.get("equipment_category", "")) == String(CATEGORY_WEAPON):
+		return "physical"
+	return "none"
+
+
+func _infer_equipment_attack_type(item: Dictionary) -> String:
+	var attack_style := String(item.get("attack_style", ""))
+	var effect_type := String(item.get("effect_type", ""))
+	if attack_style == "laser":
+		return "beam"
+	if attack_style in ["revolver", "shotgun", "sniper", "rifle", "drone"]:
+		return "projectile"
+	if effect_type == "combat_drone":
+		return "projectile"
+	if effect_type == "aura_damage":
+		return "area"
+	if String(item.get("equipment_category", "")) == String(CATEGORY_WEAPON):
+		return "area"
+	return "support"
+
+
+func _infer_protocol_behavior(item: Dictionary) -> String:
+	var effect_type := String(item.get("effect_type", ""))
+	if not effect_type.is_empty() and effect_type != "none":
+		return effect_type
+	if String(item.get("module_type", "")) == "mechanic":
+		return "auto_attack"
+	return ""
+
+
+func _infer_protocol_base_cooldown(item: Dictionary) -> float:
+	var effect_values: Dictionary = item.get("effect_values", {}) as Dictionary
+	if effect_values.has("sand_remove_interval_sec"):
+		return float(effect_values["sand_remove_interval_sec"])
+	if effect_values.has("tick_interval_sec"):
+		return float(effect_values["tick_interval_sec"])
+	if String(item.get("module_type", "")) == "mechanic":
+		return LEGACY_BASE_ATTACK_COOLDOWN_SECONDS / maxf(float(item.get("attack_speed_multiplier", 1.0)), 0.01)
+	return 0.0
+
+
 func _apply_reworked_item_category(item: Dictionary) -> void:
 	var category := String(item.get("item_category", ""))
 	match category:
@@ -153,20 +264,9 @@ func _apply_reworked_item_category(item: Dictionary) -> void:
 			item["item_category"] = "weapon"
 			item["weapon_type"] = String(item.get("module_type", ""))
 		"function_module":
-			item["item_category"] = "artifact"
+			item["item_category"] = "drone_protocol"
 		"enhance_module":
-			item["item_category"] = _classify_enhance_module_item(item)
-
-
-func _classify_enhance_module_item(item: Dictionary) -> String:
-	var effect_values: Dictionary = {}
-	if item.get("effect_values", {}) is Dictionary:
-		effect_values = (item.get("effect_values", {}) as Dictionary)
-	for raw_key in effect_values.keys():
-		match String(raw_key):
-			"attack_damage_flat", "attack_damage_percent", "damage_percent", "attack_speed_percent", "attack_range_percent", "melee_attack_damage_flat", "ranged_attack_damage_flat", "stagger_power", "weapon_stagger_power", "melee_stagger_power", "ranged_stagger_power":
-				return "part"
-	return "artifact"
+			item["item_category"] = "passive_module"
 
 
 func _get_compatible_query_categories(category: StringName) -> Array[StringName]:
@@ -175,11 +275,11 @@ func _get_compatible_query_categories(category: StringName) -> Array[StringName]
 			var weapon_categories: Array[StringName] = [&"weapon"]
 			return weapon_categories
 		"function_module":
-			var artifact_categories: Array[StringName] = [&"artifact"]
-			return artifact_categories
+			var protocol_categories: Array[StringName] = [&"drone_protocol"]
+			return protocol_categories
 		"enhance_module":
-			var enhancement_categories: Array[StringName] = [&"part", &"artifact"]
-			return enhancement_categories
+			var passive_categories: Array[StringName] = [&"passive_module"]
+			return passive_categories
 	var categories: Array[StringName] = [category]
 	return categories
 

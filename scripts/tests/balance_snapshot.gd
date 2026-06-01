@@ -19,7 +19,7 @@ const SHOP_RANK_POWERS := {
 }
 const SHOP_STAT_BASE_TARGETS := {
 	"damage_percent": {"label": "damage", "base_value": 0.01, "unit": "percent", "level_card_id": "damage_up"},
-	"attack_speed_percent": {"label": "attack_speed", "base_value": 0.03, "unit": "percent", "level_card_id": "atk_spd_up"},
+	"attack_speed_percent": {"label": "attack_speed", "base_value": 0.03, "unit": "percent", "level_card_id": "attack_speed_up"},
 	"attack_range_percent": {"label": "attack_range", "base_value": 0.05, "unit": "percent", "level_card_id": "atk_range_up"},
 	"max_hp_flat": {"label": "max_health", "base_value": 5.0, "unit": "flat", "level_card_id": "hp_up"},
 	"defense_flat": {"label": "defense", "base_value": 1.0, "unit": "flat", "level_card_id": "def_up"},
@@ -36,7 +36,7 @@ const SHOP_STAT_BASE_TARGETS := {
 }
 const LEVEL_UP_NORMAL_TARGETS := {
 	"damage_up": {"stat": "damage", "value": 0.01, "unit": "percent"},
-	"atk_spd_up": {"stat": "attack_speed", "value": 0.02, "unit": "percent"},
+	"attack_speed_up": {"stat": "attack_speed", "value": 0.02, "unit": "percent"},
 	"atk_range_up": {"stat": "attack_range", "value": 0.05, "unit": "percent"},
 	"crit_chance_up": {"stat": "crit_chance", "value": 0.02, "unit": "percentage_point"},
 	"hp_up": {"stat": "max_health", "value": 5.0, "unit": "flat"},
@@ -50,8 +50,8 @@ const LEVEL_UP_NORMAL_TARGETS := {
 	"mine_range_up": {"stat": "mining_range", "value": 0.05, "unit": "percent"},
 	"luck_up": {"stat": "luck", "value": 1.0, "unit": "flat"},
 	"interest_up": {"stat": "interest_rate", "value": 0.02, "unit": "percentage_point"},
-	"melee_atk_up": {"stat": "melee_attack_damage_flat", "value": 1.0, "unit": "flat"},
-	"ranged_atk_up": {"stat": "ranged_attack_damage_flat", "value": 1.0, "unit": "flat"},
+	"weapon_attack_up": {"stat": "weapon_attack_damage_flat", "value": 1.0, "unit": "flat"},
+	"drone_attack_up": {"stat": "drone_attack_damage_flat", "value": 1.0, "unit": "flat"},
 }
 
 var _game_data: Node = null
@@ -79,13 +79,13 @@ func _build_snapshot() -> Dictionary:
 		"ok": true,
 		"player_stats": _get_player_stats(),
 		"difficulty_multipliers": _get_difficulty_multipliers(),
-		"attack_module_grade_multipliers": {
+		"weapon_grade_multipliers": {
 			"base_damage_derivation": GC.ATTACK_MODULE_GRADE_DAMAGE_MULTIPLIERS,
 			"speed": GC.ATTACK_MODULE_GRADE_SPEED_MULTIPLIERS,
 			"range": GC.ATTACK_MODULE_GRADE_RANGE_MULTIPLIERS,
 		},
-		"attack_module_styles": _get_attack_module_style_snapshot(),
-		"attack_module_damage_formula": _get_attack_module_damage_formula_snapshot(),
+		"weapon_styles": _get_attack_module_style_snapshot(),
+		"equipment_damage_formula": _get_attack_module_damage_formula_snapshot(),
 		"xp_reward_efficiency": _get_xp_reward_efficiency_snapshot(),
 		"stage_days": _get_stage_days(),
 		"day_hp_comparison": _get_day_hp_comparison(),
@@ -187,12 +187,11 @@ func _get_attack_module_damage_formula_snapshot() -> Dictionary:
 		})
 	return {
 		"formula": {
-			"melee": "floor((grade_module_base_damage + melee_attack_damage_flat) * global_damage_multiplier)",
-			"ranged": "floor((grade_module_base_damage + ranged_attack_damage_flat) * global_damage_multiplier)",
-			"mechanic": "floor(grade_module_base_damage * global_damage_multiplier)",
+			"weapon": "floor((grade_weapon_base_damage + weapon_attack_damage_flat) * global_damage_multiplier)",
+			"drone_protocol": "floor((protocol_base_damage + drone_attack_damage_flat) * global_damage_multiplier)",
 			"global_damage_multiplier": "1 + damage_percent",
 			"grade_base_damage": "Use base_damage_by_grade[grade] when present, then module_base_damage, then fallback to 1 with a warning.",
-			"rank_grade_policy": "Attack module item rank is the equipped module grade.",
+			"rank_grade_policy": "Weapon item rank is the equipped weapon grade.",
 			"laser_b_example": "laser_module rank B uses base_damage_by_grade.B when present, without applying grade_damage_mult.",
 		},
 		"items": rows,
@@ -648,7 +647,7 @@ func _get_shop_stat_bonus_by_rank() -> Dictionary:
 	for raw_item in _game_data.call("get_all_shop_items"):
 		var item: Dictionary = raw_item
 		var category := String(item.get("item_category", ""))
-		if category != "part" and category != "artifact" and category != "enhance_module":
+		if category != "passive_module" and category != "part" and category != "artifact" and category != "enhance_module":
 			continue
 		var effect_type := String(item.get("effect_type", ""))
 		if effect_type != "stat_bonus" and effect_type != "conditional_stat_bonus":
@@ -680,7 +679,7 @@ func _get_shop_stat_bonus_rank_comparison() -> Dictionary:
 	for raw_item in _game_data.call("get_all_shop_items"):
 		var item: Dictionary = raw_item
 		var category := String(item.get("item_category", ""))
-		if category != "part" and category != "artifact" and category != "enhance_module":
+		if category != "passive_module" and category != "part" and category != "artifact" and category != "enhance_module":
 			continue
 		var effect_type := String(item.get("effect_type", ""))
 		if effect_type != "stat_bonus" and effect_type != "conditional_stat_bonus":
@@ -938,8 +937,9 @@ func _measure_level_card_delta(card_id: String, rarity_id: String = "normal", in
 func _read_level_stats() -> Dictionary:
 	return {
 		"attack_damage": int(_game_state.call("get_attack_damage")),
-		"melee_attack_damage_flat": int(_game_state.call("get_melee_attack_damage_flat")),
-		"ranged_attack_damage_flat": int(_game_state.call("get_ranged_attack_damage_flat")),
+		"weapon_attack_damage_flat": int(_game_state.call("get_weapon_attack_damage_flat")),
+		"drone_attack_damage_flat": int(_game_state.call("get_drone_attack_damage_flat")),
+		"drone_cooldown_reduction": float(_game_state.call("get_drone_cooldown_reduction_ratio")),
 		"damage_percent": float(_game_state.call("get_damage_percent")),
 		"attack_cooldown": float(_game_state.call("get_attack_cooldown_duration")),
 		"attacks_per_second": float(_game_state.call("get_attacks_per_second")),
@@ -1041,35 +1041,35 @@ func _get_spawn_pressure_snapshot() -> Dictionary:
 func _get_attack_damage_stats_snapshot() -> Dictionary:
 	_game_state.call("reset_run")
 	var base_damage_percent := float(_game_state.call("get_damage_percent"))
-	var base_melee_flat := int(_game_state.call("get_melee_attack_damage_flat"))
-	var base_ranged_flat := int(_game_state.call("get_ranged_attack_damage_flat"))
+	var base_weapon_flat := int(_game_state.call("get_weapon_attack_damage_flat"))
+	var base_drone_flat := int(_game_state.call("get_drone_attack_damage_flat"))
 
 	var card_deltas: Array[Dictionary] = []
-	for card_id in ["damage_up", "melee_atk_up", "ranged_atk_up"]:
+	for card_id in ["damage_up", "weapon_attack_up", "drone_attack_up"]:
 		_game_state.call("reset_run")
 		_game_state.set("player_current_xp", 1000)
 		_game_state.call("apply_level_up_card", card_id, "normal")
 		card_deltas.append({
 			"card_id": card_id,
 			"damage_percent": float(_game_state.call("get_damage_percent")),
-			"melee_attack_damage_flat": int(_game_state.call("get_melee_attack_damage_flat")),
-			"ranged_attack_damage_flat": int(_game_state.call("get_ranged_attack_damage_flat")),
+			"weapon_attack_damage_flat": int(_game_state.call("get_weapon_attack_damage_flat")),
+			"drone_attack_damage_flat": int(_game_state.call("get_drone_attack_damage_flat")),
 		})
 
 	var card_deltas_plat: Array[Dictionary] = []
-	for card_id in ["damage_up", "melee_atk_up", "ranged_atk_up"]:
+	for card_id in ["damage_up", "weapon_attack_up", "drone_attack_up"]:
 		_game_state.call("reset_run")
 		_game_state.set("player_current_xp", 1000)
 		_game_state.call("apply_level_up_card", card_id, "platinum")
 		card_deltas_plat.append({
 			"card_id": card_id,
 			"damage_percent": float(_game_state.call("get_damage_percent")),
-			"melee_attack_damage_flat": int(_game_state.call("get_melee_attack_damage_flat")),
-			"ranged_attack_damage_flat": int(_game_state.call("get_ranged_attack_damage_flat")),
+			"weapon_attack_damage_flat": int(_game_state.call("get_weapon_attack_damage_flat")),
+			"drone_attack_damage_flat": int(_game_state.call("get_drone_attack_damage_flat")),
 		})
 
 	var cumulative_10: Array[Dictionary] = []
-	for card_id in ["damage_up", "melee_atk_up", "ranged_atk_up"]:
+	for card_id in ["damage_up", "weapon_attack_up", "drone_attack_up"]:
 		_game_state.call("reset_run")
 		for _i in range(10):
 			_game_state.set("player_current_xp", 1000)
@@ -1078,19 +1078,19 @@ func _get_attack_damage_stats_snapshot() -> Dictionary:
 			"card_id": card_id,
 			"n_cards": 10,
 			"damage_percent": float(_game_state.call("get_damage_percent")),
-			"melee_attack_damage_flat": int(_game_state.call("get_melee_attack_damage_flat")),
-			"ranged_attack_damage_flat": int(_game_state.call("get_ranged_attack_damage_flat")),
+			"weapon_attack_damage_flat": int(_game_state.call("get_weapon_attack_damage_flat")),
+			"drone_attack_damage_flat": int(_game_state.call("get_drone_attack_damage_flat")),
 		})
 
 	_game_state.call("reset_run")
 	return {
 		"base": {
 			"damage_percent": base_damage_percent,
-			"melee_attack_damage_flat": base_melee_flat,
-			"ranged_attack_damage_flat": base_ranged_flat,
+			"weapon_attack_damage_flat": base_weapon_flat,
+			"drone_attack_damage_flat": base_drone_flat,
 		},
 		"single_normal_card_delta": card_deltas,
 		"single_platinum_card_delta": card_deltas_plat,
 		"cumulative_10x_normal_cards": cumulative_10,
-		"note": "damage_up increases global damage_percent. melee_atk_up and ranged_atk_up are flat bonuses added only to their matching module type. mechanic modules ignore melee/ranged flat and receive damage_percent only.",
+		"note": "damage_up increases global damage_percent. weapon_attack_up applies to weapons. drone_attack_up applies to damage-dealing drone protocols.",
 	}

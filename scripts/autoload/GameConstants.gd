@@ -118,6 +118,13 @@ const PLAYER_ATTACK_DIRECTION_DEADZONE := 12.0
 # 공격모듈은 전투 규칙상 슬롯 순서 의미 없이 최대 5개까지 장착한다.
 const ATTACK_MODULE_MAX_EQUIPPED := 5
 const PART_MAX_EQUIPPED := 5
+const WEAPON_SLOT_COUNT := 2
+const DRONE_PROTOCOL_MAX_EQUIPPED := 5
+const PASSIVE_MODULE_MAX_EQUIPPED := 5
+const DEFAULT_DRONE_ID := &"basic_drone"
+const MIN_DRONE_PROTOCOL_COOLDOWN := 0.15
+const DEFAULT_DRONE_PROTOCOL_COOLDOWN := 1.0
+const DRONE_PROTOCOL_TARGET_RANGE := CELL_SIZE * 8.0
 const ATTACK_MODULE_GRADE_ORDER := ["D", "C", "B", "A", "S"]
 const ATTACK_MODULE_GRADE_DAMAGE_MULTIPLIERS := {
 	"D": 1.0,
@@ -152,15 +159,17 @@ const PLAYER_INVULN_FLASH_INTERVAL := 0.08
 # 채굴 1회의 피해량 (현재 벽 1셀 기준).
 const PLAYER_MINING_DAMAGE := 1
 # 연속 채굴 사이의 최소 간격.
-const PLAYER_MINING_COOLDOWN := 0.15
+const PLAYER_MINING_COOLDOWN := 0.90
 # 채굴 입력을 미리 저장해두는 버퍼 시간.
 const PLAYER_MINING_BUFFER_TIME := 0.12
 # 채굴 실패/불가 상태 문구가 과도하게 반복되지 않도록 두는 최소 간격.
 const PLAYER_MINING_STATUS_MESSAGE_INTERVAL := 0.3
-# 채굴 범위: 플레이어 몸체에서 뻗는 거리 (0.25U).
+# 채굴 범위: 플레이어 몸체에서 뻗는 거리 (0.5U).
 const PLAYER_MINING_RANGE_DISTANCE := float(CELL_SIZE) * 0.5
-# 채굴 범위: 세로 높이 (1U).
+# 채굴 범위: 세로 높이 (0.5U).
 const PLAYER_MINING_RANGE_HEIGHT := float(CELL_SIZE) * 0.5
+const BASE_MINING_INTERVAL := PLAYER_MINING_COOLDOWN
+const MIN_MINING_INTERVAL := 0.30
 const PLAYER_UPWARD_SAND_CHECK_HEIGHT := 2.0
 const DIG_START_HOLD_TIME := 0.45
 const DIG_PREPARE_MAX_FALL_SPEED := 80.0
@@ -172,13 +181,17 @@ const BASE_DIG_EXECUTE_INTERVAL := 0.90
 const MIN_DIG_EXECUTE_INTERVAL := 0.30
 const DIG_EXECUTE_BATTERY_COST := 5.0
 const DIG_EFFECT_FEEDBACK_DURATION := 0.08
-const PLAYER_DASH_DISTANCE := CELL_SIZE * 5.0
+const PLAYER_DASH_DISTANCE := CELL_SIZE * 4.0
 const PLAYER_DASH_DURATION := 0.08
 const PLAYER_DASH_COOLDOWN := 0.45
-const PLAYER_DASH_BATTERY_COST := 15.0
+const PLAYER_DASH_BATTERY_COST := 30.0
 const PLAYER_DASH_INPUT_GRACE_TIME := 0.10
 const PLAYER_DASH_RECOVERY_MOVE_MULT := 0.35
-const SAND_CELL_MAX_HP := 3
+# 블록 정보가 없는 런타임 모래 셀에만 사용하는 안전한 fallback.
+const SAND_FALLBACK_CELL_HP := 1.0
+const SAND_WEAPON_DAMAGE_RATIO := 0.10
+# 과도기 호환 별칭. 신규 모래 셀 HP는 원본 블록 최종 HP에서 계산한다.
+const SAND_CELL_MAX_HP := SAND_FALLBACK_CELL_HP
 const WALL_CELL_MAX_HP := 8
 
 # 낙하 블록의 낙하 속도(px/s).
@@ -189,7 +202,12 @@ const BLOCK_SPAWN_BAND_NEAR_UNITS := 2.0
 const BLOCK_SPAWN_BAND_FAR_UNITS := 6.0
 const BLOCK_SPAWN_POSITION_ATTEMPTS := 24
 const BLOCK_SPAWN_ACTIVE_BLOCK_CLEARANCE_UNITS := 0.5
-const DAY_INTERMISSION_GRACE_DURATION := 3.0
+const INTERMISSION_HAZARD_COUNTDOWN_SECONDS := 10.0
+const INTERMISSION_HAZARD_WARNING_SECONDS := 10.0
+const INTERMISSION_HAZARD_DANGER_SECONDS := 10.0
+const INTERMISSION_HAZARD_WARNING_DAMAGE_PER_SECOND := 2.0
+const INTERMISSION_HAZARD_DANGER_DAMAGE_PER_SECOND := 5.0
+const INTERMISSION_HAZARD_CRITICAL_DAMAGE_PER_SECOND := 10.0
 const DAY_KIOSK_INTERACTION_RANGE := CELL_SIZE * 2.0
 const DAY_KIOSK_DEPLOY_DELAY := 1.25
 const DAY_KIOSK_FALL_SPEED := 780.0
@@ -390,7 +408,7 @@ const INPUT_BINDINGS := {
 		{"type": "key", "code": KEY_DOWN},
 	],
 	"dash_action": [
-		{"type": "mouse_button", "button_index": MOUSE_BUTTON_RIGHT},
+		{"type": "key", "code": KEY_SHIFT},
 	],
 	"interact_action": [
 		{"type": "key", "code": KEY_E},
@@ -402,6 +420,7 @@ const INPUT_BINDINGS := {
 		{"type": "mouse_button", "button_index": MOUSE_BUTTON_LEFT},
 	],
 	"mine_action": [
+		{"type": "mouse_button", "button_index": MOUSE_BUTTON_RIGHT},
 	],
 	"restart": [
 		{"type": "key", "code": KEY_R},
@@ -442,6 +461,7 @@ func ensure_input_actions() -> void:
 	for action_name in INPUT_BINDINGS.keys():
 		if not InputMap.has_action(action_name):
 			InputMap.add_action(action_name)
+		_remove_unlisted_input_bindings(action_name)
 		for binding in INPUT_BINDINGS[action_name]:
 			var binding_data: Dictionary = binding
 			if _has_input_binding(action_name, binding_data):
@@ -449,14 +469,37 @@ func ensure_input_actions() -> void:
 			InputMap.action_add_event(action_name, _create_input_event(binding_data))
 
 
+func _remove_unlisted_input_bindings(action_name: StringName) -> void:
+	var events_to_remove: Array[InputEvent] = []
+	for raw_event in InputMap.action_get_events(action_name):
+		var keep_event := false
+		for binding in INPUT_BINDINGS[action_name]:
+			if _event_matches_input_binding(raw_event, binding):
+				keep_event = true
+				break
+		if not keep_event:
+			events_to_remove.append(raw_event)
+	for raw_event in events_to_remove:
+		InputMap.action_erase_event(action_name, raw_event)
+
+
 func _has_input_binding(action_name: StringName, binding: Dictionary) -> bool:
 	for raw_event in InputMap.action_get_events(action_name):
-		if binding["type"] == "key" and raw_event is InputEventKey:
-			if raw_event.physical_keycode == binding["code"]:
-				return true
-		if binding["type"] == "mouse_button" and raw_event is InputEventMouseButton:
-			if raw_event.button_index == binding["button_index"]:
-				return true
+		if _event_matches_input_binding(raw_event, binding):
+			return true
+	return false
+
+
+func _event_matches_input_binding(raw_event: InputEvent, binding: Dictionary) -> bool:
+	if binding["type"] == "key" and raw_event is InputEventKey:
+		var key_event := raw_event as InputEventKey
+		return (
+			key_event.physical_keycode == binding["code"]
+			or key_event.keycode == binding["code"]
+			or key_event.key_label == binding["code"]
+		)
+	if binding["type"] == "mouse_button" and raw_event is InputEventMouseButton:
+		return (raw_event as InputEventMouseButton).button_index == binding["button_index"]
 	return false
 
 
@@ -569,10 +612,20 @@ const LEVEL_UP_CARDS := {
 		"title": "데미지 증가",
 		"desc": "모든 최종 피해가 1% 증가합니다.",
 	},
-	"atk_spd_up": {
-		"id": "atk_spd_up",
+	"attack_speed_up": {
+		"id": "attack_speed_up",
 		"title": "공격속도 증가",
-		"desc": "공격속도가 2% 증가합니다.",
+		"desc": "무기 공격속도가 2% 증가합니다.",
+	},
+	"weapon_attack_up": {
+		"id": "weapon_attack_up",
+		"title": "무기 공격력 증가",
+		"desc": "무기 공격력이 1 증가합니다.",
+	},
+	"drone_attack_up": {
+		"id": "drone_attack_up",
+		"title": "드론 공격력 증가",
+		"desc": "드론 공격력이 1 증가합니다.",
 	},
 	"hp_up": {
 		"id": "hp_up",
@@ -641,16 +694,6 @@ const EXTRA_LEVEL_UP_CARDS := [
 		"id": "interest_up",
 		"title": "이자율 증가",
 		"desc": "이자율이 2%p 증가합니다.",
-	},
-	{
-		"id": "melee_atk_up",
-		"title": "근거리 공격력 증가",
-		"desc": "근거리 공격력이 1 증가합니다.",
-	},
-	{
-		"id": "ranged_atk_up",
-		"title": "원거리 공격력 증가",
-		"desc": "원거리 공격력이 1 증가합니다.",
 	},
 ]
 

@@ -444,6 +444,9 @@ func _build_attack_module_item_row(definition: Dictionary) -> Dictionary:
 		"short_desc": str(definition.get("short_desc", "")),
 		"desc": str(definition.get("desc", "")),
 		"tags": TSV_SCHEMA.join_list(Array(definition.get("tags", []))),
+		"equipment_category": str(definition.get("equipment_category", "weapon")),
+		"attribute": str(definition.get("attribute", "none")),
+		"attack_type": str(definition.get("attack_type", "support")),
 	}
 	row["default_start_module"] = bool(definition.get("default_start_module", false))
 	row["module_type"] = str(definition.get("module_type", ""))
@@ -457,6 +460,11 @@ func _build_attack_module_item_row(definition: Dictionary) -> Dictionary:
 	row["range_growth_scale"] = float(definition.get("range_growth_scale", 1.0))
 	row["range_width_u"] = float(definition.get("range_width_u", 0.0))
 	row["range_height_u"] = float(definition.get("range_height_u", 0.0))
+	row["weapon_base_cooldown"] = float(definition.get("weapon_base_cooldown", 0.0))
+	row["protocol_base_damage"] = int(definition.get("protocol_base_damage", 0))
+	row["protocol_base_cooldown"] = float(definition.get("protocol_base_cooldown", 0.0))
+	row["protocol_behavior"] = str(definition.get("protocol_behavior", ""))
+	row["targeting"] = str(definition.get("targeting", ""))
 	var base_damage_by_grade: Dictionary = definition.get("base_damage_by_grade", {}) as Dictionary
 	for grade in TSV_SCHEMA.ATTACK_MODULE_BASE_DAMAGE_GRADES:
 		row["base_damage_%s" % grade] = int(base_damage_by_grade.get(grade, 0))
@@ -497,6 +505,10 @@ func _get_attack_module_default_price_for_grade(grade: String) -> int:
 func _build_effect_item_row(definition: Dictionary) -> Dictionary:
 	var row := _build_common_item_row(definition)
 	var effect_type := str(definition.get("effect_type", ""))
+	row["protocol_base_damage"] = int(definition.get("protocol_base_damage", 0))
+	row["protocol_base_cooldown"] = float(definition.get("protocol_base_cooldown", 0.0))
+	row["protocol_behavior"] = str(definition.get("protocol_behavior", ""))
+	row["targeting"] = str(definition.get("targeting", ""))
 	row["effect_type"] = effect_type
 	var conditions: Array = definition.get("conditions", [])
 	var effects: Array = definition.get("effects", [])
@@ -534,6 +546,9 @@ func _build_common_item_row(definition: Dictionary) -> Dictionary:
 		"max_stack": int(definition.get("max_stack", 1)),
 		"equip_slot": str(definition.get("equip_slot", "")),
 		"is_equippable": bool(definition.get("is_equippable", false)),
+		"equipment_category": str(definition.get("equipment_category", "")),
+		"attribute": str(definition.get("attribute", "none")),
+		"attack_type": str(definition.get("attack_type", "support")),
 		"allowed_weapon_ids": TSV_SCHEMA.join_list(Array(definition.get("allowed_weapon_ids", []))),
 		"allowed_weapon_types": TSV_SCHEMA.join_list(Array(definition.get("allowed_weapon_types", []))),
 		"allowed_attack_styles": TSV_SCHEMA.join_list(Array(definition.get("allowed_attack_styles", []))),

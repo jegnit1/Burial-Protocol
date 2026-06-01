@@ -5,14 +5,15 @@
 이 문서는 Burial Protocol 코드베이스에서 현재 실제로 적용 중인 작업 기준을 정리한다.
 기획 희망사항이나 장기 아이디어가 아니라, 지금 실행 가능한 코드와 문서를 어떤 원칙으로 맞춰야 하는지 기록한다.
 
-기준일: `2026-04-28`
+기준일: `2026-06-01`
 기준 브랜치: `main`
 
 ---
 
 ## 1. 진실의 기준
 
-코드와 문서가 충돌하면 현재 실행 가능한 코드가 최종 기준이다.
+코드와 문서가 충돌하면 현재 실행 가능한 코드가 런타임의 최종 기준이다.
+단, 장비 개편은 `06_attack_modules.md`를 Phase 1 확정 설계로 사용하고 현재 legacy 런타임과 구분해서 기록한다.
 문서 갱신 시 우선 확인 순서는 아래와 같다.
 
 1. 핵심 구현 파일
@@ -61,7 +62,7 @@ docs/
   03_data_and_state_spec.md
   04_roadmap.md
   05_balance_formula.md
-  06_attack_module_style_spec.md
+  06_attack_modules.md
   attack_module_system_spec.md
 ```
 
@@ -75,8 +76,8 @@ docs/
 | `03_data_and_state_spec.md` | 데이터 소유권, 저장/런타임 상태, signal 구조 |
 | `04_roadmap.md` | TODO, 미구현, 다음 작업 우선순위 |
 | `05_balance_formula.md` | 밸런스 수치 공식과 기준 예산 |
-| `06_attack_module_style_spec.md` | 공격모듈 공격 스타일/연출 스타일 스펙 |
-| `attack_module_system_spec.md` | 공격모듈 시스템 구현 기준 |
+| `06_attack_modules.md` | 신규 장비 시스템 기준: 무기, 드론, 드론 프로토콜, 패시브 모듈 |
+| `attack_module_system_spec.md` | legacy 공격모듈 런타임 참고 문서. 신규 기능 설계 기준으로 사용하지 않음 |
 
 문서를 새로 만들기 전에 먼저 위 문서 중 어디에 들어가야 하는지 판단한다.
 
@@ -105,8 +106,8 @@ docs/
 - Day 진행과 intermission
 - 키오스크 기반 Day 상점
 - 상점 아이템 5개 롤
-- 공격모듈 구매, 즉시 장착, 중복 장착, 합성
-- 기능 모듈과 강화 모듈 구매
+- legacy 공격모듈 구매와 장착 경로
+- legacy 기능 모듈과 강화 모듈 구매 경로
 - 경험치, 레벨업 카드, 런타임 스탯 증가
 - HUD, 스킬 슬롯, ESC 스탯 확인 UI
 
@@ -120,7 +121,8 @@ docs/
 
 - 월드 크기, HUD 레이아웃, 색상
 - 플레이어 이동/공격/채굴/대시/벽타기 수치
-- 공격모듈 최대 장착 수와 등급 배율
+- 신규 장비 슬롯 수와 등급 배율
+- legacy 공격모듈 최대 장착 수
 - 중량 한도와 표시 스케일
 - 피격 팝업, 키오스크, 페이드 관련 상수
 - 난이도 옵션
@@ -154,14 +156,16 @@ docs/
 
 ### 4-4. 상점 아이템 모델
 
-상점 아이템은 현재 아래 3개 카테고리를 가진다.
+신규 장비 체계의 최종 상점 카테고리는 아래와 같다.
 
-- `attack_module`
-- `function_module`
-- `enhance_module`
+- `weapon`
+- `drone`
+- `drone_protocol`
+- `passive_module`
 
 상점은 더 이상 단순 placeholder가 아니다.
-아이템 롤, 가격 표시, 구매, 골드 차감, 구매한 항목 제거, 공격모듈 즉시 장착/합성, 기능/강화 모듈 등록이 실제로 연결되어 있다.
+현재 런타임의 `attack_module`, `function_module`, `enhance_module`, 과도기 `part`, `artifact` 경로는 다음 Phase에서 마이그레이션한다.
+기존 상점의 아이템 롤, 가격 표시, 구매, 골드 차감, 구매한 항목 제거, 잠금, 리롤 흐름은 유지한다.
 
 ---
 
@@ -174,8 +178,9 @@ docs/
 - 저장 데이터
 - 현재 런의 골드, HP, XP, 레벨
 - 런타임 스탯 보너스
-- 공격모듈 보유/장착 상태
-- 기능 모듈/강화 모듈 보유 상태
+- 현재 legacy 공격모듈 보유/장착 상태
+- 현재 legacy 기능 모듈/강화 모듈 보유 상태
+- 다음 Phase의 무기, 드론, 드론 프로토콜, 패시브 모듈 장착 상태
 - 현재 런 아이템과 효과
 - 최종 스탯 getter
 - HUD/메뉴용 signal
@@ -188,7 +193,11 @@ docs/
 
 - `_is_day_active`
 - `_is_intermission`
-- `_is_intermission_locked`
+- `_intermission_hazard_state`
+- `_intermission_hazard_time_remaining`
+- `_intermission_hazard_state_elapsed`
+- `_intermission_hazard_damage_accumulator`
+- `_intermission_hazard_glitch_elapsed`
 - `_is_next_day_transitioning`
 - `_shop_ui_open`
 - `_waiting_for_day_kiosk`
@@ -205,9 +214,10 @@ docs/
 - 위치/속도/충돌
 - 점프/코요테/버퍼
 - 대시 상태와 쿨다운
-- 배터리와 벽타기 상태
-- 공격모듈별 쿨다운
-- 공격모듈 시각 공전/타격 연출
+- 배터리와 채굴 쿨다운
+- 현재 legacy 공격모듈별 쿨타임
+- 현재 legacy 공격모듈 시각 공전/타격 연출
+- 다음 Phase의 무기 슬롯별, 프로토콜 인스턴스별 쿨타임과 장비 비주얼
 
 ---
 
@@ -234,8 +244,12 @@ docs/
 - `WEIGHT_LIMIT_SAND_CELLS = 2400`
 - 표시 중량 = `240.0 KG`
 - `DAY_SHOP_ITEM_COUNT = 5`
-- `ATTACK_MODULE_MAX_EQUIPPED = 5`
-- 키오스크 유예 = `3.0초`
+- 신규 설계: 무기 `2개`, 드론 `1개`, 드론 프로토콜 `5개`, 패시브 모듈 `5개`
+- legacy 런타임 상수: `ATTACK_MODULE_MAX_EQUIPPED = 5`
+- 유해물질 카운트다운 = `10.0초`
+- 유해물질 경고 = `10.0초`, 초당 `2.0` 고정 피해
+- 유해물질 위험 = `10.0초`, 초당 `5.0` 고정 피해
+- 유해물질 글리치 위험 = Next Day까지, 초당 `10.0` 고정 피해
 - 키오스크 지연 투하 = `1.25초`
 
 ### 6-3. 문서 변경 시 통합 문서를 함께 맞춘다
@@ -248,7 +262,7 @@ docs/
 - 스탯/레벨업 카드: `02_systems_spec.md`, `03_data_and_state_spec.md`
 - 데이터 구조: `03_data_and_state_spec.md`
 - 블록 material/size/type 구조: `02_systems_spec.md`, `03_data_and_state_spec.md`
-- 공격모듈 장착/합성 규칙: `02_systems_spec.md`, `03_data_and_state_spec.md`
+- 신규 장비 장착 규칙: `02_systems_spec.md`, `03_data_and_state_spec.md`, `06_attack_modules.md`
 - 상점 아이템 카테고리: `02_systems_spec.md`, `03_data_and_state_spec.md`
 - TODO/후순위 작업: `04_roadmap.md`
 
@@ -261,7 +275,7 @@ docs/
 우선 보존 대상:
 
 - 이동 감각
-- 공격모듈 발동 리듬
+- 현재 전투 입력과 발동 리듬
 - 채굴 리듬
 - 낙하 블록 처리
 - 모래 시뮬레이션
@@ -276,7 +290,11 @@ docs/
 - Day 종료 시 바로 다음 Day로 자동 진행하지 않는다
 - intermission 상태로 진입한다
 - 마지막 활성 블록 정리 후 키오스크가 지연 투하된다
-- 약 `3초` 뒤 채굴만 정지된다
+- 벽 채굴, 무기 기반 모래 제거, 이동, 공격, 자연 모래 반응은 유지한다
+- 키오스크 투하 직후 중앙 상단 유해물질 HUD가 `10초` 카운트다운을 표시한다
+- 카운트다운 이후 `warning -> danger -> critical` 순서로 고정 환경 피해가 증가한다
+- 유해물질 피해 상태에서는 HP 재생과 즉시 회복을 막는다
+- ESC pause와 상점 UI 동안 유해물질 타이머와 피해를 멈춘다
 - 키오스크 상호작용으로 상점 UI를 연다
 - 상점에서 아이템을 구매하거나 스킵할 수 있다
 - 상점 UI에서 `Next Day`로 다음 Day를 시작한다
@@ -286,7 +304,9 @@ docs/
 ### 7-3. 모래 처리 원칙
 
 - 자연 물리 반응과 플레이어의 모래 밀림은 유지한다
-- intermission 잠금 이후 막는 것은 채굴 입력/채굴 결과다
+- intermission에서도 벽 채굴 입력과 무기 기반 모래 제거를 유지한다
+- 모래는 우클릭 채굴 대상이 아니며 좌클릭 무기 공격만 피해를 줄 수 있다
+- 드론 프로토콜은 모래 피해를 주지 않는다. `sand_cleaner`는 피해가 아닌 특수 제거 효과다
 - 벽을 복구하지 않는 기본 경로에서는 모래 재배치를 하지 않는다
 - 벽 복구 예외 경로가 실행될 때만 모래 총량 보존 검증을 수행한다
 
@@ -301,8 +321,8 @@ docs/
 - 업적의 실질적 효과
 - 인벤토리/도감성 UI
 - 블록 특수 결과의 모든 효과 구현
-- 공격모듈 개별 밸런스 확정
-- 오라형 공격모듈 세부 동작
+- 신규 장비 데이터 스키마와 legacy 데이터 마이그레이션
+- 무기, 드론 프로토콜, 패시브 모듈 개별 밸런스 확정
 - 상점 UI의 최종 비주얼/한글화/UX
 
 문서에 이 항목들을 적을 때는 반드시 `미구현`, `TODO`, `placeholder`, `임시 구현` 중 하나로 표시한다.
@@ -319,7 +339,8 @@ docs/
 - Day 종료 후 intermission 흐름 설명이 실제와 맞는가
 - 키오스크 등장 방식과 상호작용 조건이 맞는가
 - 상점 아이템 롤/구매/제거 흐름이 실제와 맞는가
-- 공격모듈 최대 장착 수와 합성 규칙이 실제와 맞는가
+- 현재 legacy 공격모듈 상태와 신규 장비 목표를 혼동해서 적지 않았는가
+- 신규 장비 슬롯 수가 무기 `2`, 드론 `1`, 드론 프로토콜 `5`, 패시브 모듈 `5`로 일치하는가
 - 벽 초기화 기본 규칙이 `유지`로 적혀 있는가
 - 블록 콘텐츠 데이터 소유권이 `.tres` 기준으로 적혀 있는가
 - 블록 모델이 `Material x Size + optional Type`으로 적혀 있는가
@@ -336,5 +357,5 @@ docs/
 - 데이터는 `.gd` 규칙과 `.tres` 콘텐츠로 분리한다
 - 런타임 스탯과 UI 가시성을 강화한다
 - Day 종료 -> 상점 -> Next Day 루프를 안정화한다
-- 공격모듈/상점/블록 데이터 구조를 기획 확장 가능한 형태로 유지한다
+- 신규 장비/상점/블록 데이터 구조를 기획 확장 가능한 형태로 유지한다
 - 메타 시스템은 placeholder 범위를 명확히 유지한다

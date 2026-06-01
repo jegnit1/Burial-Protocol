@@ -1,6 +1,5 @@
 extends SceneTree
 
-const WORLD_GRID_SCRIPT := preload("res://scenes/world/WorldGrid.gd")
 const GC := preload("res://scripts/autoload/GameConstants.gd")
 
 var _ran := false
@@ -11,7 +10,8 @@ func _process(_delta: float) -> bool:
 		return true
 	_ran = true
 
-	var grid = WORLD_GRID_SCRIPT.new()
+	var world_grid_script := load("res://scenes/world/WorldGrid.gd")
+	var grid = world_grid_script.new()
 	get_root().add_child(grid)
 
 	var single_hit_validation := _validate_single_cell_progression(grid)
@@ -37,8 +37,8 @@ func _process(_delta: float) -> bool:
 func _validate_single_cell_progression(grid) -> Dictionary:
 	var cell := Vector2i(0, 8)
 	var shape := _make_cell_center_shape(grid, cell)
-	var initial_active_count := grid.get_active_wall_count()
-	var collision_before := grid.rect_collides_static(grid.get_cell_rect(cell).grow(-1.0))
+	var initial_active_count: int = grid.get_active_wall_count()
+	var collision_before: bool = grid.rect_collides_static(grid.get_cell_rect(cell).grow(-1.0))
 	var hits: Array[Dictionary] = []
 	for _index in range(GC.WALL_CELL_MAX_HP):
 		var result: Dictionary = grid.try_mine_in_shape(shape, 1)
@@ -48,8 +48,8 @@ func _validate_single_cell_progression(grid) -> Dictionary:
 			"hp": int(grid.wall_cells.get(cell, 0)),
 			"tile_index": grid.call("_get_wall_tile_index_for_ratio", grid.call("_get_wall_cell_remaining_ratio", cell)),
 		})
-	var collision_after := grid.rect_collides_static(grid.get_cell_rect(cell).grow(-1.0))
-	var active_count_after := grid.get_active_wall_count()
+	var collision_after: bool = grid.rect_collides_static(grid.get_cell_rect(cell).grow(-1.0))
+	var active_count_after: int = grid.get_active_wall_count()
 	var checks := {
 		"initial_collision_is_solid": collision_before,
 		"hit_1_keeps_tile_0": int(hits[0]["hp"]) == GC.WALL_CELL_MAX_HP - 1 and int(hits[0]["tile_index"]) == 0,

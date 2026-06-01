@@ -8,6 +8,11 @@ var next_boss_label: Label
 var time_label: Label
 var time_bar: ProgressBar
 
+# 중앙 상단 - Intermission Hazard HUD
+var intermission_hazard_panel: PanelContainer
+var intermission_hazard_title_label: Label
+var intermission_hazard_label: Label
+
 # 좌측 중앙 - Seismic / Fall Sensor HUD
 class SeismicSensorDraw extends Control:
 	var player: Node2D
@@ -152,6 +157,59 @@ func toggle_debug_panel() -> void:
 
 func is_debug_visible() -> bool:
 	return debug_label != null and debug_label.visible
+
+func set_intermission_hazard_visible(visible: bool) -> void:
+	if intermission_hazard_panel != null:
+		intermission_hazard_panel.visible = visible
+
+func set_intermission_hazard_countdown(seconds: float) -> void:
+	if intermission_hazard_label == null:
+		return
+	set_intermission_hazard_visible(true)
+	intermission_hazard_label.text = str(maxi(int(floor(seconds)), 0))
+	_apply_intermission_hazard_style("countdown")
+
+func set_intermission_hazard_state_text(text: String, severity: String) -> void:
+	if intermission_hazard_label == null:
+		return
+	set_intermission_hazard_visible(true)
+	intermission_hazard_label.text = text
+	_apply_intermission_hazard_style(severity)
+
+func _apply_intermission_hazard_style(severity: String) -> void:
+	if intermission_hazard_panel == null or intermission_hazard_label == null:
+		return
+	var background_color := Color(0.12, 0.10, 0.04, 0.92)
+	var border_color := Color("d7b94d")
+	var font_color := Color("f0d984")
+	match severity:
+		"warning":
+			background_color = Color(0.22, 0.12, 0.03, 0.94)
+			border_color = Color("e39b45")
+			font_color = Color("ffc96b")
+		"danger":
+			background_color = Color(0.24, 0.04, 0.04, 0.95)
+			border_color = Color("e06868")
+			font_color = Color("ff8a8a")
+		"critical":
+			background_color = Color(0.32, 0.01, 0.04, 0.97)
+			border_color = Color("ff3d5a")
+			font_color = Color("ff5b70")
+	var style := StyleBoxFlat.new()
+	style.bg_color = background_color
+	style.border_width_left = 2
+	style.border_width_top = 2
+	style.border_width_right = 2
+	style.border_width_bottom = 2
+	style.border_color = border_color
+	style.corner_radius_top_left = 8
+	style.corner_radius_top_right = 8
+	style.corner_radius_bottom_right = 8
+	style.corner_radius_bottom_left = 8
+	intermission_hazard_panel.add_theme_stylebox_override("panel", style)
+	intermission_hazard_label.add_theme_color_override("font_color", font_color)
+	if intermission_hazard_title_label != null:
+		intermission_hazard_title_label.add_theme_color_override("font_color", border_color)
 
 func set_runtime_debug(block_count: int, sand_count: int, wall_count: int, extra_lines: PackedStringArray = PackedStringArray()) -> void:
 	if debug_label == null:
@@ -459,6 +517,44 @@ func _build_layout() -> void:
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(root)
+
+	var hazard_center := CenterContainer.new()
+	hazard_center.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	hazard_center.offset_top = 16.0
+	hazard_center.offset_bottom = 104.0
+	hazard_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(hazard_center)
+
+	intermission_hazard_panel = PanelContainer.new()
+	intermission_hazard_panel.custom_minimum_size = Vector2(360.0, 82.0)
+	intermission_hazard_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	intermission_hazard_panel.visible = false
+	hazard_center.add_child(intermission_hazard_panel)
+
+	var hazard_margin := MarginContainer.new()
+	hazard_margin.add_theme_constant_override("margin_left", 18)
+	hazard_margin.add_theme_constant_override("margin_top", 8)
+	hazard_margin.add_theme_constant_override("margin_right", 18)
+	hazard_margin.add_theme_constant_override("margin_bottom", 8)
+	hazard_margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	intermission_hazard_panel.add_child(hazard_margin)
+
+	var hazard_vbox := VBoxContainer.new()
+	hazard_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	hazard_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hazard_margin.add_child(hazard_vbox)
+
+	intermission_hazard_title_label = Label.new()
+	intermission_hazard_title_label.text = "INTERMISSION HAZARD"
+	intermission_hazard_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	intermission_hazard_title_label.add_theme_font_size_override("font_size", 16)
+	hazard_vbox.add_child(intermission_hazard_title_label)
+
+	intermission_hazard_label = Label.new()
+	intermission_hazard_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	intermission_hazard_label.add_theme_font_size_override("font_size", 30)
+	hazard_vbox.add_child(intermission_hazard_label)
+	_apply_intermission_hazard_style("countdown")
 
 	var margin := MarginContainer.new()
 	margin.set_anchors_preset(Control.PRESET_FULL_RECT)

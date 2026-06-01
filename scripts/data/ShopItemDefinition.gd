@@ -16,6 +16,9 @@ const ATTACK_MODULE_STYLE_RESOLVER := preload("res://scripts/data/AttackModuleSt
 @export var equip_slot := ""
 @export var is_equippable := false
 @export var default_start_module := false
+@export var equipment_category: StringName = &""
+@export var attribute: StringName = &"none"
+@export var attack_type: StringName = &"support"
 @export var weapon_type: StringName = &""
 @export var allowed_weapon_ids: PackedStringArray = PackedStringArray()
 @export var allowed_weapon_types: PackedStringArray = PackedStringArray()
@@ -35,6 +38,11 @@ const ATTACK_MODULE_STYLE_RESOLVER := preload("res://scripts/data/AttackModuleSt
 @export var module_base_damage := 0
 @export var base_damage_by_grade: Dictionary = {}
 @export var price_by_grade: Dictionary = {}
+@export var weapon_base_cooldown := 0.0
+@export var protocol_base_damage := 0
+@export var protocol_base_cooldown := 0.0
+@export var protocol_behavior: StringName = &""
+@export var targeting: StringName = &""
 @export var stagger_power := 0.0
 @export var attack_speed_multiplier := 1.0
 @export var projectile_count := 1
@@ -90,6 +98,9 @@ func to_dictionary() -> Dictionary:
 		"equip_slot": equip_slot,
 		"is_equippable": is_equippable,
 		"default_start_module": default_start_module,
+		"equipment_category": String(equipment_category),
+		"attribute": String(attribute),
+		"attack_type": String(attack_type),
 		"weapon_type": String(weapon_type),
 		"allowed_weapon_ids": Array(allowed_weapon_ids),
 		"allowed_weapon_types": Array(allowed_weapon_types),
@@ -110,6 +121,11 @@ func to_dictionary() -> Dictionary:
 		"module_base_damage": module_base_damage,
 		"base_damage_by_grade": base_damage_by_grade.duplicate(true),
 		"price_by_grade": price_by_grade.duplicate(true),
+		"weapon_base_cooldown": weapon_base_cooldown,
+		"protocol_base_damage": protocol_base_damage,
+		"protocol_base_cooldown": protocol_base_cooldown,
+		"protocol_behavior": String(protocol_behavior),
+		"targeting": String(targeting),
 		"stagger_power": stagger_power,
 		"attack_speed_multiplier": attack_speed_multiplier,
 		"projectile_count": projectile_count,
@@ -150,6 +166,9 @@ func apply_dictionary(data: Dictionary) -> void:
 	equip_slot = String(data.get("equip_slot", ""))
 	is_equippable = bool(data.get("is_equippable", false))
 	default_start_module = bool(data.get("default_start_module", false))
+	equipment_category = StringName(String(data.get("equipment_category", "")))
+	attribute = StringName(String(data.get("attribute", "none")))
+	attack_type = StringName(String(data.get("attack_type", "support")))
 	weapon_type = StringName(String(data.get("weapon_type", data.get("module_type", ""))))
 	allowed_weapon_ids = PackedStringArray(Array(data.get("allowed_weapon_ids", [])))
 	allowed_weapon_types = PackedStringArray(Array(data.get("allowed_weapon_types", [])))
@@ -176,6 +195,11 @@ func apply_dictionary(data: Dictionary) -> void:
 	module_base_damage = int(data.get("module_base_damage", 0))
 	base_damage_by_grade = _normalize_base_damage_by_grade(data.get("base_damage_by_grade", {}))
 	price_by_grade = _normalize_price_by_grade(data.get("price_by_grade", {}))
+	weapon_base_cooldown = maxf(float(data.get("weapon_base_cooldown", 0.0)), 0.0)
+	protocol_base_damage = maxi(int(data.get("protocol_base_damage", 0)), 0)
+	protocol_base_cooldown = maxf(float(data.get("protocol_base_cooldown", 0.0)), 0.0)
+	protocol_behavior = StringName(String(data.get("protocol_behavior", "")))
+	targeting = StringName(String(data.get("targeting", "")))
 	stagger_power = maxf(float(data.get("stagger_power", 0.0)), 0.0)
 	attack_speed_multiplier = float(data.get("attack_speed_multiplier", 1.0))
 	projectile_count = int(style_data.get("projectile_count", 1))

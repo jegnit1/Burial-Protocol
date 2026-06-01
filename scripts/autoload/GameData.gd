@@ -163,6 +163,30 @@ func get_default_attack_module_definition():
 	return SHOP_ITEM_RESOURCE_CATALOG.get_default_attack_module_definition()
 
 
+func get_default_weapon_id() -> StringName:
+	return SHOP_ITEM_RESOURCE_CATALOG.get_default_weapon_id()
+
+
+func get_default_weapon_definition():
+	return SHOP_ITEM_RESOURCE_CATALOG.get_default_weapon_definition()
+
+
+func get_weapon_definitions() -> Array[Resource]:
+	return SHOP_ITEM_RESOURCE_CATALOG.get_weapon_definitions()
+
+
+func get_drone_definitions() -> Array[Resource]:
+	return SHOP_ITEM_RESOURCE_CATALOG.get_drone_definitions()
+
+
+func get_drone_protocol_definitions() -> Array[Resource]:
+	return SHOP_ITEM_RESOURCE_CATALOG.get_drone_protocol_definitions()
+
+
+func get_passive_module_definitions() -> Array[Resource]:
+	return SHOP_ITEM_RESOURCE_CATALOG.get_passive_module_definitions()
+
+
 func get_shop_item_catalog():
 	return _shop_item_catalog
 

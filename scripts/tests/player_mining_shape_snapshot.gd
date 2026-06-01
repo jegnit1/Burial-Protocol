@@ -1,6 +1,5 @@
 extends SceneTree
 
-const PLAYER_SCENE := preload("res://scenes/player/Player.tscn")
 const GC := preload("res://scripts/autoload/GameConstants.gd")
 
 var _ran := false
@@ -11,7 +10,8 @@ func _process(_delta: float) -> bool:
 		return true
 	_ran = true
 
-	var player = PLAYER_SCENE.instantiate()
+	var player_scene := load("res://scenes/player/Player.tscn") as PackedScene
+	var player = player_scene.instantiate()
 	get_root().add_child(player)
 	player.position = Vector2.ZERO
 

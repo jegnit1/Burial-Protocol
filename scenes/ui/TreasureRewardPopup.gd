@@ -230,6 +230,10 @@ func _format_category(category: String) -> String:
 	match category:
 		"weapon":
 			return "Weapon"
+		"drone_protocol":
+			return "Drone Protocol"
+		"passive_module":
+			return "Passive Module"
 		"part":
 			return "Part"
 		"artifact":

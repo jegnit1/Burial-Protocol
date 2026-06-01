@@ -1,6 +1,6 @@
 # Burial Protocol - Data and State Specification
 
-기준일: `2026-04-28`
+기준일: `2026-06-01`
 기준 브랜치: `main`
 
 ---
@@ -8,17 +8,17 @@
 ## 0. 목적
 
 이 문서는 Burial Protocol의 데이터 소유권, 저장 상태, 런타임 상태, UI signal 구조를 정리한다.
-기존 `base_state_spec.md`와 여러 문서에 흩어진 데이터 구조 설명을 이 문서로 통합한다.
+신규 장비 체계는 Phase 1 확정 설계다.
+`GameState`는 Phase 3 신규 슬롯 상태를 사용하며, `Player/Main`은 Phase 4 신규 무기·프로토콜 트리거를 사용한다.
 
 ---
 
 ## 1. 상태 층 구분
 
-현재 프로젝트는 크게 아래 세 층의 상태를 사용한다.
-
 1. 저장 상태
 2. 현재 런 상태
 3. 씬 내부 진행 상태
+4. 플레이어 순간 동작 상태
 
 원칙:
 
@@ -32,30 +32,24 @@
 
 ## 2. GameConstants
 
-`GameConstants.gd`는 전역 상수와 정적 유틸을 가진다.
+`GameConstants.gd`는 전역 상수와 정적 유틸만 가진다.
 
-범위:
+포함 범위:
 
-- 기준 해상도
-- 월드 크기
-- HUD 레이아웃
-- 색상
-- 플레이어 이동 수치
-- 공격/채굴 수치
-- 대시/벽타기 수치
-- 공격모듈 최대 장착 수와 등급 배율
-- 중량 한도와 표시 스케일
-- 키오스크/페이드 수치
+- 기준 해상도와 월드 크기
+- HUD 레이아웃과 색상
+- 이동, 채굴, 대시 수치
+- 모래 무기 피해율과 fallback 셀 HP
+- 장비 슬롯 제한과 공통 등급 배율
+- intermission 유해물질 수치
+- 키오스크와 페이드 수치
 - 난이도 옵션
 - 입력 바인딩
 - 레벨업 카드 정의
-- 상점 아이템 랭크별 가격 기본값 (`SHOP_ITEM_RANK_FALLBACK_PRICES`)
-- 공통 계산 유틸
+- 상점 아이템 랭크별 fallback 가격
 
-중요:
-
-`GameConstants.gd`에 콘텐츠 테이블을 계속 추가하지 않는다.
-블록, 스테이지, 상점 아이템은 별도 `.tres`와 데이터 해석 스크립트가 소유한다.
+장비 콘텐츠 테이블은 `GameConstants.gd`에 넣지 않는다.
+무기, 드론, 드론 프로토콜, 패시브 모듈 정의는 데이터 리소스와 카탈로그가 소유한다.
 
 ---
 
@@ -71,13 +65,13 @@
 - `scripts/data/ShopItemCatalog.gd`
 - `scripts/data/BlockSpawnResolver.gd`
 
-주요 책임:
+현재 `get_attack_module_*()` 접근자는 legacy다.
+Phase 2에서 장비 정의 접근자를 아래 단위로 분리한다.
 
-- 블록 material/size/type 정의 접근
-- 블록 스폰 resolved definition 생성
-- Day 정의 접근
-- 보스 블록 정의 접근
-- 공격모듈 정의 접근
+- 무기 정의 접근
+- 기본 드론 정의 접근
+- 드론 프로토콜 정의 접근
+- 패시브 모듈 정의 접근
 - 상점 아이템 정의 접근
 - 상점 아이템 롤
 
@@ -91,131 +85,57 @@
 Runtime Block = Material x Size + optional Type
 ```
 
-### 4-1. Material
-
-Material은 블록의 재질/성질을 담당한다.
-
-역할:
-
-- material id
-- 표시 이름
-- HP 배율
-- 보상 배율
-- 색상
-- spawn weight
-- special result
-- 등장 제한
-
-### 4-2. Size
-
-Size는 블록의 물리 크기를 담당한다.
-
-역할:
-
-- size id
-- width/height
-- size cells
-- HP 배율
-- 보상 배율
-- spawn weight
-- 등장 제한
-
-### 4-3. Type
-
-Type은 선택 affix/modifier다.
-
-역할:
-
-- HP 배율
-- 보상 배율
-- sand units 배율
-- 접두/접미 표시
-- special result override
-
-### 4-4. BlockSpawnResolver
-
-`BlockSpawnResolver.gd`는 현재 난이도/Day/후보 weight를 바탕으로 최종 블록 정의를 만든다.
-
-결과물은 `BlockResolvedDefinition`이며, 이후 `BlockData.from_resolved_definition()`을 통해 런타임 블록 데이터로 변환된다.
+`Material`, `Size`, `Type`, `BlockSpawnResolver`의 기존 역할은 유지한다.
+장비 개편은 블록 데이터 구조를 변경하지 않는다.
 
 ---
 
-## 5. Stage Data
+## 5. Shop Item Data
 
-`StageTable.tres`는 Day 정보를 소유한다.
+신규 장비 카테고리:
 
-사용되는 정보:
+| 카테고리 | 의미 |
+|---|---|
+| `weapon` | 좌측/우측 슬롯 무기 |
+| `drone` | 드론 본체. 현재는 기본 드론만 사용 |
+| `drone_protocol` | 기본 드론이 자동 실행하는 행동 |
+| `passive_module` | 무기와 프로토콜을 조건부 강화하는 장비 |
 
-- 총 Day 수
-- Day 타입
-- Day 지속 시간
-- Day별 블록 HP 배율
-- Day별 스폰 간격 배율
-- 보스 Day 여부
-- 다음 보스 Day
-- 보스 블록 material/base id
-- 보스 블록 size id
-- 보스 블록 type id
+유지할 상점 개념:
 
-`Main.gd`는 Day 시작, 스폰 타이머, 보스 스폰, Day 30 판정에서 이 데이터를 사용한다.
+- 상점 아이템 5개 롤
+- 가격 표시와 골드 차감
+- 랭크 기반 fallback 가격
+- 상점 잠금
+- 리롤
+- 구매 성공 시 현재 목록에서 제거
 
----
+원본 데이터의 `attack_module`, `function_module`, `enhance_module`은 런타임에서 각각 `weapon`, `drone_protocol`, `passive_module`로 정규화한다.
+과도기 `part`, `artifact` 분기는 legacy 호환을 위해 남아 있다.
+신규 카테고리와 legacy 카테고리를 동시에 활성 장비 체계로 운용하지 않는다.
 
-## 6. Shop Item Data
-
-상점 아이템은 `data/items/ShopItemCatalog.tres`와 `scripts/data/ShopItemCatalog.gd`가 담당한다.
-
-카테고리:
-
-- `attack_module`
-- `function_module`
-- `enhance_module`
-
-랭크:
-
-- D
-- C
-- B
-- A
-- S
-
-`ShopItemCatalog.gd`는 Day 구간별 랭크 weight table을 사용한다.
-행운은 랭크 weight를 보정한다.
-
-아이템 데이터에 `price_gold`가 없거나 0이면 `GameConstants.SHOP_ITEM_RANK_FALLBACK_PRICES`의 랭크별 기본 가격을 사용한다.
-최종 유효 가격 결정은 `GameState.get_effective_shop_item_price(item_id)`가 담당한다.
-구매 가능성 최종 판단은 `GameState.purchase_shop_item()`과 관련 helper가 담당한다.
+Phase 2에서는 런타임 호환을 위해 raw `item_category`를 유지하고, 신규 분류를 `equipment_category`로 병행 저장한다.
+Phase 5에서는 `equipment_category`를 기준으로 상점 런타임 카테고리를 승격했다.
 
 ---
 
-## 7. Item Object Schema
+## 6. Equipment Definition Schema
 
-조건부 아이템, 보물상자 보상, 기능 모듈, 강화 모듈, 레벨업 카드가 늘어나기 전에 아이템 객체 스키마를 먼저 정의한다.
+공통 장비 정의는 기존 `ShopItemDefinition`을 일반화하거나 별도 `EquipmentDefinition`으로 분리한다.
+Phase 2에서 실제 리소스 클래스를 결정한다.
 
-원칙:
-
-```text
-아이템 = 기본 정보 + 조건 목록 + 효과 목록 + 적용 타이밍
-```
-
-아이템별로 코드를 하드코딩하지 않는다.
-새 아이템은 가능한 한 데이터 추가로 표현하고, 코드는 condition/effect/apply_timing 타입을 해석하는 공통 엔진을 확장한다.
-
-### 7-1. 기본 필드
-
-권장 기본 필드:
+권장 공통 필드:
 
 - `item_id`
 - `name`
-- `rank`
 - `item_category`
+- `equipment_category`
+- `rank`
 - `price_gold`
 - `shop_enabled`
 - `shop_spawn_weight`
-- `stackable`
-- `max_stack`
-- `effect_type`
-- `effect_values`
+- `attribute`
+- `attack_type`
 - `conditions`
 - `effects`
 - `apply_timing`
@@ -224,224 +144,92 @@ Type은 선택 affix/modifier다.
 - `short_desc`
 - `desc`
 
-현재 단순 아이템은 `effect_type`과 `effect_values`만으로 표현할 수 있다.
-조건부 아이템은 `conditions`, `effects`, `apply_timing`을 함께 사용한다.
+무기 전용 필드 예시:
 
-### 7-2. 조건부 아이템 예시
+- `weapon_base_damage`
+- `weapon_base_cooldown`
+- `projectile_scene`
+- `range_units`
+- `visual_scene`
 
-예시: 무게가 60% 이상일 때 공격력 증가
+드론 프로토콜 전용 필드 예시:
 
-```gdscript
-{
-    "item_id": "pressure_overdrive",
-    "name": "압력 과부하 장치",
-    "rank": "B",
-    "item_category": "enhance_module",
-    "effect_type": "conditional_stat_bonus",
-    "conditions": [
-        {
-            "type": "weight_ratio_at_least",
-            "value": 0.6
-        }
-    ],
-    "effects": [
-        {
-            "type": "attack_damage_percent",
-            "value": 0.25
-        }
-    ],
-    "apply_timing": "stat_query"
-}
+- `protocol_base_damage`
+- `protocol_base_cooldown`
+- `protocol_behavior`
+- `targeting`
+
+패시브 모듈 전용 필드 예시:
+
+- `stackable`
+- `max_stack`
+- `exclusive_group`
+
+---
+
+## 7. Passive Effect Schema
+
+원칙:
+
+```text
+패시브 모듈 = 기본 정보 + 조건 목록 + 효과 목록 + 적용 타이밍
 ```
 
-예시: 모든 공격모듈이 근거리일 때 공격력 증가
+아이템 ID별 분기 하드코딩을 금지한다.
 
-```gdscript
-{
-    "item_id": "melee_purity_core",
-    "name": "근접 순도 코어",
-    "rank": "A",
-    "item_category": "enhance_module",
-    "effect_type": "conditional_stat_bonus",
-    "conditions": [
-        {
-            "type": "all_attack_modules_type",
-            "module_type": "melee"
-        }
-    ],
-    "effects": [
-        {
-            "type": "attack_damage_percent",
-            "value": 0.30
-        }
-    ],
-    "apply_timing": "stat_query"
-}
-```
+권장 condition:
 
-예시: 블록 옆면 공격 시 데미지 증가
-
-```gdscript
-{
-    "item_id": "side_breaker",
-    "name": "측면 파쇄기",
-    "rank": "B",
-    "item_category": "enhance_module",
-    "effect_type": "conditional_damage_bonus",
-    "conditions": [
-        {
-            "type": "attack_hit_side",
-            "allowed_sides": ["left", "right"]
-        }
-    ],
-    "effects": [
-        {
-            "type": "damage_multiplier_on_hit",
-            "value": 1.25
-        }
-    ],
-    "apply_timing": "on_attack_hit"
-}
-```
-
-### 7-3. Condition 타입
-
-초기 지원 권장 condition 타입:
-
-상시 상태 조건:
-
+- `equipment_attribute_is`
+- `equipment_type_is`
+- `equipped_attribute_count_at_least`
+- `equipped_type_count_at_least`
+- `weapon_slot_has_type`
+- `protocol_type_is`
+- `protocol_attribute_is`
 - `weight_ratio_at_least`
-- `weight_ratio_below`
-- `hp_ratio_at_least`
 - `hp_ratio_below`
-- `gold_at_least`
-- `current_day_at_least`
-- `all_attack_modules_type`
-- `equipped_attack_module_count_at_least`
-- `has_attack_module_type`
 
-공격 순간 조건:
+권장 effect:
 
-- `attack_module_type_is`
-- `attack_hit_side`
-- `player_is_airborne`
-- `target_block_size_at_least`
-- `is_critical_hit`
+- `weapon_damage_percent`
+- `drone_damage_percent`
+- `attribute_damage_percent`
+- `type_damage_percent`
+- `projectile_additional_shot`
+- `beam_split_count`
+- `chain_additional_count`
+- `explosion_radius_add_units`
+- `area_duration_percent`
+- `protocol_cooldown_reduction_percent`
+- `sand_remove_count_bonus`
+- `healing_amount_bonus`
 
-이벤트 조건:
+권장 apply timing:
 
-- `destroyed_block_material_is`
-- `destroyed_block_type_is`
-- `sand_removed_at_least`
-- `shop_item_rank_is`
+- `stat_query`
+- `on_weapon_attack_start`
+- `on_weapon_hit`
+- `on_protocol_trigger`
+- `on_protocol_hit`
+- `on_sand_removed`
+- `on_player_healed`
 
-처음부터 모든 condition을 구현하지 않는다.
-1차 구현은 상시 상태 조건만 지원하고, 공격 순간 조건과 이벤트 조건은 이후 단계로 확장한다.
-
-### 7-4. Effect 타입
-
-초기 지원 권장 effect 타입:
-
-스탯 효과:
-
-- `attack_damage_flat`
-- `attack_damage_percent`
-- `attack_speed_percent`
-- `attack_range_percent`
-- `crit_chance_flat`
-- `max_hp_flat`
-- `defense_flat`
-- `hp_regen_flat`
-- `move_speed_percent`
-- `jump_power_percent`
-- `mining_damage_flat`
-- `mining_speed_percent`
-- `mining_range_percent`
-- `luck_flat`
-- `interest_rate_flat`
-- `battery_recovery_flat`
-
-공격 순간 효과:
-
-- `damage_multiplier_on_hit`
-- `additional_flat_damage_on_hit`
-- `crit_chance_bonus_on_hit`
-
-이벤트 효과:
-
-- `gold_gain_flat`
-- `xp_gain_flat`
-- `sand_remove_count`
-- `queue_wall_reset_next_day`
-
-주의:
-
-- `sand_remove_count`, `queue_wall_reset_next_day` 같은 환경대응 효과는 레벨업 카드가 아니라 상점 아이템, 기능 모듈, 보물상자 보상, 특수 이벤트에서만 사용한다.
-
-### 7-5. Apply Timing
-
-조건부 효과는 언제 검사하느냐가 중요하다.
-
-권장 `apply_timing`:
-
-| apply_timing | 의미 | 예시 |
-|---|---|---|
-| `on_purchase` | 구매 즉시 적용 | 최대 체력 증가, 모듈 등록 |
-| `stat_query` | 최종 스탯 계산 시 검사 | 무게 60% 이상 공격력 증가 |
-| `on_attack_start` | 공격 시작 시 검사 | 근거리 공격만 강화 |
-| `on_attack_hit` | 공격이 블록에 적중한 순간 검사 | 옆면 공격 시 데미지 증가 |
-| `on_block_destroyed` | 블록 파괴 시 검사 | 골드 추가 획득 |
-| `on_sand_removed` | 모래 제거 시 검사 | 채굴 보너스 XP |
-| `on_day_started` | Day 시작 시 검사 | 시작 보호막, 임시 버프 |
-| `on_day_ended` | Day 종료 시 검사 | 이자 보너스, 벽 복구 예약 |
-| `on_player_damaged` | 플레이어 피격 시 검사 | 반격, 방어 버프 |
-
-### 7-6. 구현 순서 원칙
-
-조건부 아이템 구현 순서:
-
-```text
-1. 아이템 객체 스키마 확정
-2. condition 타입 목록 확정
-3. effect 타입 목록 확정
-4. apply_timing 목록 확정
-5. 기존 stat_bonus 아이템을 새 구조로 표현 가능한지 검증
-6. stat_query 기반 conditional_stat_bonus 구현
-7. on_attack_hit 기반 conditional_damage_bonus 구현
-8. 이벤트 기반 효과 구현
-```
-
-초기 구현 추천:
-
-```text
-1차:
-- stat_bonus
-- conditional_stat_bonus
-- weight_ratio_at_least
-- all_attack_modules_type
-
-2차:
-- on_attack_hit
-- attack_hit_side
-- damage_multiplier_on_hit
-
-3차:
-- on_block_destroyed
-- on_sand_removed
-- on_player_damaged
-```
-
-금지 방향:
+예시:
 
 ```gdscript
-if item_id == "pressure_overdrive":
-    ...
-if item_id == "side_breaker":
-    ...
+{
+    "item_id": "beam_splitter",
+    "item_category": "passive_module",
+    "rank": "B",
+    "conditions": [
+        {"type": "equipment_type_is", "attack_type": "beam"}
+    ],
+    "effects": [
+        {"type": "beam_split_count", "value": 1}
+    ],
+    "apply_timing": "on_weapon_attack_start"
+}
 ```
-
-아이템 ID별 분기 하드코딩은 피한다.
-새로운 효과가 필요하면 condition/effect/apply_timing 타입을 추가한다.
 
 ---
 
@@ -453,323 +241,240 @@ if item_id == "side_breaker":
 - 형식: JSON
 - 버전 필드: `save_version`
 
-현재 저장 필드:
+현재 저장 범위:
 
-- `selected_character_id`
-- `last_selected_difficulty_id`
-- `persistent_currencies`
-- `settings`
-- `growth`
-- `unlocked_character_ids`
-- `unlocked_achievement_ids`
-- `best_records_by_character`
-- `cleared_difficulty_ids`
-
-저장 범위:
-
-- 현재 선택 캐릭터
-- 해금 캐릭터 목록
-- 캐릭터별 최고 기록
+- 선택 캐릭터
 - 마지막 선택 난이도
-- 클리어한 난이도 목록
+- 해금 캐릭터와 난이도
+- 최고 기록
 - 영구 재화
 - 설정
 - 성장 데이터
 - 업적 데이터
 
-메타 시스템은 구조는 있으나 실제 기능은 아직 제한적이다.
+현재 런 장비는 영구 저장 대상이 아니다.
 
 ---
 
-## 9. 현재 런 상태
+## 9. 신규 런 상태 목표
 
-현재 런 상태는 주로 `GameState.gd`가 소유한다.
+Phase 3에서 `GameState.gd`가 소유할 장비 상태:
 
-기본 런 필드:
+- `equipped_weapon_left`
+- `equipped_weapon_right`
+- `owned_weapon_ids`
+- `equipped_drone_id`
+- `equipped_drone_protocols`
+- `owned_drone_protocol_ids`
+- `equipped_passive_modules`
+- `owned_passive_module_ids`
+- `weapon_runtime_state`
+- `drone_protocol_runtime_state`
 
-- `gold`
-- `player_health`
-- `status_text`
-- `current_run_stage_reached`
-- `current_day`
-- `day_time_remaining`
-- `run_cleared`
+신규 런 전투 스탯:
 
-경험치/레벨 필드:
+- `run_bonus_weapon_attack_damage`
+- `run_bonus_drone_attack_damage`
+- `run_weapon_attack_speed_mult`
+- `run_drone_cooldown_reduction`
 
-- `player_level`
-- `player_current_xp`
-- `player_next_level_xp`
+유지 가능한 공통 스탯:
 
-런타임 스탯 보너스:
-
-- `run_bonus_attack_damage`
-- `run_bonus_melee_attack_damage`
-- `run_bonus_ranged_attack_damage`
-- `run_bonus_move_speed`
-- `run_bonus_max_hp`
-- `run_attack_speed_mult`
-- `run_bonus_mining_damage`
-- `run_mining_speed_mult`
-- `run_bonus_crit_chance`
-- `run_bonus_hp_regen`
-- `run_bonus_defense`
-- `run_bonus_luck`
-- `run_bonus_interest_rate`
-- `run_attack_range_mult`
-- `run_mining_range_mult`
-- `run_bonus_jump_power`
-- `run_move_speed_mult`
-- `run_jump_power_mult`
-- `run_bonus_max_weight`
-- `run_bonus_battery_recovery`
-
----
-
-## 10. 공격모듈 상태
-
-`GameState.gd`는 공격모듈 관련 상태를 소유한다.
-
-주요 필드:
-
-- `owned_attack_module_ids`
-- `equipped_attack_module_id`
-- `equipped_attack_modules`
-- `attack_module_instance_sequence`
-- `attack_module_runtime_state`
-
-주요 getter/helper:
-
-- `get_equipped_attack_module_entries()`
-- `get_input_attack_module_entries()`
-- `get_mechanic_attack_module_entries()`
-- `get_attack_module_definition_from_entry()`
-- `get_attack_module_damage()`
-- `get_mechanic_attack_module_damage()`
-- `get_attack_module_cooldown_duration()`
-- `get_attack_module_shape_size_units()`
-- `can_add_or_synthesize_attack_module()`
-
-주의:
-
-- `equipped_attack_module_id`는 과거 단일 장착 구조 호환용 성격이 남아 있다.
-- 실제 최신 구조는 `equipped_attack_modules` 배열 기반 다중 장착이다.
-
----
-
-## 11. 기능/강화 모듈 상태
-
-현재 상점 아이템 시스템은 공격모듈 외에도 기능/강화 모듈 상태를 가진다.
-
-주요 필드:
-
-- `owned_function_module_ids`
-- `owned_enhance_module_counts`
-- `current_run_items`
-- `current_run_effects`
-
-의미:
-
-- 기능 모듈은 현재 런에 특정 효과를 등록한다.
-- 강화 모듈은 스탯 보너스 또는 스택으로 반영된다.
-- 현재 런 효과는 `current_run_effects`에 누적된다.
-
-향후 조건부 아이템과 이벤트형 아이템은 `current_run_effects`에 저장된 효과 목록을 condition/effect/apply_timing 엔진이 해석하는 방식으로 확장한다.
-
----
-
-## 12. 최종 스탯 getter
-
-`GameState.gd`는 UI와 로직이 직접 읽는 최종 스탯 getter를 제공한다.
-
-전투:
-
-- `get_attack_damage()`
-- `get_base_attack_damage()`
-- `get_melee_base_attack_damage()`
-- `get_ranged_base_attack_damage()`
-- `get_attack_cooldown_duration()`
-- `get_attacks_per_second()`
-- `get_attack_range_multiplier()`
-- `get_critical_chance_ratio()`
-- `get_critical_chance_percent()`
-- `get_critical_damage_multiplier()`
-- `get_critical_damage_percent()`
-
-생존:
-
-- `get_player_max_health()`
-- `get_defense()`
-- `get_hp_regen_stat()`
-- `get_hp_regen_interval()`
-- `get_weight_limit_sand_cells()`
-
-이동:
-
-- `get_move_speed()`
-- `get_air_move_speed()`
-- `get_jump_speed()`
-- `get_jump_power()`
-- `get_battery_recovery_per_second()`
-
-채굴:
-
-- `get_mining_damage()`
-- `get_mining_speed_bonus_percent()`
-- `get_mining_cooldown_duration()`
-- `get_mines_per_second()`
-- `get_mining_range_multiplier()`
-
-`get_mining_speed_bonus_percent()`는 방향키 기반 벽 채굴의 `dig_effect` / `dig_execute` 주기 계산 기준이다.
-채굴 데미지는 `dig_execute` 1회당 적용되는 고정 피해량이며, 채굴속도는 데미지 자체를 증가시키지 않는다.
-
-경제/기타:
-
-- `get_interest_rate()`
-- `get_interest_percent()`
-- `calculate_interest_payout()`
-- `get_luck()`
-- `get_effective_shop_item_price(item_id)`
-
-조건부 `stat_query` 효과를 구현할 경우, 위 getter들은 공통 effect evaluator를 통해 조건을 만족하는 스탯 보너스를 함께 반영해야 한다.
-
----
-
-## 13. 캐릭터 / 난이도 상태
-
-캐릭터:
-
-- `selected_character_id`
-- `selected_character_name`
-- `current_run_character_id`
-- `current_run_character_name`
-
-설명:
-
-- `selected_*`는 허브에서 선택된 현재 값
-- `current_run_*`는 실제 런 시작 시 복사된 값
-
-난이도:
-
-- `last_selected_difficulty_id`
-- `last_selected_difficulty_name`
-- `current_run_difficulty_id`
-- `current_run_difficulty_name`
-- `cleared_difficulty_ids`
-
----
-
-## 14. Signal 구조
-
-`GameState`가 제공하는 주요 signal:
-
-- `gold_changed`
-- `health_changed`
-- `status_text_changed`
-- `selected_character_changed`
-- `xp_changed`
-- `level_changed`
-- `level_up_ready`
-- `attack_module_changed`
-- `owned_attack_modules_changed`
-- `run_items_changed`
-
-주요 소비처:
-
-- `HUD`
-- 허브/캐릭터 선택 UI
-- `LevelUpUI`
-- `PauseMenu`
-- `DayShopUI`
-- `Player`
-
----
-
-## 15. Player 고유 상태
-
-일부 상태는 `GameState`가 아니라 `Player.gd`가 직접 소유한다.
-
-예:
-
-- `velocity`
-- `facing`
-- `extra_jumps_left`
-- `jump_buffer_remaining`
-- `coyote_time_remaining`
-- `attack_module_cooldowns`
-- `dash_cooldown_remaining`
-- `current_battery`
-- `is_digging`
-- `dig_direction`
-- `dig_hold_timer`
-- `dig_chain_grace_timer`
-- `dig_effect_timer`
-- `dig_execute_timer`
-- `damage_cooldown`
-- `hurt_flash_remaining`
-- 장착 무기 시각 상태
-
-HUD는 필요한 값만 Player getter를 통해 읽는다.
-
-예:
-
-- `get_current_battery()`
-- `get_max_battery()`
-- `get_dash_cooldown_remaining()`
-- `get_dash_cooldown_duration()`
-- `can_dash()`
-
----
-
-## 16. 스탯 패널 상태
-
-`PauseMenu.gd`는 `GameState.get_stat_panel_entries()`가 반환하는 배열을 사용한다.
-
-현재 표시 항목:
-
-- 공격 모듈
-- 공격력
-- 공격속도
 - 공격범위
-- 치명타 확률
-- 치명타 배율
-- 현재 체력
+- 치명타 확률과 배율
+- 최대 체력
 - 방어력
 - HP 재생
 - 이동속도
 - 점프력
-- 채굴 데미지
-- 채굴 속도
-- 채굴 범위
-- 이자율
+- 채굴 데미지, 속도, 범위
 - 행운
+- 이자율
+- 최대 중량
+- 배터리 회복
+
+`run_drone_cooldown_reduction`은 희귀 스탯이며 레벨업 카드 기본 풀에 넣지 않는다.
 
 ---
 
-## 17. 상태 소유권 주의사항
+## 10. Legacy 런 상태 충돌
 
-- 블록/Day/상점 아이템 콘텐츠 데이터는 `GameState`가 소유하지 않는다.
-- intermission 진행 플래그는 `GameState`가 아니라 `Main.gd`가 소유한다.
-- 배터리, 대시 쿨다운, 방향키 기반 벽 채굴 상태는 `Player.gd`가 소유한다.
-- `Main.gd`는 `_is_intermission_locked`, 상점, 전환 상태를 기준으로 `Player.set_digging_enabled()`를 호출한다.
-- `Player.gd`는 `dig_execute_requested(direction)` signal로 벽 채굴 실행을 요청하고, `Main.gd`는 기존 `WorldGrid.try_mine_in_shape()` 경로를 재사용한다.
-- 공격모듈 장착/보유 상태는 `GameState.gd`가 소유한다.
-- 공격모듈별 순간 쿨다운은 `Player.gd`가 소유한다.
-- 상점 아이템 롤 결과는 해당 intermission 동안 `Main.gd`가 `_current_shop_item_ids`로 들고 있다.
-- 구매 결과와 런 효과는 `GameState.gd`가 소유한다.
-- 아이템별 조건부 효과는 아이템 ID 분기가 아니라 condition/effect/apply_timing 해석으로 처리한다.
+현재 `GameState.gd`에는 아래 legacy 필드와 helper가 남아 있다.
+
+- `run_bonus_melee_attack_damage`
+- `run_bonus_ranged_attack_damage`
+- `run_attack_speed_mult`
+- `owned_attack_module_ids`
+- `equipped_attack_module_id`
+- `equipped_attack_modules`
+- `attack_module_runtime_state`
+- `owned_function_module_ids`
+- `owned_enhance_module_counts`
+- `get_input_attack_module_entries()`
+- `get_mechanic_attack_module_entries()`
+- `get_attack_module_damage()`
+- `get_mechanic_attack_module_damage()`
+- `get_attack_module_cooldown_duration()`
+- `can_add_or_synthesize_attack_module()`
+
+Phase 3에서는 신규 상태를 추가한 뒤 legacy 다중 공격모듈 경로를 제거한다.
+두 상태 집합을 동시에 실제 전투 소스로 사용하지 않는다.
+
+현재 구현에서는 신규 장비 슬롯을 원본 상태로 사용한다.
+`owned_attack_module_ids`, `equipped_attack_module_id`, `equipped_attack_modules`, `attack_module_changed`, `owned_attack_modules_changed`는 legacy 호환 미러다.
+`get_input_attack_module_entries()`는 좌·우 무기 엔트리를 반환하며, `get_mechanic_attack_module_entries()`는 빈 배열을 반환한다.
 
 ---
 
-## 18. 문서 갱신 체크리스트
+## 11. 레벨업 카드
 
-데이터/상태 구조를 바꿀 때는 아래를 확인한다.
+제거 또는 deprecated 처리:
 
-- `GameConstants`에 콘텐츠 데이터가 새로 섞이지 않았는가
-- `.tres` 데이터와 로더가 일치하는가
-- `GameState` getter와 UI 표시가 일치하는가
-- `DayShopUI` snapshot과 `GameState.get_day_shop_snapshot()`이 일치하는가
-- 공격모듈 다중 장착 구조와 UI 표시가 일치하는가
-- `Player` 고유 상태를 저장 상태로 잘못 문서화하지 않았는가
-- 새 signal이 있다면 소비처와 함께 적었는가
-- 새 조건부 아이템이 아이템 ID 하드코딩 없이 condition/effect/apply_timing 구조로 표현되는가
+- `melee_atk_up`
+- `ranged_atk_up`
+
+신규 기본 풀:
+
+- `weapon_attack_up`
+- `drone_attack_up`
+- `attack_speed_up`
+- 기존 공통 생존, 이동, 채굴, 경제 카드
+
+기본 풀에서 제외:
+
+- `drone_cooldown_reduction_up`
+
+드론 쿨타임 감소는 상점 장비, 희귀 효과, 특수 보상으로 제공한다.
+
+현재 코드의 기본 카드 풀은 `weapon_attack_up`, `drone_attack_up`, `attack_speed_up`을 사용한다.
+`melee_atk_up`, `ranged_atk_up`은 기본 풀에서 제거했다.
+
+---
+
+## 12. Player 순간 상태 목표
+
+`Player.gd`가 소유할 순간 상태:
+
+- 좌측 무기 쿨타임
+- 우측 무기 쿨타임
+- 프로토콜 인스턴스별 쿨타임
+- 무기 좌/우 비주얼
+- 플레이어 상단 드론 비주얼
+- 배터리
+- 채굴 쿨타임
+- 대시 쿨타임
+- 피격 피드백
+
+현재 `attack_module_cooldowns`는 좌·우 무기 인스턴스별 쿨타임으로 사용한다.
+`drone_protocol_cooldowns`는 프로토콜 인스턴스별 쿨타임을 소유한다.
+좌·우 무기 비주얼과 플레이어 상단 기본 드론 비주얼을 표시한다.
+
+---
+
+## 13. Main 씬 진행 상태
+
+`Main.gd`가 소유하는 진행 플래그:
+
+- `_is_day_active`
+- `_is_intermission`
+- `_intermission_hazard_state`
+- `_intermission_hazard_time_remaining`
+- `_intermission_hazard_state_elapsed`
+- `_intermission_hazard_damage_accumulator`
+- `_intermission_hazard_glitch_elapsed`
+- `_is_next_day_transitioning`
+- `_shop_ui_open`
+- `_waiting_for_day_kiosk`
+- `_pending_wall_reset_for_next_day`
+- `_current_shop_item_ids`
+
+intermission 유해물질 상태는 장비 개편과 독립적으로 유지한다.
+
+---
+
+## 13-1. Phase 5 상점 장착 상태
+
+`GameState.purchase_shop_item(item_id, equipment_targets)`는 신규 장비 카테고리를 직접 처리한다.
+
+- `weapon`: 빈 무기 슬롯 우선 장착, 가득 찬 경우 `weapon_slot`으로 교체 대상 지정
+- `drone_protocol`: 빈 프로토콜 슬롯 우선 장착, 가득 찬 경우 `drone_protocol_slot`으로 교체 대상 지정
+- `passive_module`: 빈 패시브 슬롯 우선 장착, 가득 찬 경우 `passive_module_slot`으로 교체 대상 지정
+
+패시브 모듈 런타임 효과는 구매 인스턴스의 `source_instance_id`를 기록한다.
+슬롯 교체 시 해당 source-instance의 효과와 스탯 기여분만 제거한 뒤 새 효과를 적용한다.
+
+---
+
+## 14. Signal 목표
+
+Phase 3~5에서 UI와 Player가 소비할 signal:
+
+- `weapons_changed`
+- `drone_changed`
+- `drone_protocols_changed`
+- `passive_modules_changed`
+- `run_items_changed`
+- 기존 `gold_changed`, `health_changed`, `xp_changed`, `level_changed`
+
+현재 `attack_module_changed`, `owned_attack_modules_changed`는 legacy다.
+
+---
+
+## 14-1. SandField 런타임 상태
+
+`SandField.gd`의 `sand_cells`는 셀 위치별 `SandCellData`를 저장한다.
+
+- `SandCellData.max_hp`, `SandCellData.hp`는 float다.
+- 블록 분해 시 `max_hp = source_block_final_hp / generated_sand_cell_count`로 계산한다.
+- 블록 정보가 없는 수동 생성 셀은 `SAND_FALLBACK_CELL_HP = 1.0`을 사용한다.
+- `apply_weapon_damage_*()`는 `damage_source == "weapon"`일 때만 무기 피해의 `10%`를 적용한다.
+- 드론 프로토콜은 일반 피해 API를 통해 모래를 손상시킬 수 없다.
+- `sand_cleaner`는 `remove_nearest_sand_cells()` 특수 제거 경로를 사용한다.
+- `sand_cells_removed(removed_count, removal_source)` signal은 기존 XP 누적 경로만 호출한다. 골드는 지급하지 않는다.
+
+---
+
+## 15. 스탯 패널 목표
+
+신규 표시 항목:
+
+- 좌측 무기
+- 우측 무기
+- 드론
+- 드론 프로토콜
+- 패시브 모듈
+- 무기 공격력
+- 드론 공격력
+- 공격속도
+- 드론 쿨타임 감소
+- 공격범위
+- 치명타 확률과 배율
+- 생존, 이동, 채굴, 경제 스탯
+
+근거리 공격력과 원거리 공격력 표시는 제거한다.
+
+---
+
+## 16. 상태 소유권 주의사항
+
+- 콘텐츠 테이블을 `GameConstants.gd`에 넣지 않는다.
+- 무기와 프로토콜 정의는 데이터 리소스가 소유한다.
+- 장착 상태와 런 보너스는 `GameState.gd`가 소유한다.
+- 무기와 프로토콜의 순간 쿨타임은 `Player.gd`가 소유한다.
+- 전투 판정과 씬 노드 생성은 `Main.gd`가 담당한다.
+- 상점 롤 결과는 해당 intermission 동안 `Main.gd`가 소유한다.
+- 조건부 효과는 아이템 ID가 아니라 condition/effect/apply_timing 해석으로 처리한다.
+- legacy 공격모듈 5개 장착 구조와 신규 무기 2개 구조를 동시에 활성화하지 않는다.
+- 신규 우측 무기를 우클릭 입력에 연결하지 않는다.
+
+---
+
+## 17. 문서 갱신 체크리스트
+
+- 신규 장비 카테고리가 `weapon`, `drone`, `drone_protocol`, `passive_module`로 일치하는가
+- 근거리/원거리 공격력이 신규 설계에서 제거되었는가
+- 공격속도와 드론 쿨타임 감소의 적용 대상이 분리되어 있는가
+- 드론 쿨타임 감소가 레벨업 카드 기본 풀에 들어가지 않았는가
+- Player의 순간 쿨타임과 GameState의 장착 상태가 분리되어 있는가
+- 상점 기존 흐름을 유지하면서 카테고리만 마이그레이션하는가
+- 패시브 효과가 아이템 ID 하드코딩 없이 표현되는가

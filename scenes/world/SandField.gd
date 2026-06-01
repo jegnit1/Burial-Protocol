@@ -1,6 +1,8 @@
 extends Node2D
 class_name SandField
 
+signal sand_cells_removed(removed_count: int, removal_source: StringName)
+
 var world_grid: WorldGrid
 var sand_cells: Dictionary = {}
 var active_cells: Dictionary = {}
@@ -55,16 +57,21 @@ func spawn_from_block(block_rect: Rect2, block_data: BlockData) -> void:
 	if spawn_columns.is_empty():
 		spawn_columns.append(clampi(min_cell.x, 0, _get_sand_columns() - 1))
 	var spawn_row := clampi(max_cell.y, 0, _get_sand_rows() - 1)
+	var pending_cells: Array[Vector2i] = []
+	var reserved_cells: Dictionary = {}
 	for index in range(block_data.sand_units):
 		var column := spawn_columns[index % spawn_columns.size()]
 		var offset_row := int(index / max(spawn_columns.size(), 1))
 		var cell := Vector2i(column, max(spawn_row - offset_row, 0))
-		while cell.y > 0 and not _can_occupy(cell):
+		while cell.y > 0 and (not _can_occupy(cell) or reserved_cells.has(cell)):
 			cell.y -= 1
-		if _can_occupy(cell):
-			sand_cells[cell] = SandCellData.from_block(block_data)
-			_mark_active(cell, GameConstants.SAND_ACTIVE_RADIUS)
-			spawned_any = true
+		if _can_occupy(cell) and not reserved_cells.has(cell):
+			reserved_cells[cell] = true
+			pending_cells.append(cell)
+	for cell in pending_cells:
+		sand_cells[cell] = SandCellData.from_block(block_data, pending_cells.size())
+		_mark_active(cell, GameConstants.SAND_ACTIVE_RADIUS)
+		spawned_any = true
 	if spawned_any:
 		blocked_push_signature = ""
 		blocked_jump_signature = ""
@@ -229,120 +236,183 @@ func try_clear_jump_space(player_rect: Rect2, facing_direction: int) -> bool:
 	return moved
 
 
-# 모래 채굴: mine_rect 안의 sand_cells를 방향 기준 정렬하여 앞쪽에서 mining_damage개 즉시 삭제.
-# 삭제 후 전체 적층 재계산 금지 - 삭제 셀 주변만 active 처리.
-# 반환: 실제 삭제된 셀 수 (0이면 채굴 실패).
-func try_mine_in_shape(shape_data: Dictionary, mining_damage: int = 1) -> Dictionary:
+# 모래는 우클릭 채굴 대상이 아니다. 과도기 호출을 안전하게 무시한다.
+func try_mine_in_shape(_shape_data: Dictionary, _mining_damage: int = 1) -> Dictionary:
+	return _make_sand_hit_result()
+
+
+func has_mineable_in_shape(_shape_data: Dictionary) -> bool:
+	return false
+
+
+func try_mine_in_rect(_mine_rect: Rect2, _direction: Vector2i, _mining_damage: int = 1) -> int:
+	return 0
+
+
+func apply_weapon_damage_in_shape(
+	shape_data: Dictionary,
+	weapon_damage: float,
+	damage_source: StringName
+) -> Dictionary:
+	return _apply_weapon_damage_to_sand_cells(
+		get_sand_cells_in_shape(shape_data),
+		weapon_damage,
+		damage_source,
+		{}
+	)
+
+
+func apply_weapon_damage_in_rect(
+	hit_rect: Rect2,
+	weapon_damage: float,
+	damage_source: StringName,
+	already_hit_cells: Dictionary = {}
+) -> Dictionary:
+	return _apply_weapon_damage_to_sand_cells(
+		get_sand_cells_in_rect(hit_rect),
+		weapon_damage,
+		damage_source,
+		already_hit_cells
+	)
+
+
+func apply_weapon_damage_in_radius(
+	center: Vector2,
+	radius: float,
+	weapon_damage: float,
+	damage_source: StringName
+) -> Dictionary:
+	var cells: Array[Vector2i] = []
+	if world_grid == null or sand_cells.is_empty() or radius <= 0.0:
+		return _make_sand_hit_result()
+	var hit_rect := Rect2(center - Vector2.ONE * radius, Vector2.ONE * radius * 2.0)
+	var min_cell := world_to_sand_cell(hit_rect.position)
+	var max_cell := world_to_sand_cell(hit_rect.position + hit_rect.size - Vector2.ONE)
+	for y in range(min_cell.y, max_cell.y + 1):
+		for x in range(min_cell.x, max_cell.x + 1):
+			var cell := Vector2i(x, y)
+			if sand_cells.has(cell) and get_sand_cell_rect(cell).get_center().distance_to(center) <= radius:
+				cells.append(cell)
+	return _apply_weapon_damage_to_sand_cells(cells, weapon_damage, damage_source, {})
+
+
+func get_sand_cells_in_shape(shape_data: Dictionary) -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	if world_grid == null or sand_cells.is_empty():
+		return cells
+	var shape_bounds := GameConstants.get_shape_bounds(shape_data)
+	var min_cell := world_to_sand_cell(shape_bounds.position)
+	var max_cell := world_to_sand_cell(shape_bounds.position + shape_bounds.size - Vector2.ONE)
+	for y in range(min_cell.y, max_cell.y + 1):
+		for x in range(min_cell.x, max_cell.x + 1):
+			var cell := Vector2i(x, y)
+			if not sand_cells.has(cell):
+				continue
+			var cell_rect := get_sand_cell_rect(cell)
+			if cell_rect.intersects(shape_bounds) and GameConstants.is_point_inside_shape(cell_rect.get_center(), shape_data):
+				cells.append(cell)
+	return cells
+
+
+func get_sand_cells_in_rect(hit_rect: Rect2) -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	if world_grid == null or sand_cells.is_empty():
+		return cells
+	var min_cell := world_to_sand_cell(hit_rect.position)
+	var max_cell := world_to_sand_cell(hit_rect.position + hit_rect.size - Vector2.ONE)
+	for y in range(min_cell.y, max_cell.y + 1):
+		for x in range(min_cell.x, max_cell.x + 1):
+			var cell := Vector2i(x, y)
+			if sand_cells.has(cell) and get_sand_cell_rect(cell).intersects(hit_rect):
+				cells.append(cell)
+	return cells
+
+
+func apply_weapon_damage_to_sand_cell(cell: Vector2i, weapon_damage: float, damage_source: StringName) -> bool:
+	var result := _apply_weapon_damage_to_sand_cells([cell], weapon_damage, damage_source, {})
+	return int(result.get("removed_count", 0)) > 0
+
+
+func _apply_weapon_damage_to_sand_cells(
+	cells: Array[Vector2i],
+	weapon_damage: float,
+	damage_source: StringName,
+	already_hit_cells: Dictionary
+) -> Dictionary:
+	var result := _make_sand_hit_result()
+	if damage_source != &"weapon" or weapon_damage <= 0.0:
+		return result
+	var sand_damage := weapon_damage * GameConstants.SAND_WEAPON_DAMAGE_RATIO
+	if sand_damage <= 0.0:
+		return result
+	result["damage_per_cell"] = sand_damage
+	var removed_cells: Array[Vector2i] = []
+	for cell in cells:
+		if already_hit_cells.has(cell) or not sand_cells.has(cell):
+			continue
+		already_hit_cells[cell] = true
+		result["hit_count"] += 1
+		result["hit_cells"].append(cell)
+		var sand_cell: SandCellData = sand_cells[cell]
+		sand_cell.hp -= sand_damage
+		if sand_cell.hp > 0.0:
+			continue
+		sand_cells.erase(cell)
+		mining_triggered_cells.erase(cell)
+		removed_cells.append(cell)
+		result["removed_cells"].append(cell)
+		result["removed_count"] += 1
+	if int(result["removed_count"]) > 0:
+		blocked_push_signature = ""
+		blocked_jump_signature = ""
+		_mark_active_after_mining(removed_cells)
+		sand_cells_removed.emit(int(result["removed_count"]), &"weapon")
+	if int(result["hit_count"]) > 0:
+		queue_redraw()
+	return result
+
+
+func _make_sand_hit_result() -> Dictionary:
 	var result := {
 		"hit_count": 0,
 		"removed_count": 0,
 		"hit_cells": [],
 		"removed_cells": [],
+		"damage_per_cell": 0.0,
 	}
-	if world_grid == null or sand_cells.is_empty() or mining_damage <= 0:
-		return result
-	var shape_bounds := GameConstants.get_shape_bounds(shape_data)
-	var min_cell := world_to_sand_cell(shape_bounds.position)
-	var max_cell := world_to_sand_cell(shape_bounds.position + shape_bounds.size - Vector2.ONE)
-	var removed_cells: Array[Vector2i] = []
-	for y in range(min_cell.y, max_cell.y + 1):
-		for x in range(min_cell.x, max_cell.x + 1):
-			var cell := Vector2i(x, y)
-			if not sand_cells.has(cell):
-				continue
-			var cell_rect := get_sand_cell_rect(cell)
-			if not cell_rect.intersects(shape_bounds):
-				continue
-			if not GameConstants.is_point_inside_shape(cell_rect.get_center(), shape_data):
-				continue
-			result["hit_count"] += 1
-			result["hit_cells"].append(cell)
-			var sand_cell: SandCellData = sand_cells[cell]
-			sand_cell.hp -= mining_damage
-			if sand_cell.hp > 0:
-				continue
-			sand_cells.erase(cell)
-			mining_triggered_cells.erase(cell)
-			removed_cells.append(cell)
-			result["removed_cells"].append(cell)
-			result["removed_count"] += 1
-	if int(result["removed_count"]) > 0:
-		blocked_push_signature = ""
-		blocked_jump_signature = ""
-		_mark_active_after_mining(removed_cells)
-		queue_redraw()
-	elif int(result["hit_count"]) > 0:
-		queue_redraw()
 	return result
 
 
-func has_mineable_in_shape(shape_data: Dictionary) -> bool:
-	if world_grid == null or sand_cells.is_empty():
-		return false
-	var shape_bounds := GameConstants.get_shape_bounds(shape_data)
-	var min_cell := world_to_sand_cell(shape_bounds.position)
-	var max_cell := world_to_sand_cell(shape_bounds.position + shape_bounds.size - Vector2.ONE)
-	for y in range(min_cell.y, max_cell.y + 1):
-		for x in range(min_cell.x, max_cell.x + 1):
-			var cell := Vector2i(x, y)
-			if not sand_cells.has(cell):
-				continue
-			var cell_rect := get_sand_cell_rect(cell)
-			if not cell_rect.intersects(shape_bounds):
-				continue
-			if GameConstants.is_point_inside_shape(cell_rect.get_center(), shape_data):
-				return true
-	return false
+func get_sand_count() -> int:
+	return sand_cells.size()
 
 
-func try_mine_in_rect(mine_rect: Rect2, direction: Vector2i, mining_damage: int = 1) -> int:
-	if world_grid == null or sand_cells.is_empty():
-		return 0
-	var min_cell := world_to_sand_cell(mine_rect.position)
-	var max_cell := world_to_sand_cell(mine_rect.position + mine_rect.size - Vector2.ONE)
-	var candidates: Array[Vector2i] = []
-	for y in range(min_cell.y, max_cell.y + 1):
-		for x in range(min_cell.x, max_cell.x + 1):
-			var cell := Vector2i(x, y)
-			if sand_cells.has(cell) and get_sand_cell_rect(cell).intersects(mine_rect):
-				candidates.append(cell)
-	if candidates.is_empty():
-		return 0
-	# 방향 기준 정렬: 진행 방향의 앞쪽(가장 가까운) 셀을 먼저 제거
-	candidates.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
-		if direction.x < 0:
-			return a.x > b.x   # 왼쪽 채굴: x가 큰(오른쪽) 셀이 앞쪽
-		if direction.x > 0:
-			return a.x < b.x   # 오른쪽 채굴: x가 작은(왼쪽) 셀이 앞쪽
-		if direction.y < 0:
-			return a.y > b.y   # 위 채굴: y가 큰(아래쪽) 셀이 앞쪽
-		return a.y < b.y       # 아래 채굴: y가 작은(위쪽) 셀이 앞쪽
-	)
-	var removal_limit := candidates.size()
-	if mining_damage > 0:
-		removal_limit = max(removal_limit, mining_damage)
-	var removed := 0
+func remove_nearest_sand_cells(world_position: Vector2, count: int) -> Array[Vector2i]:
 	var removed_cells: Array[Vector2i] = []
+	if count <= 0 or sand_cells.is_empty():
+		return removed_cells
+	var candidates: Array[Vector2i] = []
+	for raw_cell in sand_cells.keys():
+		candidates.append(raw_cell as Vector2i)
+	candidates.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+		return sand_cell_to_world(a).distance_squared_to(world_position) < sand_cell_to_world(b).distance_squared_to(world_position)
+	)
 	for cell in candidates:
-		if removed >= removal_limit:
+		if removed_cells.size() >= count:
 			break
 		if not sand_cells.has(cell):
 			continue
 		sand_cells.erase(cell)
 		mining_triggered_cells.erase(cell)
 		removed_cells.append(cell)
-		# 삭제 셀 주변만 active 표시 - 전체 재계산 금지
-		removed += 1
-	if removed > 0:
-		blocked_push_signature = ""
-		blocked_jump_signature = ""
-		_mark_active_after_mining(removed_cells)
-		queue_redraw()
-	return removed
-
-
-func get_sand_count() -> int:
-	return sand_cells.size()
+	if removed_cells.is_empty():
+		return removed_cells
+	blocked_push_signature = ""
+	blocked_jump_signature = ""
+	_mark_active_after_mining(removed_cells)
+	sand_cells_removed.emit(removed_cells.size(), &"sand_cleaner")
+	queue_redraw()
+	return removed_cells
 
 
 func extract_sand_cells_in_rects(world_rects: Array[Rect2]) -> Array[SandCellData]:

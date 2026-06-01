@@ -9,6 +9,10 @@ signal level_changed(level: int)
 signal level_up_ready()
 signal attack_module_changed(module_id: StringName)
 signal owned_attack_modules_changed(module_ids: PackedStringArray)
+signal weapons_changed(left_weapon: Dictionary, right_weapon: Dictionary)
+signal drone_changed(drone_id: StringName)
+signal drone_protocols_changed(protocols: Array[Dictionary])
+signal passive_modules_changed(modules: Array[Dictionary])
 signal run_items_changed()
 signal shop_reroll_count_changed(count: int, next_cost: int)
 signal shop_locked_slots_changed(locked_slots: Dictionary)
@@ -123,6 +127,7 @@ var current_run_stage_reached := 1
 var current_day := 1
 var day_time_remaining := 0.0
 var run_cleared := false
+var health_recovery_blocked := false
 var current_shop_reroll_count := 0
 var current_shop_locked_slots: Dictionary = {}
 
@@ -133,14 +138,15 @@ var player_next_level_xp := 50
 var pending_sand_removed_cells_for_xp := 0
 
 # 런타임 성장 보너스
-# Deprecated: kept for old saves/scripts. New combat damage uses run_bonus_damage_percent instead.
+# Deprecated: kept for old scripts. New combat damage uses the weapon/drone stats below.
 var run_bonus_attack_damage := 0
 var run_bonus_damage_percent := 0.0
-var run_bonus_melee_attack_damage := 0
-var run_bonus_ranged_attack_damage := 0
 var run_bonus_move_speed := 0.0
 var run_bonus_max_hp := 0
-var run_attack_speed_mult := 1.0
+var run_bonus_weapon_attack_damage := 0
+var run_bonus_drone_attack_damage := 0
+var run_weapon_attack_speed_mult := 1.0
+var run_drone_cooldown_reduction := 0.0
 var run_bonus_mining_damage := 0
 var run_mining_speed_mult := 1.0
 var run_bonus_crit_chance := 0.0
@@ -155,13 +161,24 @@ var run_move_speed_mult := 1.0
 var run_jump_power_mult := 1.0
 var run_bonus_max_weight := 0
 var run_bonus_battery_recovery := 0.0
+# Deprecated compatibility mirrors. New equipment state below is the source of truth.
 var owned_attack_module_ids: PackedStringArray = PackedStringArray()
 var equipped_attack_module_id: StringName = StringName()
 var equipped_attack_modules: Array[Dictionary] = []
+var owned_weapon_ids: PackedStringArray = PackedStringArray()
+var equipped_weapon_left: Dictionary = {}
+var equipped_weapon_right: Dictionary = {}
+var equipped_drone_id: StringName = GameConstants.DEFAULT_DRONE_ID
+var equipped_drone_protocols: Array[Dictionary] = []
+var owned_drone_protocol_ids: PackedStringArray = PackedStringArray()
+var equipped_passive_modules: Array[Dictionary] = []
+var owned_passive_module_ids: PackedStringArray = PackedStringArray()
 var equipped_parts: Array[Dictionary] = []
 var owned_artifact_counts: Dictionary = {}
 var attack_module_instance_sequence := 0
 var attack_module_runtime_state: Dictionary = {}
+var weapon_runtime_state: Dictionary = {}
+var drone_protocol_runtime_state: Dictionary = {}
 var owned_function_module_ids: PackedStringArray = PackedStringArray()
 var owned_enhance_module_counts: Dictionary = {}
 var current_run_items: PackedStringArray = PackedStringArray()
@@ -189,6 +206,7 @@ func reset_run() -> void:
 	current_day = 1
 	day_time_remaining = GameData.get_day_duration(current_day)
 	run_cleared = false
+	health_recovery_blocked = false
 	reset_shop_reroll_count()
 	
 	player_level = 1
@@ -197,11 +215,12 @@ func reset_run() -> void:
 	pending_sand_removed_cells_for_xp = 0
 	run_bonus_attack_damage = 0
 	run_bonus_damage_percent = 0.0
-	run_bonus_melee_attack_damage = 0
-	run_bonus_ranged_attack_damage = 0
 	run_bonus_move_speed = 0.0
 	run_bonus_max_hp = 0
-	run_attack_speed_mult = 1.0
+	run_bonus_weapon_attack_damage = 0
+	run_bonus_drone_attack_damage = 0
+	run_weapon_attack_speed_mult = 1.0
+	run_drone_cooldown_reduction = 0.0
 	run_bonus_mining_damage = 0
 	run_mining_speed_mult = 1.0
 	run_bonus_crit_chance = 0.0
@@ -217,7 +236,7 @@ func reset_run() -> void:
 	run_bonus_max_weight = 0
 	run_bonus_battery_recovery = 0.0
 	_reset_run_shop_items()
-	_reset_run_attack_modules()
+	_reset_run_equipment()
 	
 	status_text = Locale.ltr("status_run_start") % [
 		current_run_character_name,
@@ -370,8 +389,25 @@ func damage_player(amount: int) -> int:
 	return applied_damage
 
 
+func damage_player_environment(amount: int) -> int:
+	if amount <= 0:
+		return 0
+	var applied_damage := mini(amount, player_health)
+	player_health = max(player_health - applied_damage, 0)
+	health_changed.emit(player_health, get_player_max_health())
+	return applied_damage
+
+
+func set_health_recovery_blocked(blocked: bool) -> void:
+	health_recovery_blocked = blocked
+
+
+func is_health_recovery_blocked() -> bool:
+	return health_recovery_blocked
+
+
 func heal_player(amount: int) -> void:
-	if amount <= 0 or player_health <= 0:
+	if amount <= 0 or player_health <= 0 or health_recovery_blocked:
 		return
 	player_health = min(player_health + amount, get_player_max_health())
 	health_changed.emit(player_health, get_player_max_health())
@@ -391,7 +427,7 @@ func get_attack_damage() -> int:
 func get_attack_cooldown_duration() -> float:
 	var entries := get_equipped_attack_module_entries()
 	if entries.is_empty():
-		return GameConstants.PLAYER_ATTACK_COOLDOWN * run_attack_speed_mult
+		return GameConstants.PLAYER_ATTACK_COOLDOWN * run_weapon_attack_speed_mult
 	return get_attack_module_cooldown_duration(entries[0])
 
 
@@ -406,20 +442,72 @@ func get_base_attack_damage() -> int:
 	return maxi(GameConstants.PLAYER_ATTACK_DAMAGE + run_bonus_attack_damage, 1)
 
 
+# Deprecated compatibility aliases for legacy UI/tests.
 func get_melee_base_attack_damage() -> int:
-	return maxi(GameConstants.PLAYER_ATTACK_DAMAGE + run_bonus_melee_attack_damage + int(get_stat_query_effect_value("melee_attack_damage_flat")), 1)
+	return get_weapon_base_attack_damage()
 
 
 func get_ranged_base_attack_damage() -> int:
-	return maxi(GameConstants.PLAYER_ATTACK_DAMAGE + run_bonus_ranged_attack_damage + int(get_stat_query_effect_value("ranged_attack_damage_flat")), 1)
+	return get_weapon_base_attack_damage()
 
 
 func get_melee_attack_damage_flat() -> int:
-	return run_bonus_melee_attack_damage
+	return get_weapon_attack_damage_flat()
 
 
 func get_ranged_attack_damage_flat() -> int:
-	return run_bonus_ranged_attack_damage
+	return get_weapon_attack_damage_flat()
+
+
+func get_weapon_base_attack_damage() -> int:
+	return maxi(GameConstants.PLAYER_ATTACK_DAMAGE + get_weapon_attack_damage_flat(), 1)
+
+
+func get_weapon_attack_damage_flat() -> int:
+	return run_bonus_weapon_attack_damage + int(get_stat_query_effect_value("weapon_damage_flat"))
+
+
+func get_drone_attack_damage_flat() -> int:
+	return run_bonus_drone_attack_damage + int(get_stat_query_effect_value("drone_damage_flat"))
+
+
+func get_drone_base_attack_damage() -> int:
+	return maxi(GameConstants.PLAYER_ATTACK_DAMAGE + get_drone_attack_damage_flat(), 1)
+
+
+func get_drone_protocol_damage(protocol_entry: Dictionary) -> int:
+	var definition := GameData.get_shop_item_definition(StringName(String(protocol_entry.get("item_id", ""))))
+	if definition.is_empty():
+		return 0
+	var effect_values: Dictionary = definition.get("effect_values", {}) as Dictionary
+	var base_damage := int(definition.get("protocol_base_damage", 0))
+	if base_damage <= 0:
+		base_damage = get_drone_base_attack_damage()
+	var damage_multiplier := float(effect_values.get("damage_multiplier", 1.0))
+	return maxi(int(floor(float(base_damage) * damage_multiplier * get_global_damage_multiplier())), 1)
+
+
+func get_weapon_attack_speed_multiplier() -> float:
+	return 1.0 / maxf(run_weapon_attack_speed_mult, 0.01)
+
+
+func get_drone_cooldown_reduction_ratio() -> float:
+	return clampf(
+		run_drone_cooldown_reduction + get_stat_query_effect_value("protocol_cooldown_reduction_percent"),
+		0.0,
+		0.95
+	)
+
+
+func get_drone_protocol_cooldown_duration(protocol_entry: Dictionary) -> float:
+	var definition := GameData.get_shop_item_definition(StringName(String(protocol_entry.get("item_id", ""))))
+	var base_cooldown := float(definition.get("protocol_base_cooldown", 0.0))
+	if base_cooldown <= 0.0:
+		base_cooldown = GameConstants.DEFAULT_DRONE_PROTOCOL_COOLDOWN
+	return maxf(
+		GameConstants.MIN_DRONE_PROTOCOL_COOLDOWN,
+		base_cooldown * (1.0 - get_drone_cooldown_reduction_ratio())
+	)
 
 
 func get_damage_percent() -> float:
@@ -515,14 +603,14 @@ func get_attack_base_damage_for_module(module_entry: Dictionary) -> int:
 		return get_base_attack_damage()
 	var grade := String(module_entry.get("grade", ATTACK_MODULE_DEFAULT_GRADE))
 	var module_base_damage := get_attack_module_base_damage_for_grade(module_definition, grade)
-	var weapon_flat := int(_get_active_part_effect_value("weapon_damage_flat"))
+	var weapon_flat := get_weapon_attack_damage_flat() + int(_get_active_part_effect_value("weapon_damage_flat"))
 	match String(module_definition.module_type):
 		"melee":
-			return maxi(module_base_damage + get_melee_attack_damage_flat() + weapon_flat + int(_get_active_part_effect_value("weapon_melee_damage_flat") + _get_active_part_effect_value("melee_attack_damage_flat")), 1)
+			return maxi(module_base_damage + weapon_flat + int(_get_active_part_effect_value("weapon_melee_damage_flat") + _get_active_part_effect_value("melee_attack_damage_flat")), 1)
 		"ranged":
-			return maxi(module_base_damage + get_ranged_attack_damage_flat() + weapon_flat + int(_get_active_part_effect_value("weapon_ranged_damage_flat") + _get_active_part_effect_value("ranged_attack_damage_flat")), 1)
+			return maxi(module_base_damage + weapon_flat + int(_get_active_part_effect_value("weapon_ranged_damage_flat") + _get_active_part_effect_value("ranged_attack_damage_flat")), 1)
 		"mechanic":
-			return maxi(module_base_damage + weapon_flat, 1)
+			return maxi(module_base_damage + get_drone_attack_damage_flat(), 1)
 		_:
 			return maxi(module_base_damage + weapon_flat, 1)
 
@@ -560,7 +648,7 @@ func get_mechanic_attack_module_damage(module_entry: Dictionary) -> int:
 		return maxi(int(floor(float(get_base_attack_damage()) * get_global_damage_multiplier())), 1)
 	var grade := String(module_entry.get("grade", ATTACK_MODULE_DEFAULT_GRADE))
 	var base_damage := get_attack_module_base_damage_for_grade(module_definition, grade)
-	return maxi(int(floor(float(base_damage) * get_global_damage_multiplier())), 1)
+	return maxi(int(floor(float(base_damage + get_drone_attack_damage_flat()) * get_global_damage_multiplier())), 1)
 
 
 func get_attack_module_cooldown_duration(module_entry: Dictionary) -> float:
@@ -575,8 +663,11 @@ func get_attack_module_cooldown_duration(module_entry: Dictionary) -> float:
 		)
 	var module_type := _get_attack_module_type(module_entry)
 	if module_type == &"mechanic":
-		return GameConstants.PLAYER_ATTACK_COOLDOWN / module_speed
-	return (GameConstants.PLAYER_ATTACK_COOLDOWN * run_attack_speed_mult) / module_speed
+		return maxf(
+			GameConstants.MIN_DRONE_PROTOCOL_COOLDOWN,
+			GameConstants.PLAYER_ATTACK_COOLDOWN * (1.0 - get_drone_cooldown_reduction_ratio()) / module_speed
+		)
+	return (GameConstants.PLAYER_ATTACK_COOLDOWN * run_weapon_attack_speed_mult) / module_speed
 
 
 func get_attack_range_multiplier() -> float:
@@ -587,45 +678,73 @@ func get_attack_range_multiplier() -> float:
 
 
 func get_equipped_attack_module_id() -> StringName:
-	if not equipped_attack_modules.is_empty():
-		return StringName(String(equipped_attack_modules[0].get("module_id", "")))
+	if not equipped_weapon_left.is_empty():
+		return StringName(String(equipped_weapon_left.get("module_id", "")))
 	if equipped_attack_module_id != StringName():
 		return equipped_attack_module_id
-	return GameData.get_default_attack_module_id()
+	return GameData.get_default_weapon_id()
 
 
 func get_owned_attack_module_ids() -> PackedStringArray:
-	return owned_attack_module_ids.duplicate()
+	return owned_weapon_ids.duplicate()
 
 
 func is_attack_module_owned(module_id: StringName) -> bool:
-	return owned_attack_module_ids.has(String(module_id))
+	return owned_weapon_ids.has(String(module_id))
 
 
 func get_equipped_attack_module_entries() -> Array[Dictionary]:
+	return get_equipped_weapon_entries()
+
+
+func get_equipped_weapon_entries() -> Array[Dictionary]:
 	var entries: Array[Dictionary] = []
-	for raw_entry in equipped_attack_modules:
-		entries.append(raw_entry.duplicate(true))
+	if not equipped_weapon_left.is_empty():
+		entries.append(equipped_weapon_left.duplicate(true))
+	if not equipped_weapon_right.is_empty():
+		entries.append(equipped_weapon_right.duplicate(true))
 	return entries
 
 
 func get_input_attack_module_entries() -> Array[Dictionary]:
-	var entries: Array[Dictionary] = []
-	for raw_entry in equipped_attack_modules:
-		var entry := raw_entry.duplicate(true)
-		var module_type := _get_attack_module_type(entry)
-		if module_type == &"melee" or module_type == &"ranged":
-			entries.append(entry)
-	return entries
+	return get_equipped_weapon_entries()
 
 
 func get_mechanic_attack_module_entries() -> Array[Dictionary]:
-	var entries: Array[Dictionary] = []
-	for raw_entry in equipped_attack_modules:
-		var entry := raw_entry.duplicate(true)
-		if _get_attack_module_type(entry) == &"mechanic":
-			entries.append(entry)
-	return entries
+	# Mechanic modules migrated to drone protocols. Phase 4 consumes protocol slots.
+	return []
+
+
+func get_equipped_weapon_left() -> Dictionary:
+	return equipped_weapon_left.duplicate(true)
+
+
+func get_equipped_weapon_right() -> Dictionary:
+	return equipped_weapon_right.duplicate(true)
+
+
+func get_owned_weapon_ids() -> PackedStringArray:
+	return owned_weapon_ids.duplicate()
+
+
+func get_equipped_drone_id() -> StringName:
+	return equipped_drone_id
+
+
+func get_equipped_drone_protocol_entries() -> Array[Dictionary]:
+	return _duplicate_dictionary_entries(equipped_drone_protocols)
+
+
+func get_owned_drone_protocol_ids() -> PackedStringArray:
+	return owned_drone_protocol_ids.duplicate()
+
+
+func get_equipped_passive_module_entries() -> Array[Dictionary]:
+	return _duplicate_dictionary_entries(equipped_passive_modules)
+
+
+func get_owned_passive_module_ids() -> PackedStringArray:
+	return owned_passive_module_ids.duplicate()
 
 
 func get_attack_module_definition_from_entry(module_entry: Dictionary):
@@ -770,6 +889,12 @@ func get_shop_roll_context() -> Dictionary:
 	return {
 		"stage_number": current_day,
 		"current_day": current_day,
+		"owned_weapon_ids": get_owned_weapon_ids(),
+		"equipped_weapon_left": get_equipped_weapon_left(),
+		"equipped_weapon_right": get_equipped_weapon_right(),
+		"equipped_drone_id": String(equipped_drone_id),
+		"equipped_drone_protocols": get_equipped_drone_protocol_entries(),
+		"equipped_passive_modules": get_equipped_passive_module_entries(),
 		"owned_attack_module_ids": get_owned_attack_module_ids(),
 		"equipped_parts": get_equipped_part_entries(),
 		"owned_artifact_counts": owned_artifact_counts.duplicate(true),
@@ -854,16 +979,24 @@ func get_effective_shop_item_price(definition: Dictionary) -> int:
 	return int(GameConstants.SHOP_ITEM_RANK_FALLBACK_PRICES.get(rank, 15))
 
 
-func get_day_shop_snapshot(item_ids: PackedStringArray) -> Dictionary:
+func get_day_shop_snapshot(item_ids: PackedStringArray, equipment_targets: Dictionary = {}) -> Dictionary:
 	var entries: Array[Dictionary] = []
 	for slot_index in range(item_ids.size()):
 		var item_id := StringName(item_ids[slot_index])
 		var definition := GameData.get_shop_item_definition(item_id)
 		if definition.is_empty():
 			continue
-		entries.append(_build_shop_item_snapshot(definition, slot_index))
+		entries.append(_build_shop_item_snapshot(definition, slot_index, equipment_targets))
 	return {
 		"gold": gold,
+		"equipped_weapon_left": get_equipped_weapon_left(),
+		"equipped_weapon_right": get_equipped_weapon_right(),
+		"owned_weapon_ids": Array(owned_weapon_ids),
+		"equipped_drone_id": String(equipped_drone_id),
+		"equipped_drone_protocols": get_equipped_drone_protocol_entries(),
+		"owned_drone_protocol_ids": Array(owned_drone_protocol_ids),
+		"equipped_passive_modules": get_equipped_passive_module_entries(),
+		"owned_passive_module_ids": Array(owned_passive_module_ids),
 		"equipped_attack_module_id": String(get_equipped_attack_module_id()),
 		"equipped_attack_module_name": get_equipped_attack_module_display_name(),
 		"owned_attack_module_ids": Array(owned_attack_module_ids),
@@ -880,7 +1013,7 @@ func get_day_shop_snapshot(item_ids: PackedStringArray) -> Dictionary:
 	}
 
 
-func purchase_shop_item(item_id: StringName) -> Dictionary:
+func purchase_shop_item(item_id: StringName, equipment_targets: Dictionary = {}) -> Dictionary:
 	var definition := GameData.get_shop_item_definition(item_id)
 	if definition.is_empty():
 		return {"ok": false, "reason": "missing_definition"}
@@ -890,14 +1023,22 @@ func purchase_shop_item(item_id: StringName) -> Dictionary:
 		return {"ok": false, "reason": "already_owned"}
 	if not _is_supported_shop_category(category):
 		return {"ok": false, "reason": "unsupported_category"}
-	var purchase_state := _get_item_purchase_state(definition)
+	var purchase_state := _get_item_purchase_state(definition, equipment_targets)
 	if not bool(purchase_state.get("ok", false)):
 		return purchase_state
 	if not try_spend_gold(price_gold):
 		return {"ok": false, "reason": "insufficient_gold"}
 	match String(category):
 		"weapon", "attack_module":
-			return _register_owned_attack_module(_get_shop_attack_module_id(definition), _get_shop_attack_module_grade(definition))
+			return _register_owned_attack_module(
+				_get_shop_attack_module_id(definition),
+				_get_shop_attack_module_grade(definition),
+				equipment_targets
+			)
+		"drone_protocol":
+			return _register_drone_protocol_purchase(definition, equipment_targets)
+		"passive_module":
+			return _register_passive_module_purchase(definition, equipment_targets)
 		"part":
 			return _register_part_purchase(definition)
 		"artifact":
@@ -923,6 +1064,10 @@ func grant_shop_item_reward(item_id: StringName, source: String = "treasure_ches
 	match String(category):
 		"weapon", "attack_module":
 			result = _register_owned_attack_module(_get_shop_attack_module_id(definition), _get_shop_attack_module_grade(definition))
+		"drone_protocol":
+			result = _register_drone_protocol_purchase(definition)
+		"passive_module":
+			result = _register_passive_module_purchase(definition)
 		"part":
 			result = _register_part_purchase(definition)
 		"artifact":
@@ -943,35 +1088,117 @@ func grant_shop_item_reward(item_id: StringName, source: String = "treasure_ches
 
 
 func grant_attack_module(module_id: StringName, auto_equip := false, grade := ATTACK_MODULE_DEFAULT_GRADE) -> bool:
+	return grant_weapon(module_id, auto_equip, grade)
+
+
+func grant_weapon(module_id: StringName, auto_equip := false, grade := ATTACK_MODULE_DEFAULT_GRADE) -> bool:
 	var module_definition = GameData.get_attack_module_definition(module_id)
 	if module_definition == null:
 		return false
-	if not owned_attack_module_ids.has(String(module_id)):
-		owned_attack_module_ids.append(String(module_id))
+	if String(module_definition.equipment_category) != "weapon":
+		return false
+	if not owned_weapon_ids.has(String(module_id)):
+		owned_weapon_ids.append(String(module_id))
+	_sync_legacy_attack_module_state()
 	owned_attack_modules_changed.emit(get_owned_attack_module_ids())
 	if auto_equip:
 		var entry := _make_attack_module_entry(module_id, grade)
-		equipped_attack_modules = [entry]
-		_sync_primary_equipped_attack_module_id()
-		attack_module_changed.emit(equipped_attack_module_id)
-		run_items_changed.emit()
+		_set_weapon_slot_entry("left", entry)
 	return true
 
 
 func equip_attack_module(module_id: StringName) -> bool:
-	# 다중 장착 체계에서는 상점 구매가 즉시 장착을 담당한다.
+	return equip_weapon(module_id, "left")
+
+
+func equip_weapon(module_id: StringName, slot: String = "left", grade := ATTACK_MODULE_DEFAULT_GRADE) -> bool:
+	if not owned_weapon_ids.has(String(module_id)):
+		return false
+	var module_definition = GameData.get_attack_module_definition(module_id)
+	if module_definition == null or String(module_definition.equipment_category) != "weapon":
+		return false
+	_set_weapon_slot_entry(slot, _make_attack_module_entry(module_id, _normalize_attack_module_grade(grade)))
+	return true
+
+
+func unequip_weapon(slot: String) -> void:
+	if slot == "right":
+		equipped_weapon_right = {}
+	elif slot == "left":
+		equipped_weapon_left = {}
+	else:
+		return
+	_emit_equipment_state_changed()
+
+
+func grant_drone_protocol(item_id: StringName, auto_equip := false) -> bool:
+	var definition := GameData.get_shop_item_definition(item_id)
+	if String(definition.get("equipment_category", "")) != "drone_protocol":
+		return false
+	if not owned_drone_protocol_ids.has(String(item_id)):
+		owned_drone_protocol_ids.append(String(item_id))
+	if auto_equip:
+		return equip_drone_protocol(item_id)
+	return true
+
+
+func equip_drone_protocol(item_id: StringName) -> bool:
+	if equipped_drone_protocols.size() >= GameConstants.DRONE_PROTOCOL_MAX_EQUIPPED:
+		return false
+	if not grant_drone_protocol(item_id):
+		return false
+	equipped_drone_protocols.append(_make_equipment_entry(item_id, "protocol"))
+	drone_protocols_changed.emit(get_equipped_drone_protocol_entries())
 	run_items_changed.emit()
-	return is_attack_module_owned(module_id)
+	return true
 
 
-func can_add_or_synthesize_attack_module(module_id: StringName, grade: String = ATTACK_MODULE_DEFAULT_GRADE) -> Dictionary:
+func grant_passive_module(item_id: StringName, auto_equip := false) -> bool:
+	var definition := GameData.get_shop_item_definition(item_id)
+	if String(definition.get("equipment_category", "")) != "passive_module":
+		return false
+	if not owned_passive_module_ids.has(String(item_id)):
+		owned_passive_module_ids.append(String(item_id))
+	if auto_equip:
+		return equip_passive_module(item_id)
+	return true
+
+
+func equip_passive_module(item_id: StringName) -> bool:
+	if equipped_passive_modules.size() >= GameConstants.PASSIVE_MODULE_MAX_EQUIPPED:
+		return false
+	if not grant_passive_module(item_id):
+		return false
+	var definition := GameData.get_shop_item_definition(item_id)
+	if bool(definition.get("non_stackable", false)) and _has_equipped_item(equipped_passive_modules, item_id):
+		return false
+	equipped_passive_modules.append(_make_equipment_entry(item_id, "passive"))
+	passive_modules_changed.emit(get_equipped_passive_module_entries())
+	run_items_changed.emit()
+	return true
+
+
+func can_add_or_synthesize_attack_module(
+	module_id: StringName,
+	grade: String = ATTACK_MODULE_DEFAULT_GRADE,
+	equipment_targets: Dictionary = {}
+) -> Dictionary:
 	var module_definition = GameData.get_attack_module_definition(module_id)
 	if module_definition == null:
 		return {"ok": false, "reason": "missing_definition"}
 	var normalized_grade := _normalize_attack_module_grade(grade)
 	if normalized_grade.is_empty():
 		return {"ok": false, "reason": "invalid_grade"}
-	return {"ok": true, "mode": "equip_weapon"}
+	var requested_slot := String(equipment_targets.get("weapon_slot", ""))
+	if not requested_slot.is_empty():
+		if requested_slot != "left" and requested_slot != "right":
+			return {"ok": false, "reason": "invalid_weapon_slot"}
+		return {"ok": true, "mode": "equip_weapon", "slot": requested_slot}
+	if equipped_weapon_left.is_empty():
+		return {"ok": true, "mode": "equip_weapon", "slot": "left"}
+	if equipped_weapon_right.is_empty():
+		return {"ok": true, "mode": "equip_weapon", "slot": "right"}
+	return {"ok": false, "reason": "weapon_slot_required"}
 
 
 func get_critical_chance_ratio() -> float:
@@ -1027,7 +1254,7 @@ func get_mining_damage() -> int:
 
 
 func get_mining_cooldown_duration() -> float:
-	return GameConstants.PLAYER_MINING_COOLDOWN * run_mining_speed_mult
+	return maxf(GameConstants.MIN_MINING_INTERVAL, GameConstants.BASE_MINING_INTERVAL * run_mining_speed_mult)
 
 
 func get_mining_speed_bonus_percent() -> float:
@@ -1073,12 +1300,17 @@ func get_battery_recovery_per_second() -> float:
 func get_stat_panel_entries() -> Array[Dictionary]:
 	var attack_shape_units := get_attack_shape_size_units()
 	return [
-		{"label": "공격 모듈", "value": _get_equipped_attack_module_summary()},
-		{"label": "현재 모듈 공격력", "value": str(get_attack_damage())},
-		{"label": "근거리 공격력", "value": "+%d" % get_melee_attack_damage_flat()},
-		{"label": "원거리 공격력", "value": "+%d" % get_ranged_attack_damage_flat()},
+		{"label": "좌측 무기", "value": _get_weapon_slot_label(equipped_weapon_left)},
+		{"label": "우측 무기", "value": _get_weapon_slot_label(equipped_weapon_right)},
+		{"label": "드론", "value": String(equipped_drone_id)},
+		{"label": "드론 프로토콜", "value": "%d / %d" % [equipped_drone_protocols.size(), GameConstants.DRONE_PROTOCOL_MAX_EQUIPPED]},
+		{"label": "패시브 모듈", "value": "%d / %d" % [equipped_passive_modules.size(), GameConstants.PASSIVE_MODULE_MAX_EQUIPPED]},
+		{"label": "현재 무기 공격력", "value": str(get_attack_damage())},
+		{"label": "무기 공격력", "value": "+%d" % get_weapon_attack_damage_flat()},
+		{"label": "드론 공격력", "value": "+%d" % get_drone_attack_damage_flat()},
 		{"label": "데미지", "value": "+%d%%" % get_damage_percent_display()},
-		{"label": "공격속도", "value": "%.2f / sec" % get_attacks_per_second()},
+		{"label": "공격속도", "value": "%.2fx" % get_weapon_attack_speed_multiplier()},
+		{"label": "드론 쿨타임 감소", "value": "%.0f%%" % (get_drone_cooldown_reduction_ratio() * 100.0)},
 		{"label": "공격범위", "value": "%.2fU x %.2fU" % [attack_shape_units.x, attack_shape_units.y]},
 		{"label": "치명타 확률", "value": "%.0f%%" % get_critical_chance_percent()},
 		{"label": "치명타 배율", "value": "%d%%" % get_critical_damage_percent()},
@@ -1307,6 +1539,10 @@ func _emit_initial_state() -> void:
 	selected_character_changed.emit(selected_character_id, selected_character_name, best_record_summary)
 	owned_attack_modules_changed.emit(get_owned_attack_module_ids())
 	attack_module_changed.emit(get_equipped_attack_module_id())
+	weapons_changed.emit(get_equipped_weapon_left(), get_equipped_weapon_right())
+	drone_changed.emit(equipped_drone_id)
+	drone_protocols_changed.emit(get_equipped_drone_protocol_entries())
+	passive_modules_changed.emit(get_equipped_passive_module_entries())
 	run_items_changed.emit()
 
 
@@ -1402,19 +1638,36 @@ func _update_best_record(character_id: String, difficulty_id: String, stage_reac
 	best_records_by_character[character_id] = record_map
 
 
-func _reset_run_attack_modules() -> void:
-	owned_attack_module_ids = PackedStringArray()
-	equipped_attack_modules = []
+func _reset_run_equipment() -> void:
+	owned_weapon_ids = PackedStringArray()
+	equipped_weapon_left = {}
+	equipped_weapon_right = {}
+	equipped_drone_id = GameConstants.DEFAULT_DRONE_ID
+	equipped_drone_protocols = []
+	owned_drone_protocol_ids = PackedStringArray()
+	equipped_passive_modules = []
+	owned_passive_module_ids = PackedStringArray()
 	equipped_parts = []
 	attack_module_instance_sequence = 0
 	attack_module_runtime_state = {}
-	var default_module_id := GameData.get_default_attack_module_id()
+	weapon_runtime_state = {}
+	drone_protocol_runtime_state = {}
+	var default_module_id := GameData.get_default_weapon_id()
 	if default_module_id != StringName():
-		owned_attack_module_ids.append(String(default_module_id))
-		equipped_attack_modules.append(_make_attack_module_entry(default_module_id, ATTACK_MODULE_DEFAULT_GRADE))
-	equipped_attack_module_id = default_module_id
+		owned_weapon_ids.append(String(default_module_id))
+		equipped_weapon_left = _make_attack_module_entry(default_module_id, ATTACK_MODULE_DEFAULT_GRADE)
+	_sync_legacy_attack_module_state()
 	owned_attack_modules_changed.emit(get_owned_attack_module_ids())
 	attack_module_changed.emit(equipped_attack_module_id)
+	weapons_changed.emit(get_equipped_weapon_left(), get_equipped_weapon_right())
+	drone_changed.emit(equipped_drone_id)
+	drone_protocols_changed.emit(get_equipped_drone_protocol_entries())
+	passive_modules_changed.emit(get_equipped_passive_module_entries())
+
+
+func _reset_run_attack_modules() -> void:
+	# Deprecated compatibility entry point.
+	_reset_run_equipment()
 
 
 func _make_attack_module_entry(module_id: StringName, grade: String) -> Dictionary:
@@ -1426,6 +1679,38 @@ func _make_attack_module_entry(module_id: StringName, grade: String) -> Dictiona
 	}
 
 
+func _make_equipment_entry(item_id: StringName, prefix: String) -> Dictionary:
+	attack_module_instance_sequence += 1
+	return {
+		"instance_id": "%s_%s_%d" % [prefix, String(item_id), attack_module_instance_sequence],
+		"item_id": String(item_id),
+	}
+
+
+func _set_weapon_slot_entry(slot: String, entry: Dictionary) -> void:
+	if slot == "right":
+		equipped_weapon_right = entry.duplicate(true)
+	elif slot == "left":
+		equipped_weapon_left = entry.duplicate(true)
+	else:
+		return
+	_emit_equipment_state_changed()
+
+
+func _emit_equipment_state_changed() -> void:
+	_sync_legacy_attack_module_state()
+	owned_attack_modules_changed.emit(get_owned_attack_module_ids())
+	attack_module_changed.emit(equipped_attack_module_id)
+	weapons_changed.emit(get_equipped_weapon_left(), get_equipped_weapon_right())
+	run_items_changed.emit()
+
+
+func _sync_legacy_attack_module_state() -> void:
+	owned_attack_module_ids = owned_weapon_ids.duplicate()
+	equipped_attack_modules = get_equipped_weapon_entries()
+	_sync_primary_equipped_attack_module_id()
+
+
 func _sync_primary_equipped_attack_module_id() -> void:
 	if equipped_attack_modules.is_empty():
 		equipped_attack_module_id = StringName()
@@ -1434,8 +1719,9 @@ func _sync_primary_equipped_attack_module_id() -> void:
 
 
 func _find_first_synthesis_candidate(module_id: StringName, grade: String) -> int:
-	for index in range(equipped_attack_modules.size()):
-		var entry: Dictionary = equipped_attack_modules[index]
+	var weapon_entries := get_equipped_weapon_entries()
+	for index in range(weapon_entries.size()):
+		var entry: Dictionary = weapon_entries[index]
 		if String(entry.get("module_id", "")) == String(module_id) and String(entry.get("grade", "")) == grade:
 			return index
 	return -1
@@ -1461,7 +1747,7 @@ func _get_attack_module_type(module_entry: Dictionary) -> StringName:
 
 
 func _has_equipped_attack_module(module_id: StringName) -> bool:
-	for raw_entry in equipped_attack_modules:
+	for raw_entry in get_equipped_weapon_entries():
 		var entry: Dictionary = raw_entry
 		if String(entry.get("module_id", "")) == String(module_id):
 			return true
@@ -1469,13 +1755,42 @@ func _has_equipped_attack_module(module_id: StringName) -> bool:
 
 
 func _get_equipped_attack_module_summary() -> String:
-	if equipped_attack_modules.is_empty():
+	var weapon_entries := get_equipped_weapon_entries()
+	if weapon_entries.is_empty():
 		return "없음"
 	var labels: Array[String] = []
-	for raw_entry in equipped_attack_modules:
+	for raw_entry in weapon_entries:
 		var entry: Dictionary = raw_entry
 		labels.append(get_attack_module_entry_label(entry))
 	return ", ".join(labels)
+
+
+func _get_weapon_slot_label(entry: Dictionary) -> String:
+	if entry.is_empty():
+		return "비어 있음"
+	return get_attack_module_entry_label(entry)
+
+
+func _duplicate_dictionary_entries(source: Array[Dictionary]) -> Array[Dictionary]:
+	var entries: Array[Dictionary] = []
+	for raw_entry in source:
+		entries.append(raw_entry.duplicate(true))
+	return entries
+
+
+func _has_equipped_item(entries: Array[Dictionary], item_id: StringName) -> bool:
+	for entry in entries:
+		if String(entry.get("item_id", "")) == String(item_id):
+			return true
+	return false
+
+
+func _get_equipped_item_count(entries: Array[Dictionary], item_id: StringName) -> int:
+	var count := 0
+	for entry in entries:
+		if String(entry.get("item_id", "")) == String(item_id):
+			count += 1
+	return count
 
 
 func _reset_run_shop_items() -> void:
@@ -1488,7 +1803,7 @@ func _reset_run_shop_items() -> void:
 	reset_shop_locks()
 
 
-func _build_shop_item_snapshot(definition: Dictionary, slot_index: int = -1) -> Dictionary:
+func _build_shop_item_snapshot(definition: Dictionary, slot_index: int = -1, equipment_targets: Dictionary = {}) -> Dictionary:
 	var item_id := String(definition.get("item_id", ""))
 	var category := String(definition.get("item_category", ""))
 	var owned := false
@@ -1501,6 +1816,14 @@ func _build_shop_item_snapshot(definition: Dictionary, slot_index: int = -1) -> 
 			var module_id := _get_shop_attack_module_id(definition)
 			owned = is_attack_module_owned(module_id)
 			equipped = _has_equipped_attack_module(module_id)
+		"drone_protocol":
+			stack_count = _get_equipped_item_count(equipped_drone_protocols, StringName(item_id))
+			owned = owned_drone_protocol_ids.has(item_id)
+			equipped = stack_count > 0
+		"passive_module":
+			stack_count = _get_equipped_item_count(equipped_passive_modules, StringName(item_id))
+			owned = owned_passive_module_ids.has(item_id)
+			equipped = stack_count > 0
 		"part":
 			stack_count = _get_equipped_part_count(StringName(item_id))
 			owned = stack_count > 0
@@ -1518,7 +1841,7 @@ func _build_shop_item_snapshot(definition: Dictionary, slot_index: int = -1) -> 
 	var can_afford := can_afford_gold(price_gold)
 	var can_buy := can_afford
 	var purchase_reason := ""
-	var purchase_state := _get_item_purchase_state(definition)
+	var purchase_state := _get_item_purchase_state(definition, equipment_targets)
 	can_buy = can_afford and bool(purchase_state.get("ok", false))
 	purchase_reason = String(purchase_state.get("reason", ""))
 	var locked_item_id := get_shop_locked_item_id(slot_index)
@@ -1530,6 +1853,7 @@ func _build_shop_item_snapshot(definition: Dictionary, slot_index: int = -1) -> 
 		"item_id": item_id,
 		"module_id": String(definition.get("module_id", item_id)),
 		"item_category": category,
+		"equipment_category": String(definition.get("equipment_category", category)),
 		"name": String(definition.get("name", item_id)),
 		"rank": String(definition.get("rank", _get_shop_attack_module_grade(definition))),
 		"grade": String(definition.get("grade", definition.get("rank", ATTACK_MODULE_DEFAULT_GRADE))),
@@ -1560,24 +1884,66 @@ func _validate_shop_item_can_be_granted(definition: Dictionary, item_id: StringN
 	return _get_item_purchase_state(definition)
 
 
-func _register_owned_attack_module(module_id: StringName, grade: String = ATTACK_MODULE_DEFAULT_GRADE) -> Dictionary:
+func _register_owned_attack_module(
+	module_id: StringName,
+	grade: String = ATTACK_MODULE_DEFAULT_GRADE,
+	equipment_targets: Dictionary = {}
+) -> Dictionary:
 	var module_definition = GameData.get_attack_module_definition(module_id)
 	if module_definition == null:
 		return {"ok": false, "reason": "missing_definition"}
 	var normalized_grade := _normalize_attack_module_grade(grade)
-	var equip_result := can_add_or_synthesize_attack_module(module_id, normalized_grade)
+	var equip_result := can_add_or_synthesize_attack_module(module_id, normalized_grade, equipment_targets)
 	if not bool(equip_result.get("ok", false)):
 		return equip_result
-	if not owned_attack_module_ids.has(String(module_id)):
-		owned_attack_module_ids.append(String(module_id))
+	if not owned_weapon_ids.has(String(module_id)):
+		owned_weapon_ids.append(String(module_id))
 	current_run_items.append(String(module_id))
 	var mode := String(equip_result.get("mode", "equip_weapon"))
-	equipped_attack_modules = [_make_attack_module_entry(module_id, normalized_grade)]
-	_sync_primary_equipped_attack_module_id()
-	owned_attack_modules_changed.emit(get_owned_attack_module_ids())
-	attack_module_changed.emit(equipped_attack_module_id)
+	var slot := String(equip_result.get("slot", "left"))
+	_set_weapon_slot_entry(slot, _make_attack_module_entry(module_id, normalized_grade))
+	return {"ok": true, "reason": mode, "category": "weapon", "slot": slot}
+
+
+func _register_drone_protocol_purchase(definition: Dictionary, equipment_targets: Dictionary = {}) -> Dictionary:
+	var purchase_state := _can_purchase_drone_protocol(definition, equipment_targets)
+	if not bool(purchase_state.get("ok", false)):
+		return purchase_state
+	var item_id := StringName(String(definition.get("item_id", "")))
+	if not grant_drone_protocol(item_id):
+		return {"ok": false, "reason": "missing_definition"}
+	var slot := int(purchase_state.get("slot", equipped_drone_protocols.size()))
+	var entry := _make_equipment_entry(item_id, "protocol")
+	if slot < equipped_drone_protocols.size():
+		equipped_drone_protocols[slot] = entry
+	else:
+		equipped_drone_protocols.append(entry)
+	current_run_items.append(String(item_id))
+	drone_protocols_changed.emit(get_equipped_drone_protocol_entries())
 	run_items_changed.emit()
-	return {"ok": true, "reason": mode, "category": "weapon"}
+	return {"ok": true, "reason": "equipped_drone_protocol", "category": "drone_protocol", "slot": slot}
+
+
+func _register_passive_module_purchase(definition: Dictionary, equipment_targets: Dictionary = {}) -> Dictionary:
+	var purchase_state := _can_purchase_passive_module(definition, equipment_targets)
+	if not bool(purchase_state.get("ok", false)):
+		return purchase_state
+	var item_id := StringName(String(definition.get("item_id", "")))
+	if not grant_passive_module(item_id):
+		return {"ok": false, "reason": "missing_definition"}
+	var slot := int(purchase_state.get("slot", equipped_passive_modules.size()))
+	var entry := _make_equipment_entry(item_id, "passive")
+	if slot < equipped_passive_modules.size():
+		_remove_passive_module_entry_effects(equipped_passive_modules[slot])
+		equipped_passive_modules[slot] = entry
+	else:
+		equipped_passive_modules.append(entry)
+	current_run_items.append(String(item_id))
+	_register_runtime_effect_entry(definition, String(entry.get("instance_id", "")))
+	_apply_shop_effect_values(definition)
+	passive_modules_changed.emit(get_equipped_passive_module_entries())
+	run_items_changed.emit()
+	return {"ok": true, "reason": "equipped_passive_module", "category": "passive_module", "slot": slot}
 
 
 func _register_part_purchase(definition: Dictionary) -> Dictionary:
@@ -1618,18 +1984,23 @@ func _make_part_entry(item_id: StringName) -> Dictionary:
 
 func _is_supported_shop_category(category: StringName) -> bool:
 	match String(category):
-		"weapon", "part", "artifact", "attack_module", "function_module", "enhance_module":
+		"weapon", "drone_protocol", "passive_module", "part", "artifact", "attack_module", "function_module", "enhance_module":
 			return true
 	return false
 
 
-func _get_item_purchase_state(definition: Dictionary) -> Dictionary:
+func _get_item_purchase_state(definition: Dictionary, equipment_targets: Dictionary = {}) -> Dictionary:
 	match String(definition.get("item_category", "")):
 		"weapon", "attack_module":
 			return can_add_or_synthesize_attack_module(
 				_get_shop_attack_module_id(definition),
-				_get_shop_attack_module_grade(definition)
+				_get_shop_attack_module_grade(definition),
+				equipment_targets
 			)
+		"drone_protocol":
+			return _can_purchase_drone_protocol(definition, equipment_targets)
+		"passive_module":
+			return _can_purchase_passive_module(definition, equipment_targets)
 		"part":
 			return _can_purchase_part(definition)
 		"artifact":
@@ -1646,6 +2017,47 @@ func _get_item_purchase_state(definition: Dictionary) -> Dictionary:
 				return {"ok": false, "reason": "stack_full"}
 			return {"ok": true, "mode": "purchase"}
 	return {"ok": false, "reason": "unsupported_category"}
+
+
+func _can_purchase_drone_protocol(definition: Dictionary, equipment_targets: Dictionary = {}) -> Dictionary:
+	var item_id := StringName(String(definition.get("item_id", "")))
+	if item_id == StringName():
+		return {"ok": false, "reason": "missing_item_id"}
+	var requested_slot := int(equipment_targets.get("drone_protocol_slot", -1))
+	if requested_slot >= 0:
+		if requested_slot >= GameConstants.DRONE_PROTOCOL_MAX_EQUIPPED:
+			return {"ok": false, "reason": "invalid_drone_protocol_slot"}
+		return {
+			"ok": true,
+			"mode": "equip_drone_protocol",
+			"slot": mini(requested_slot, equipped_drone_protocols.size()),
+		}
+	if equipped_drone_protocols.size() < GameConstants.DRONE_PROTOCOL_MAX_EQUIPPED:
+		return {"ok": true, "mode": "equip_drone_protocol", "slot": equipped_drone_protocols.size()}
+	return {"ok": false, "reason": "drone_protocol_slot_required"}
+
+
+func _can_purchase_passive_module(definition: Dictionary, equipment_targets: Dictionary = {}) -> Dictionary:
+	var item_id := StringName(String(definition.get("item_id", "")))
+	if item_id == StringName():
+		return {"ok": false, "reason": "missing_item_id"}
+	var stack_count := _get_equipped_item_count(equipped_passive_modules, item_id)
+	if bool(definition.get("non_stackable", false)) and stack_count > 0:
+		return {"ok": false, "reason": "passive_module_non_stackable"}
+	if stack_count >= _get_item_max_stack(definition):
+		return {"ok": false, "reason": "passive_module_stack_full"}
+	var requested_slot := int(equipment_targets.get("passive_module_slot", -1))
+	if requested_slot >= 0:
+		if requested_slot >= GameConstants.PASSIVE_MODULE_MAX_EQUIPPED:
+			return {"ok": false, "reason": "invalid_passive_module_slot"}
+		return {
+			"ok": true,
+			"mode": "equip_passive_module",
+			"slot": mini(requested_slot, equipped_passive_modules.size()),
+		}
+	if equipped_passive_modules.size() < GameConstants.PASSIVE_MODULE_MAX_EQUIPPED:
+		return {"ok": true, "mode": "equip_passive_module", "slot": equipped_passive_modules.size()}
+	return {"ok": false, "reason": "passive_module_slot_required"}
 
 
 func _can_purchase_part(definition: Dictionary) -> Dictionary:
@@ -1843,13 +2255,14 @@ func _register_enhance_module_purchase(definition: Dictionary) -> void:
 	_apply_shop_effect_values(definition)
 
 
-func _register_runtime_effect_entry(definition: Dictionary) -> void:
+func _register_runtime_effect_entry(definition: Dictionary, source_instance_id: String = "") -> void:
 	var effect_type := StringName(String(definition.get("effect_type", "none")))
 	if effect_type == StringName():
 		return
 	if not current_run_effects.has(effect_type):
 		current_run_effects[effect_type] = []
 	(current_run_effects[effect_type] as Array).append({
+		"source_instance_id": source_instance_id,
 		"item_id": String(definition.get("item_id", "")),
 		"effect_type": String(effect_type),
 		"effect_values": (definition.get("effect_values", {}) as Dictionary).duplicate(true),
@@ -1857,6 +2270,32 @@ func _register_runtime_effect_entry(definition: Dictionary) -> void:
 		"effects": _get_effect_entries(definition),
 		"apply_timing": _get_item_apply_timing(definition),
 	})
+
+
+func _remove_passive_module_entry_effects(entry: Dictionary) -> void:
+	var item_id := StringName(String(entry.get("item_id", "")))
+	var definition := GameData.get_shop_item_definition(item_id)
+	if definition.is_empty():
+		return
+	_remove_shop_effect_values(definition)
+	_remove_runtime_effect_entries_for_source(String(entry.get("instance_id", "")))
+
+
+func _remove_runtime_effect_entries_for_source(source_instance_id: String) -> void:
+	if source_instance_id.is_empty():
+		return
+	for raw_effect_type in current_run_effects.keys():
+		var effect_type := StringName(String(raw_effect_type))
+		var filtered_entries: Array = []
+		for raw_entry in current_run_effects[raw_effect_type]:
+			var entry: Dictionary = raw_entry
+			if String(entry.get("source_instance_id", "")) == source_instance_id:
+				continue
+			filtered_entries.append(entry)
+		if filtered_entries.is_empty():
+			current_run_effects.erase(effect_type)
+		else:
+			current_run_effects[effect_type] = filtered_entries
 
 
 func _apply_shop_effect_values(definition: Dictionary) -> void:
@@ -1871,50 +2310,72 @@ func _apply_shop_effect_values(definition: Dictionary) -> void:
 		_apply_stat_bonus_effect(effect_key, effect_value)
 
 
-func _apply_stat_bonus_effect(effect_key: String, effect_value: Variant) -> void:
+func _remove_shop_effect_values(definition: Dictionary) -> void:
+	if String(definition.get("effect_type", "")) != "stat_bonus":
+		return
+	if _get_item_apply_timing(definition) != "on_purchase":
+		return
+	var effect_values: Dictionary = definition.get("effect_values", {}) as Dictionary
+	for raw_key in effect_values.keys():
+		_apply_stat_bonus_effect(String(raw_key), effect_values[raw_key], -1)
+
+
+func _apply_stat_bonus_effect(effect_key: String, effect_value: Variant, direction: int = 1) -> void:
+	var float_value := float(effect_value) * float(direction)
+	var int_value := int(effect_value) * direction
+	var multiplier := maxf(1.0 + float(effect_value), 0.01)
 	match effect_key:
 		"attack_damage_flat":
-			run_bonus_damage_percent += float(effect_value) * 0.01
+			run_bonus_damage_percent += float_value * 0.01
 		"attack_damage_percent", "damage_percent":
-			run_bonus_damage_percent += float(effect_value)
+			run_bonus_damage_percent += float_value
+		"weapon_damage_flat":
+			run_bonus_weapon_attack_damage += int_value
+		"drone_damage_flat":
+			run_bonus_drone_attack_damage += int_value
 		"attack_speed_percent":
-			run_attack_speed_mult /= maxf(1.0 + float(effect_value), 0.01)
+			run_weapon_attack_speed_mult = run_weapon_attack_speed_mult / multiplier if direction > 0 else run_weapon_attack_speed_mult * multiplier
+		"protocol_cooldown_reduction_percent":
+			run_drone_cooldown_reduction += float_value
 		"attack_range_percent":
-			run_attack_range_mult *= 1.0 + float(effect_value)
+			run_attack_range_mult = run_attack_range_mult * multiplier if direction > 0 else run_attack_range_mult / multiplier
 		"max_hp_flat":
 			var previous_max_health := get_player_max_health()
-			run_bonus_max_hp += int(effect_value)
+			run_bonus_max_hp += int_value
 			var new_max_health := get_player_max_health()
-			player_health = min(player_health + max(new_max_health - previous_max_health, 0), new_max_health)
+			if direction > 0 and not health_recovery_blocked:
+				player_health = min(player_health + max(new_max_health - previous_max_health, 0), new_max_health)
+			else:
+				player_health = mini(player_health, new_max_health)
 			health_changed.emit(player_health, new_max_health)
 		"defense_flat":
-			run_bonus_defense += int(effect_value)
+			run_bonus_defense += int_value
 		"hp_regen_flat":
-			run_bonus_hp_regen += float(effect_value)
+			run_bonus_hp_regen += float_value
 		"max_weight_flat":
-			run_bonus_max_weight += int(effect_value)
+			run_bonus_max_weight += int_value
 		"mining_damage_flat":
-			run_bonus_mining_damage += int(effect_value)
+			run_bonus_mining_damage += int_value
 		"mining_speed_percent":
-			run_mining_speed_mult /= maxf(1.0 + float(effect_value), 0.01)
+			run_mining_speed_mult = run_mining_speed_mult / multiplier if direction > 0 else run_mining_speed_mult * multiplier
 		"mining_range_percent":
-			run_mining_range_mult *= 1.0 + float(effect_value)
+			run_mining_range_mult = run_mining_range_mult * multiplier if direction > 0 else run_mining_range_mult / multiplier
 		"move_speed_percent":
-			run_move_speed_mult *= 1.0 + float(effect_value)
+			run_move_speed_mult = run_move_speed_mult * multiplier if direction > 0 else run_move_speed_mult / multiplier
 		"move_speed_flat":
-			run_bonus_move_speed += float(effect_value)
+			run_bonus_move_speed += float_value
 		"jump_power_percent":
-			run_jump_power_mult *= 1.0 + float(effect_value)
+			run_jump_power_mult = run_jump_power_mult * multiplier if direction > 0 else run_jump_power_mult / multiplier
 		"jump_power_flat":
-			run_bonus_jump_power += float(effect_value)
+			run_bonus_jump_power += float_value
 		"crit_chance_flat":
-			run_bonus_crit_chance += float(effect_value)
+			run_bonus_crit_chance += float_value
 		"luck_flat":
-			run_bonus_luck += float(effect_value)
+			run_bonus_luck += float_value
 		"interest_rate_percent":
-			run_bonus_interest_rate += float(effect_value)
+			run_bonus_interest_rate += float_value
 		"battery_recovery_flat":
-			run_bonus_battery_recovery += float(effect_value)
+			run_bonus_battery_recovery += float_value
 
 
 func _get_item_apply_timing(definition: Dictionary) -> String:
@@ -1983,10 +2444,28 @@ func _is_item_condition_met(condition: Dictionary, context: Dictionary = {}) -> 
 			return gold >= int(condition.get("value", 0))
 		"current_day_at_least":
 			return current_day >= int(condition.get("value", 1))
+		"all_equipped_weapons_type":
+			return _are_all_equipped_weapons_metadata("attack_type", String(condition.get("attack_type", "")))
+		"equipped_weapon_count_at_least":
+			return get_equipped_weapon_entries().size() >= int(condition.get("value", 0))
+		"equipment_attribute_is":
+			return _count_equipped_equipment_metadata("attribute", String(condition.get("attribute", ""))) > 0
+		"equipment_type_is":
+			return _count_equipped_equipment_metadata("attack_type", String(condition.get("attack_type", ""))) > 0
+		"equipped_attribute_count_at_least":
+			return _count_equipped_equipment_metadata("attribute", String(condition.get("attribute", ""))) >= int(condition.get("value", 0))
+		"equipped_type_count_at_least":
+			return _count_equipped_equipment_metadata("attack_type", String(condition.get("attack_type", ""))) >= int(condition.get("value", 0))
+		"weapon_slot_has_type":
+			return _weapon_slot_has_type(String(condition.get("slot", "")), String(condition.get("attack_type", "")))
+		"protocol_type_is":
+			return _count_equipped_protocol_metadata("attack_type", String(condition.get("attack_type", ""))) > 0
+		"protocol_attribute_is":
+			return _count_equipped_protocol_metadata("attribute", String(condition.get("attribute", ""))) > 0
 		"all_attack_modules_type":
 			return _are_all_equipped_attack_modules_type(StringName(String(condition.get("module_type", ""))))
 		"equipped_attack_module_count_at_least":
-			return equipped_attack_modules.size() >= int(condition.get("value", 0))
+			return get_equipped_weapon_entries().size() >= int(condition.get("value", 0))
 		"has_attack_module_type":
 			return _has_equipped_attack_module_type(StringName(String(condition.get("module_type", ""))))
 		"attack_module_type_is", "attack_hit_side", "player_is_airborne", "target_block_size_at_least", "is_critical_hit":
@@ -1994,6 +2473,76 @@ func _is_item_condition_met(condition: Dictionary, context: Dictionary = {}) -> 
 			return false
 		_:
 			return false
+
+
+func _are_all_equipped_weapons_metadata(key: String, expected_value: String) -> bool:
+	var definitions := _get_equipped_weapon_definition_snapshots()
+	if expected_value.is_empty() or definitions.is_empty():
+		return false
+	for definition in definitions:
+		if String(definition.get(key, "")) != expected_value:
+			return false
+	return true
+
+
+func _count_equipped_equipment_metadata(key: String, expected_value: String) -> int:
+	if expected_value.is_empty():
+		return 0
+	var definitions := _get_equipped_weapon_definition_snapshots()
+	definitions.append_array(_get_equipped_protocol_definition_snapshots())
+	return _count_definition_metadata(definitions, key, expected_value)
+
+
+func _count_equipped_protocol_metadata(key: String, expected_value: String) -> int:
+	return _count_definition_metadata(_get_equipped_protocol_definition_snapshots(), key, expected_value)
+
+
+func _count_definition_metadata(definitions: Array[Dictionary], key: String, expected_value: String) -> int:
+	if expected_value.is_empty():
+		return 0
+	var count := 0
+	for definition in definitions:
+		if String(definition.get(key, "")) == expected_value:
+			count += 1
+	return count
+
+
+func _weapon_slot_has_type(slot: String, attack_type: String) -> bool:
+	if attack_type.is_empty():
+		return false
+	if slot == "left":
+		return _weapon_entry_has_metadata(equipped_weapon_left, "attack_type", attack_type)
+	if slot == "right":
+		return _weapon_entry_has_metadata(equipped_weapon_right, "attack_type", attack_type)
+	return (
+		_weapon_entry_has_metadata(equipped_weapon_left, "attack_type", attack_type)
+		or _weapon_entry_has_metadata(equipped_weapon_right, "attack_type", attack_type)
+	)
+
+
+func _weapon_entry_has_metadata(entry: Dictionary, key: String, expected_value: String) -> bool:
+	if entry.is_empty():
+		return false
+	var definition := GameData.get_shop_item_definition(StringName(String(entry.get("module_id", ""))))
+	return String(definition.get(key, "")) == expected_value
+
+
+func _get_equipped_weapon_definition_snapshots() -> Array[Dictionary]:
+	var definitions: Array[Dictionary] = []
+	for entry in get_equipped_weapon_entries():
+		var definition := GameData.get_shop_item_definition(StringName(String(entry.get("module_id", ""))))
+		if not definition.is_empty():
+			definitions.append(definition)
+	return definitions
+
+
+func _get_equipped_protocol_definition_snapshots() -> Array[Dictionary]:
+	var definitions: Array[Dictionary] = []
+	for entry in equipped_drone_protocols:
+		var definition := GameData.get_shop_item_definition(StringName(String(entry.get("item_id", ""))))
+		if not definition.is_empty():
+			definitions.append(definition)
+	return definitions
 
 
 func _get_condition_weight_ratio(context: Dictionary) -> float:
@@ -2015,9 +2564,10 @@ func _get_hp_ratio() -> float:
 
 
 func _are_all_equipped_attack_modules_type(module_type: StringName) -> bool:
-	if module_type == StringName() or equipped_attack_modules.is_empty():
+	var weapon_entries := get_equipped_weapon_entries()
+	if module_type == StringName() or weapon_entries.is_empty():
 		return false
-	for entry in equipped_attack_modules:
+	for entry in weapon_entries:
 		if _get_attack_module_type(entry) != module_type:
 			return false
 	return true
@@ -2026,7 +2576,7 @@ func _are_all_equipped_attack_modules_type(module_type: StringName) -> bool:
 func _has_equipped_attack_module_type(module_type: StringName) -> bool:
 	if module_type == StringName():
 		return false
-	for entry in equipped_attack_modules:
+	for entry in get_equipped_weapon_entries():
 		if _get_attack_module_type(entry) == module_type:
 			return true
 	return false
@@ -2164,8 +2714,12 @@ func get_level_up_card_effect_description(card_id: String, rarity_id: String = "
 	match card_id:
 		"atk_up", "damage_up":
 			return "Damage +%s" % _format_level_up_percent(_scale_level_up_percent(0.01, multiplier))
-		"atk_spd_up":
+		"attack_speed_up", "atk_spd_up":
 			return "Attack speed +%s" % _format_level_up_percent(_scale_level_up_percent(0.02, multiplier))
+		"weapon_attack_up":
+			return "Weapon attack +%d" % _scale_level_up_int(1, multiplier)
+		"drone_attack_up":
+			return "Drone attack +%d" % _scale_level_up_int(1, multiplier)
 		"hp_up":
 			var hp_gain := _scale_level_up_int(5, multiplier)
 			return "Max HP +%d, heal +%d" % [hp_gain, hp_gain]
@@ -2193,10 +2747,6 @@ func get_level_up_card_effect_description(card_id: String, rarity_id: String = "
 			return "Jump power +%s" % _format_level_up_percent(_scale_level_up_percent(0.03, multiplier))
 		"mine_range_up":
 			return "Mining range +%s" % _format_level_up_percent(_scale_level_up_percent(0.05, multiplier))
-		"melee_atk_up":
-			return "Melee attack +%d" % _scale_level_up_int(1, multiplier)
-		"ranged_atk_up":
-			return "Ranged attack +%d" % _scale_level_up_int(1, multiplier)
 		_:
 			return ""
 
@@ -2233,12 +2783,17 @@ func apply_level_up_card(card_id: String, rarity_id: String = "normal") -> void:
 	match card_id:
 		"atk_up", "damage_up":
 			run_bonus_damage_percent += _scale_level_up_percent(0.01, rarity_multiplier)
-		"atk_spd_up":
-			run_attack_speed_mult /= 1.0 + _scale_level_up_percent(0.02, rarity_multiplier)
+		"attack_speed_up", "atk_spd_up":
+			run_weapon_attack_speed_mult /= 1.0 + _scale_level_up_percent(0.02, rarity_multiplier)
+		"weapon_attack_up":
+			run_bonus_weapon_attack_damage += _scale_level_up_int(1, rarity_multiplier)
+		"drone_attack_up":
+			run_bonus_drone_attack_damage += _scale_level_up_int(1, rarity_multiplier)
 		"hp_up":
 			var hp_gain := _scale_level_up_int(5, rarity_multiplier)
 			run_bonus_max_hp += hp_gain
-			player_health = mini(player_health + hp_gain, get_player_max_health())
+			if not health_recovery_blocked:
+				player_health = mini(player_health + hp_gain, get_player_max_health())
 			health_changed.emit(player_health, GameConstants.PLAYER_MAX_HEALTH + run_bonus_max_hp)
 		"spd_up":
 			run_move_speed_mult *= 1.0 + _scale_level_up_percent(0.03, rarity_multiplier)
@@ -2252,11 +2807,6 @@ func apply_level_up_card(card_id: String, rarity_id: String = "normal") -> void:
 			run_bonus_luck += float(_scale_level_up_int(1, rarity_multiplier))
 		"interest_up":
 			run_bonus_interest_rate += _scale_level_up_percent(0.02, rarity_multiplier)
-		"melee_atk_up":
-			run_bonus_melee_attack_damage += _scale_level_up_int(1, rarity_multiplier)
-		"ranged_atk_up":
-			run_bonus_ranged_attack_damage += _scale_level_up_int(1, rarity_multiplier)
-
 	# 경험치 차감 및 레벨 증가
 	match card_id:
 		"atk_range_up":

@@ -10,11 +10,14 @@ var _shop_item_ids := PackedStringArray()
 var _selected_index := 0
 var _item_buttons: Array[Button] = []
 var _lock_buttons: Array[Button] = []
-var _owned_attack_buttons: Array[Button] = []
+var _equipment_slot_buttons: Array[Button] = []
+var _selected_weapon_slot := ""
+var _selected_drone_protocol_slot := -1
+var _selected_passive_module_slot := -1
 
 var _gold_label: Label
 var _status_label: Label
-var _owned_attack_row: HBoxContainer
+var _equipment_slots_vbox: VBoxContainer
 var _item_list: VBoxContainer
 var _detail_name_label: Label
 var _detail_meta_label: Label
@@ -91,7 +94,7 @@ func _build_ui() -> void:
 	root.add_child(title)
 
 	var hint := Label.new()
-	hint.text = "Buy a weapon, attach up to five parts, collect artifacts, then proceed with Next Day."
+	hint.text = "Equip two weapons, install up to five drone protocols and five passive modules, then proceed with Next Day."
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD
 	hint.add_theme_font_size_override("font_size", 18)
@@ -130,14 +133,14 @@ func _build_ui() -> void:
 	owned_margin.add_child(owned_vbox)
 
 	var owned_title := Label.new()
-	owned_title.text = "Weapon / Parts"
+	owned_title.text = "Equipment Slots"
 	owned_title.add_theme_font_size_override("font_size", 20)
 	owned_title.add_theme_color_override("font_color", Color("dfe8f2"))
 	owned_vbox.add_child(owned_title)
 
-	_owned_attack_row = HBoxContainer.new()
-	_owned_attack_row.add_theme_constant_override("separation", 10)
-	owned_vbox.add_child(_owned_attack_row)
+	_equipment_slots_vbox = VBoxContainer.new()
+	_equipment_slots_vbox.add_theme_constant_override("separation", 6)
+	owned_vbox.add_child(_equipment_slots_vbox)
 
 	var content_split := HBoxContainer.new()
 	content_split.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -257,11 +260,11 @@ func _build_ui() -> void:
 func _refresh_ui() -> void:
 	if _gold_label == null:
 		return
-	var snapshot := GameState.get_day_shop_snapshot(_shop_item_ids)
+	var snapshot := GameState.get_day_shop_snapshot(_shop_item_ids, _get_equipment_targets())
 	_gold_label.text = "GOLD %d" % int(snapshot.get("gold", 0))
 	_status_label.text = "Remaining %d | Bought items are removed immediately" % _shop_item_ids.size()
 	_refresh_reroll_button(snapshot)
-	_refresh_owned_attack_modules()
+	_refresh_equipment_slots()
 	_refresh_item_list(snapshot)
 	_refresh_detail(snapshot)
 
@@ -274,35 +277,98 @@ func _refresh_reroll_button(snapshot: Dictionary) -> void:
 	_reroll_button.disabled = not bool(snapshot.get("can_afford_shop_reroll", GameState.can_afford_shop_reroll()))
 
 
-func _refresh_owned_attack_modules() -> void:
-	if _owned_attack_row == null:
+func _refresh_equipment_slots() -> void:
+	if _equipment_slots_vbox == null:
 		return
-	for child in _owned_attack_row.get_children():
+	for child in _equipment_slots_vbox.get_children():
 		child.queue_free()
-	_owned_attack_buttons.clear()
-	var weapon_button := Button.new()
-	weapon_button.text = "Weapon: %s" % GameState.get_equipped_attack_module_display_name()
-	weapon_button.disabled = true
-	_owned_attack_row.add_child(weapon_button)
-	_owned_attack_buttons.append(weapon_button)
-	for part_entry in GameState.get_equipped_part_entries():
-		var definition := GameData.get_shop_item_definition(StringName(String(part_entry.get("item_id", ""))))
-		if definition.is_empty():
-			continue
+	_equipment_slot_buttons.clear()
+	_add_weapon_slot_row()
+	_add_drone_slot_row()
+	_add_equipment_entry_row(
+		"Protocols",
+		GameState.get_equipped_drone_protocol_entries(),
+		GameConstants.DRONE_PROTOCOL_MAX_EQUIPPED,
+		"drone_protocol"
+	)
+	_add_equipment_entry_row(
+		"Passives",
+		GameState.get_equipped_passive_module_entries(),
+		GameConstants.PASSIVE_MODULE_MAX_EQUIPPED,
+		"passive_module"
+	)
+
+
+func _add_weapon_slot_row() -> void:
+	var row := _make_equipment_row("Weapons")
+	var entries := {
+		"left": GameState.get_equipped_weapon_left(),
+		"right": GameState.get_equipped_weapon_right(),
+	}
+	for slot in ["left", "right"]:
+		var entry: Dictionary = entries[slot]
 		var button := Button.new()
-		var active_text := "" if bool(part_entry.get("active", false)) else " (Inactive)"
-		button.text = "Part: %s%s" % [
-			String(definition.get("name", part_entry.get("item_id", ""))),
-			active_text,
-		]
-		button.disabled = true
-		_owned_attack_row.add_child(button)
-		_owned_attack_buttons.append(button)
-	if _owned_attack_buttons.is_empty():
-		var empty_label := Label.new()
-		empty_label.text = "No weapon equipped."
-		empty_label.add_theme_color_override("font_color", Color("8ea8bc"))
-		_owned_attack_row.add_child(empty_label)
+		button.text = "%s: %s" % [slot.capitalize(), _get_weapon_entry_label(entry)]
+		button.toggle_mode = true
+		button.button_pressed = _selected_weapon_slot == slot
+		button.pressed.connect(_on_weapon_slot_pressed.bind(slot))
+		row.add_child(button)
+		_equipment_slot_buttons.append(button)
+
+
+func _add_drone_slot_row() -> void:
+	var row := _make_equipment_row("Drone")
+	var button := Button.new()
+	button.text = String(GameState.get_equipped_drone_id())
+	button.disabled = true
+	row.add_child(button)
+	_equipment_slot_buttons.append(button)
+
+
+func _add_equipment_entry_row(label_text: String, entries: Array[Dictionary], max_slots: int, category: String) -> void:
+	var row := _make_equipment_row(label_text)
+	for slot_index in range(max_slots):
+		var button := Button.new()
+		var entry: Dictionary = entries[slot_index] if slot_index < entries.size() else {}
+		button.text = "%d: %s" % [slot_index + 1, _get_equipment_entry_label(entry)]
+		if category == "drone_protocol":
+			button.toggle_mode = true
+			button.button_pressed = _selected_drone_protocol_slot == slot_index
+			button.pressed.connect(_on_drone_protocol_slot_pressed.bind(slot_index))
+		elif category == "passive_module":
+			button.toggle_mode = true
+			button.button_pressed = _selected_passive_module_slot == slot_index
+			button.pressed.connect(_on_passive_module_slot_pressed.bind(slot_index))
+		else:
+			button.disabled = true
+		row.add_child(button)
+		_equipment_slot_buttons.append(button)
+
+
+func _make_equipment_row(label_text: String) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	_equipment_slots_vbox.add_child(row)
+	var label := Label.new()
+	label.text = "%s:" % label_text
+	label.custom_minimum_size = Vector2(88.0, 0.0)
+	label.add_theme_color_override("font_color", Color("8ea8bc"))
+	row.add_child(label)
+	return row
+
+
+func _get_weapon_entry_label(entry: Dictionary) -> String:
+	if entry.is_empty():
+		return "Empty"
+	return GameState.get_attack_module_entry_label(entry)
+
+
+func _get_equipment_entry_label(entry: Dictionary) -> String:
+	if entry.is_empty():
+		return "Empty"
+	var item_id := StringName(String(entry.get("item_id", "")))
+	var definition := GameData.get_shop_item_definition(item_id)
+	return String(definition.get("name", item_id)) if not definition.is_empty() else String(item_id)
 
 
 func _refresh_item_list(snapshot: Dictionary) -> void:
@@ -391,6 +457,12 @@ func _refresh_detail(snapshot: Dictionary) -> void:
 		"weapon", "attack_module":
 			_action_button.text = "Buy / Equip"
 			_action_button.disabled = not can_buy
+		"drone_protocol":
+			_action_button.text = "Buy / Install"
+			_action_button.disabled = not can_buy
+		"passive_module":
+			_action_button.text = "Buy / Install"
+			_action_button.disabled = not can_buy
 		"part":
 			_action_button.text = "Buy"
 			_action_button.disabled = not can_buy
@@ -412,10 +484,22 @@ func _build_state_text(category: String, owned: bool, equipped: bool, stack_coun
 	match category:
 		"weapon", "attack_module":
 			if not can_buy:
-				return "Cannot buy or equip this weapon right now."
+				return "Weapon slots are full. Select Left or Right above to replace that slot."
 			if equipped or owned:
-				return "Buying equips this weapon and keeps existing parts."
-			return "Buying immediately equips this weapon."
+				return "Buying equips this weapon. Empty slots are filled first; a selected slot is replaced."
+			return "Buying equips this weapon. Empty slots are filled first."
+		"drone_protocol":
+			if not can_buy:
+				return "Protocol slots are full. Select a protocol slot above to replace it."
+			if stack_count > 0:
+				return "Installed copies %d. Duplicate protocols are allowed." % stack_count
+			return "Buying installs this automated drone protocol."
+		"passive_module":
+			if not can_buy:
+				return "Passive slots are full. Select a passive slot above to replace it, or check this module's stack limit."
+			if stack_count > 0:
+				return "Installed copies %d. Buying installs another allowed copy." % stack_count
+			return "Buying installs this passive module and applies its effect."
 		"part":
 			if stack_count > 0:
 				return "Equipped copies %d. Incompatible parts stay installed but inactive." % stack_count
@@ -451,7 +535,7 @@ func _on_item_selected(index: int) -> void:
 
 
 func _on_lock_pressed(index: int) -> void:
-	var snapshot := GameState.get_day_shop_snapshot(_shop_item_ids)
+	var snapshot := GameState.get_day_shop_snapshot(_shop_item_ids, _get_equipment_targets())
 	var entries: Array = snapshot.get("item_entries", [])
 	if index < 0 or index >= entries.size():
 		return
@@ -470,8 +554,35 @@ func _on_owned_attack_module_pressed(module_id: StringName) -> void:
 	_refresh_ui()
 
 
+func _on_weapon_slot_pressed(slot: String) -> void:
+	_selected_weapon_slot = "" if _selected_weapon_slot == slot else slot
+	_refresh_ui()
+
+
+func _on_drone_protocol_slot_pressed(slot_index: int) -> void:
+	_selected_drone_protocol_slot = -1 if _selected_drone_protocol_slot == slot_index else slot_index
+	_refresh_ui()
+
+
+func _on_passive_module_slot_pressed(slot_index: int) -> void:
+	_selected_passive_module_slot = -1 if _selected_passive_module_slot == slot_index else slot_index
+	_refresh_ui()
+
+
+func _get_equipment_targets() -> Dictionary:
+	var targets := {}
+	if not _selected_weapon_slot.is_empty():
+		targets["weapon_slot"] = _selected_weapon_slot
+	if _selected_drone_protocol_slot >= 0:
+		targets["drone_protocol_slot"] = _selected_drone_protocol_slot
+	if _selected_passive_module_slot >= 0:
+		targets["passive_module_slot"] = _selected_passive_module_slot
+	return targets
+
+
 func _on_action_pressed() -> void:
-	var snapshot := GameState.get_day_shop_snapshot(_shop_item_ids)
+	var equipment_targets := _get_equipment_targets()
+	var snapshot := GameState.get_day_shop_snapshot(_shop_item_ids, equipment_targets)
 	var entries: Array = snapshot.get("item_entries", [])
 	if entries.is_empty():
 		return
@@ -479,9 +590,10 @@ func _on_action_pressed() -> void:
 	var entry: Dictionary = entries[_selected_index]
 	var item_id := StringName(String(entry.get("item_id", "")))
 	var category := String(entry.get("item_category", ""))
-	var result := GameState.purchase_shop_item(item_id)
+	var result := GameState.purchase_shop_item(item_id, equipment_targets)
 	if bool(result.get("ok", false)):
 		var purchased_index := _selected_index
+		_clear_equipment_target_for_category(category)
 		GameState.set_status_text("%s purchased." % String(entry.get("name", "")))
 		GameState.remove_shop_slot_lock_and_shift(purchased_index)
 		_remove_shop_item_at_index(purchased_index, item_id)
@@ -499,9 +611,26 @@ func _on_action_pressed() -> void:
 				GameState.set_status_text("Item stack limit reached.")
 			"part_exclusive_conflict":
 				GameState.set_status_text("A mutually exclusive part is already equipped.")
+			"weapon_slot_required":
+				GameState.set_status_text("Select the Left or Right weapon slot to replace.")
+			"drone_protocol_slot_required":
+				GameState.set_status_text("Select a drone protocol slot to replace.")
+			"passive_module_slot_required":
+				GameState.set_status_text("Select a passive module slot to replace.")
+			"passive_module_non_stackable", "passive_module_stack_full":
+				GameState.set_status_text("This passive module cannot be installed again.")
 			_:
 				GameState.set_status_text("Failed to process shop item.")
 	_refresh_ui()
+
+
+func _clear_equipment_target_for_category(category: String) -> void:
+	if category == "weapon" or category == "attack_module":
+		_selected_weapon_slot = ""
+	elif category == "drone_protocol":
+		_selected_drone_protocol_slot = -1
+	elif category == "passive_module":
+		_selected_passive_module_slot = -1
 
 
 func _on_reroll_pressed() -> void:
@@ -541,6 +670,10 @@ func _category_label(category: String) -> String:
 	match category:
 		"weapon":
 			return "WPN"
+		"drone_protocol":
+			return "PROTO"
+		"passive_module":
+			return "PASSIVE"
 		"part":
 			return "PART"
 		"artifact":

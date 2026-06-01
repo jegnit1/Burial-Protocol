@@ -34,6 +34,33 @@ func get_items() -> Array[Resource]:
 	return result
 
 
+func get_equipment_definitions(equipment_category: StringName) -> Array[Resource]:
+	var result: Array[Resource] = []
+	for raw_item in items:
+		var item = raw_item
+		if item == null:
+			continue
+		if item.equipment_category == equipment_category:
+			result.append(item)
+	return result
+
+
+func get_weapon_definitions() -> Array[Resource]:
+	return get_equipment_definitions(&"weapon")
+
+
+func get_drone_definitions() -> Array[Resource]:
+	return get_equipment_definitions(&"drone")
+
+
+func get_drone_protocol_definitions() -> Array[Resource]:
+	return get_equipment_definitions(&"drone_protocol")
+
+
+func get_passive_module_definitions() -> Array[Resource]:
+	return get_equipment_definitions(&"passive_module")
+
+
 func get_attack_module_definitions() -> Array[Resource]:
 	return get_items_by_category(&"attack_module")
 
@@ -65,6 +92,14 @@ func get_default_attack_module_id() -> StringName:
 
 func get_default_attack_module_definition():
 	return get_attack_module_definition(get_default_attack_module_id())
+
+
+func get_default_weapon_id() -> StringName:
+	return get_default_attack_module_id()
+
+
+func get_default_weapon_definition():
+	return get_default_attack_module_definition()
 
 
 func get_all_item_dictionaries() -> Array[Dictionary]:
