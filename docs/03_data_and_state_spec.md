@@ -1,7 +1,7 @@
 # Burial Protocol - Data and State Specification
 
-기준일: `2026-04-28`  
-기준 브랜치: `main`
+기준일: `2026-05-01`
+기준 브랜치: `visual-density-camera-hud`
 
 ---
 
@@ -106,6 +106,9 @@ Material은 블록의 재질/성질을 담당한다.
 - special result
 - 등장 제한
 
+현재 v1 라이브 스폰에서는 `max_allowed_area`, `max_allowed_width`, `max_allowed_height`가 material-size 조합 후보를 실제로 차단한다.
+v2 시뮬레이션에서는 이 material gate를 일반 스폰 size 필터로 사용하지 않는다.
+
 ### 4-2. Size
 
 Size는 블록의 물리 크기를 담당한다.
@@ -119,6 +122,7 @@ Size는 블록의 물리 크기를 담당한다.
 - 보상 배율
 - spawn weight
 - 등장 제한
+- v2 group/pressure/rule 확장 필드
 
 ### 4-3. Type
 
@@ -137,6 +141,9 @@ Type은 선택 affix/modifier다.
 `BlockSpawnResolver.gd`는 현재 난이도/Day/후보 weight를 바탕으로 최종 블록 정의를 만든다.
 
 결과물은 `BlockResolvedDefinition`이며, 이후 `BlockData.from_resolved_definition()`을 통해 런타임 블록 데이터로 변환된다.
+
+현재 실제 게임 스폰은 `BlockSpawnResolver.resolve_random_block()`의 v1 흐름이다.
+`BlockSpawnV2Simulator.gd`, `BlockSizeSpawnRuleData.gd`, `BlockMaterialSizeWeightRuleData.gd`는 비교/시뮬레이션 전용이며, live resolver 전환은 아직 하지 않았다.
 
 ---
 
@@ -185,6 +192,132 @@ Type은 선택 affix/modifier다.
 아이템 데이터에 `price_gold`가 없거나 0이면 `GameConstants.SHOP_ITEM_RANK_FALLBACK_PRICES`의 랭크별 기본 가격을 사용한다.
 최종 유효 가격 결정은 `GameState.get_effective_shop_item_price(item_id)`가 담당한다.
 구매 가능성 최종 판단은 `GameState.purchase_shop_item()`과 관련 helper가 담당한다.
+
+공격모듈 직접 데미지 필드:
+
+- `base_damage_by_grade`
+- `module_base_damage`
+
+공격모듈 데미지 우선순위:
+
+```text
+1. base_damage_by_grade[current_grade]
+2. module_base_damage
+3. 둘 다 없거나 0이면 warning 출력 후 1
+```
+
+공격모듈 직접 필드 `damage_multiplier`는 제거되었다.
+`function_module`/`enhance_module`의 `effect_values.damage_multiplier`는 별도 효과값이므로 유지한다.
+
+공격모듈/무기 VO canonical 필드:
+
+| 필드 | 의미 | 소유 성격 |
+|---|---|---|
+| `attribute` | 피해/연출 속성 | 유저/데이터 공용 |
+| `attack_type` | 유저가 보는 무기 유형/시너지 태그 | 유저/빌드용 |
+| `activation_mode` | 입력 또는 자동 발동 방식 | 구현/데이터용 |
+| `hit_model` | 실제 피해 판정 생성 방식 | 구현/데이터용 |
+| `hit_shape` | 실제 충돌/피해 판정용 추상 shape | 구현/데이터용 |
+| `effect_style` | 실제 데미지 판정과 분리된 시각 연출 타입 | 아트/연출용 |
+| `base_cooldown` | 피해 발생 기본 주기 | 밸런스/런타임 공용 |
+
+`attribute` 권장 값:
+
+- `electric`
+- `fire`
+- `physical`
+- `energy`
+- `chemical`
+
+`attack_type` 권장 값:
+
+- `support`
+- `projectile`
+- `area`
+- `linear`
+- `chain`
+- `explosion`
+
+`attack_type`은 개발 구현명이 아니라 유저가 장비 화면에서 확인할 유형이다.
+롤토체스 기물의 시너지처럼 빌드 판단과 조건부 효과에 활용될 수 있다.
+따라서 `hitscan`, `channel_cone`, `projectile_pierce` 같은 구현 세부값을 `attack_type`에 넣지 않는다.
+기존 `beam/광선` 표현은 레이저/빔에 치우치므로, 저격총/레일건/레이저/이온 빔을 모두 수용할 수 있는 `linear/직선형`을 사용한다.
+
+`activation_mode` 권장 값:
+
+| 값 | 의미 | 예시 |
+|---|---|---|
+| `hold_repeat` | 공격키를 누르고 있으면 `base_cooldown`마다 공격 인스턴스 생성 | 권총, 샷건, 로켓 |
+| `hold_channel` | 공격키를 누르고 있으면 판정 유지, `base_cooldown`마다 피해 | 화염방사기, 지속 레이저 |
+| `auto_repeat` | 공격키와 무관하게 `base_cooldown`마다 자동 공격 | 자동 드론 사격 |
+| `auto_channel` | 공격키와 무관하게 지속 판정 유지, `base_cooldown`마다 피해 | 톱날 링, 오라, 자동 영역 프로토콜 |
+
+`click_once`는 사용하지 않는다.
+단발형 무기라도 공격키를 누르고 있으면 `base_cooldown`마다 반복 발사한다.
+
+`hit_model` 권장 값:
+
+| 값 | 의미 | 예시 |
+|---|---|---|
+| `melee_shape` | 캐릭터 기준 근거리 shape 판정 | 소드, 랜스, 대검 |
+| `projectile_single` | 단일 투사체 | 권총, 코어 슈터 |
+| `projectile_spread` | 확산형 다중 투사체 | 샷건, 크레모아 |
+| `projectile_pierce` | 관통 투사체 | 스나이퍼, 레일 드릴 |
+| `projectile_explosion` | 착탄 후 폭발하는 투사체 | 로켓, 유탄, 네이팜 런처 |
+| `hitscan_line` | 즉시 직선 1회 판정 | 저격총, 즉발 레이저 |
+| `channel_line` | 유지형 직선 판정 | 지속 레이저, 이온 빔 |
+| `channel_cone` | 유지형 부채꼴 판정 | 화염방사기 |
+| `area_zone` | 특정 위치에 생성되는 지속 영역 | 독구름, 화염지대 |
+| `area_orbit` | 플레이어/드론 주변 지속 영역 | 톱날 링, 커터 링 |
+| `chain_jump` | 대상 간 전이 | 체인 라이트닝, 스파크 테이저 |
+
+`hit_shape` 권장 값:
+
+- `point`
+- `line`
+- `cone`
+- `circle`
+- `box`
+- `ring`
+- `arc`
+
+`effect_style`은 판정이 아니라 VFX/연출 선택만 담당한다.
+동일한 `hit_shape=line`이라도 저격총은 `sniper_tracer`, 지속 레이저는 `laser_beam`, 이온 빔은 `ion_beam`처럼 서로 다른 VFX를 쓸 수 있다.
+`effect_style` 값으로 데미지, 사거리, 충돌 범위를 바꾸면 안 된다.
+판정은 `hit_model`, `hit_shape`, `range_units`, `angle_degrees`, `explosion_radius_u` 같은 수치 필드가 소유한다.
+
+`base_cooldown`은 발사 간격과 tick 간격을 모두 의미한다.
+별도 `tick_interval`은 만들지 않는다.
+
+```text
+반복 발사형: base_cooldown = 다음 공격 인스턴스 생성 간격
+채널링/영역형: base_cooldown = 피해 tick 간격
+```
+
+별도 `duration_policy`도 만들지 않는다.
+지속 방식은 `activation_mode`에 종속된다.
+단, `area_duration`은 생성된 영역 자체의 수명이므로 유지한다.
+
+기존 원거리/투사체 계열 수치 필드:
+
+- `projectile_count`
+- `angle_degrees`
+- `pierce_count`
+- `range_units`
+- `projectile_speed`
+- `explosion_radius_u`
+- `chain_count`
+- `area_duration`
+- `sand_damage_ratio`
+- `sand_collision_policy`
+
+기존 `spread_angle`은 장기적으로 `angle_degrees`로 정리한다.
+`angle_degrees`는 샷건 확산각, 화염방사기 cone 각도, 분열 레이저 분기 각도를 포괄한다.
+
+기존 `fire_mode`는 장기적으로 `activation_mode + hit_model`로 분리한다.
+기존 `attack_style`은 당분간 legacy/style alias로 유지할 수 있으나, 신규 Weapon Catalog 원본 데이터는 `attribute + attack_type + activation_mode + hit_model + hit_shape + effect_style` 조합을 기준으로 한다.
+
+legacy alias인 `projectile_spread_degrees`, `projectile_pierce_count`, `projectile_hit_scan`, `projectile_size`는 사용하지 않는다.
 
 ---
 
@@ -494,6 +627,11 @@ if item_id == "side_breaker":
 - `current_day`
 - `day_time_remaining`
 - `run_cleared`
+- `current_shop_reroll_count`
+- `current_shop_locked_slots`
+
+상점 lock 상태는 현재 런/intermission 상태다.
+lock된 슬롯은 다음 shop roll에서 같은 슬롯의 한 자리를 차지하며 보존되고, 추가 상품으로 붙지 않는다.
 
 경험치/레벨 필드:
 
@@ -763,3 +901,6 @@ HUD는 필요한 값만 Player getter를 통해 읽는다.
 - `Player` 고유 상태를 저장 상태로 잘못 문서화하지 않았는가
 - 새 signal이 있다면 소비처와 함께 적었는가
 - 새 조건부 아이템이 아이템 ID 하드코딩 없이 condition/effect/apply_timing 구조로 표현되는가
+- Weapon Catalog의 `fire_mode` 의존이 `activation_mode + hit_model` 구조로 병행/이전되는가
+- `attack_type`이 유저용 유형/시너지 값으로 유지되고, 구현 세부값은 `hit_model`에만 들어가는가
+- `effect_style`이 판정/데미지와 분리된 VFX 선택값으로만 사용되는가
