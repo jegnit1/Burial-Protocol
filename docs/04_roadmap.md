@@ -1,6 +1,6 @@
 # Burial Protocol - Roadmap
 
-기준일: `2026-04-28`  
+기준일: `2026-06-05`
 기준 브랜치: `main`
 
 ---
@@ -11,7 +11,18 @@
 구현된 시스템 설명은 `01_gdd.md`, `02_systems_spec.md`, `03_data_and_state_spec.md`에 두고, 이 문서에는 완료/진행/보류/TODO와 우선순위만 둔다.
 
 밸런스 수치 공식은 `05_balance_formula.md`를 기준으로 한다.
-아이템 데이터 구조와 조건부 효과 스키마는 `03_data_and_state_spec.md`의 `Item Object Schema`를 기준으로 한다.
+아이템 데이터 구조와 조건부 효과 스키마는 `03_data_and_state_spec.md`의 `Item / Effect Object Schema`를 기준으로 한다.
+
+장비 체계는 아래 4분류를 기준으로 한다.
+
+```text
+Weapon   = 좌/우 슬롯 기본공격
+Protocol = 드론 자동공격
+Module   = 패시브 스킬
+Item     = 누적 스탯 제공품
+```
+
+현재 코드의 `attack_module/function_module/enhance_module`은 legacy 구현명이며, 최종 설계 카테고리가 아니다.
 
 ---
 
@@ -33,38 +44,54 @@
 - 좌우 벽 채굴
 - 마우스 방향 기반 채굴
 - 점프, 추가 점프, 대시, 벽타기
-- 공격모듈 기반 공격
-- melee/ranged/mechanic 공격모듈 타입
+- legacy attack_module 기반 공격 처리
+- legacy melee/ranged/mechanic 공격 타입 처리
 - Day 종료 후 intermission
 - 낙하형 키오스크
 - Day 상점 UI
 - 상점 아이템 5개 롤
-- attack_module/function_module/enhance_module 구매
-- 공격모듈 즉시 장착, 중복 장착, 합성
+- legacy attack_module/function_module/enhance_module 구매 처리
 - 아이템 객체 스키마의 `conditions/effects/apply_timing` 병행 수용
 - `stat_query` 기반 조건부 스탯 보너스 1차 구현
 - 조건부 상점 아이템 테스트 2종 검증
 - XP와 레벨업 카드
-- 레벨업 카드 17종 풀 (melee_atk_up, ranged_atk_up 추가)
+- 레벨업 카드 17종 풀
 - 레벨업 카드 5장 제시 방식
 - 레벨업 카드 Normal/Silver/Gold/Platinum 희귀도
 - Luck 기반 레벨업 희귀도 보정
 - 레벨업 희귀도별 UI 색상/테두리/라벨 표시
 - 근거리/원거리 공격력 분리 (`run_bonus_melee_attack_damage`, `run_bonus_ranged_attack_damage`)
-- 공격모듈 attack_style/effect_style 시스템 (`AttackModuleStyleResolver`)
+- 공격 스타일/연출 스타일 시스템 (`AttackModuleStyleResolver`)
 - 상점 아이템 랭크별 가격 티어링 (`SHOP_ITEM_RANK_FALLBACK_PRICES`)
 - 런타임 스탯 증가
 - HUD와 ESC 스탯 패널
 - 저장 파일과 최고 기록 저장
 - 밸런스 스냅샷/회귀 검증 스크립트 일부
 
+주의:
+
+- 위 목록은 현재 코드 동작 상태를 기록한 것이다.
+- 최종 설계 기준은 `Weapon / Protocol / Module / Item`이다.
+- legacy 구현을 유지한 채 신규 문서 기준을 먼저 정리한 상태다.
+
 ---
 
 ## 2. 완료된 최근 작업
 
-아래 항목은 최근 로드맵 작업으로 완료된 상태다.
+### 2-1. 문서 장비 체계 재정리
 
-### 2-1. 아이템 객체 스키마 1차 기반
+완료:
+
+- canonical 장비/성장 객체를 `Weapon / Protocol / Module / Item`으로 정리
+- legacy `attack_module/function_module/enhance_module`을 migration 대상으로 명시
+- `00_project_rules.md`, `01_gdd.md`, `02_systems_spec.md`, `03_data_and_state_spec.md`, `04_roadmap.md`, `05_balance_formula.md`를 새 분류 기준으로 갱신
+
+의도:
+
+- Codex가 낡은 “공격모듈 5개 장착” 구조를 최종 설계로 오해하지 않게 한다.
+- 직접 조작 공격, 자동공격, 패시브 스킬, 누적 스탯 제공을 명확히 분리한다.
+
+### 2-2. 아이템 객체 스키마 1차 기반
 
 완료:
 
@@ -78,25 +105,26 @@
 검증:
 
 - 기존 `stat_bonus` 아이템 정상
-- 기존 공격모듈 구매/장착/합성 정상
+- 기존 legacy 공격모듈 구매/장착/합성 정상
 - 조건부 테스트 아이템 2종 정상
 
-### 2-2. 조건부 아이템 테스트
+migration 필요:
+
+- 조건부 효과의 조건명은 Weapon/Protocol/Module 기준으로 재정리해야 한다.
+- `all_attack_modules_type` 같은 legacy condition은 신규 condition으로 대체해야 한다.
+
+### 2-3. 조건부 아이템 테스트
 
 추가/검증 완료:
 
 - `melee_purity_core`
-  - 모든 공격모듈이 melee일 때 공격력 percent 증가
+  - 기존 기준: 모든 공격모듈이 melee일 때 공격력 percent 증가
+  - 신규 기준: 좌/우 무기 또는 프로토콜의 `attack_type`/태그 조건으로 재정의 필요
 - `module_focus_circuit`
-  - 장착 공격모듈 수가 일정 이상일 때 공격력 flat 증가
+  - 기존 기준: 장착 공격모듈 수가 일정 이상일 때 공격력 flat 증가
+  - 신규 기준: 프로토콜 수, 모듈 수, 무기 조건 중 하나로 재정의 필요
 
-검증 완료:
-
-- 조건 만족 시 공격력 증가
-- 조건 불만족 시 공격력 증가 없음
-- 기존 상점/공격모듈 회귀 통과
-
-### 2-3. 밸런스 스냅샷 스크립트
+### 2-4. 밸런스 스냅샷 스크립트
 
 완료:
 
@@ -107,13 +135,12 @@
 - 상점 아이템 랭크별 문서 기준 비교
 - 레벨업 희귀도 확률/효과값 출력
 
-용도:
+migration 필요:
 
-- 실제 수치 변경 전후 비교
-- 회귀 확인
-- Codex 작업 결과 검증
+- 스냅샷 출력 항목을 Weapon/Protocol/Module/Item 기준으로 재분류해야 한다.
+- legacy attack_module DPS 출력은 무기/프로토콜 분리 이후 갱신해야 한다.
 
-### 2-4. StageTable HP 배율 적용
+### 2-5. StageTable HP 배율 적용
 
 완료:
 
@@ -131,7 +158,7 @@
 | 20 | 20 |
 | 30 | 25 |
 
-### 2-5. 보스 Day 정합성 수정
+### 2-6. 보스 Day 정합성 수정
 
 완료:
 
@@ -149,23 +176,13 @@
 
 보스 보상 구조는 아직 별도 설계하지 않는다.
 
-### 2-6. 레벨업 카드 Normal 기준 정리
+### 2-7. 레벨업 카드 Normal 기준 정리
 
 완료:
 
 - 기존 레벨업 카드 수치를 `05_balance_formula.md`의 Normal 기준에 맞춰 정리
 - 공격력, 공격속도, 최대 HP, 이동속도, 채굴속도, 공격범위, 치명타 확률, 점프력, 채굴범위 조정
 - 방어력, HP 재생, 채굴 데미지는 기존 수치 유지
-
-### 2-7. 누락 레벨업 카드 추가
-
-완료:
-
-- `battery_recovery_up`
-- `luck_up`
-- `interest_up`
-
-이 시점에서 레벨업 카드 풀은 15종이었다. (→ 이후 2-12에서 17종으로 확장)
 
 ### 2-8. 레벨업 카드 희귀도 시스템
 
@@ -215,15 +232,21 @@
 
 상점 아이템 나머지 수치 조정은 필요할 때 별도 판단한다.
 
-### 2-11. 공격모듈 스타일 시스템
+### 2-11. 공격 스타일 시스템
 
 완료:
 
 - `scripts/data/AttackModuleStyleResolver.gd` 추가
-- 공격모듈 데이터에 `attack_style`, `effect_style` 필드 처리
+- legacy 공격모듈 데이터에 `attack_style`, `effect_style` 필드 처리
 - melee (`slash`, `stab`, `pierce`, `cleave`, `smash`) / ranged (`shotgun`, `sniper`, `laser`, `rifle`, `revolver`) 스타일 분리
 - `AttackModuleStyleResolver`가 attack_style별 shape, range growth 계수, projectile 옵션 등을 반환
 - mechanic 모듈은 스타일 시스템 예외로 유지
+
+migration 필요:
+
+- 입력 기반 melee/ranged 스타일은 Weapon으로 이전한다.
+- mechanic/auto 계열은 Protocol로 이전한다.
+- 신규 데이터는 `attribute + attack_type + activation_mode + hit_model + hit_shape + effect_style` 기준으로 정리한다.
 
 ### 2-12. 근거리/원거리 공격력 분리
 
@@ -231,8 +254,13 @@
 
 - `GameState.gd`에 `run_bonus_melee_attack_damage`, `run_bonus_ranged_attack_damage` 추가
 - `get_melee_base_attack_damage()`, `get_ranged_base_attack_damage()` getter 추가
-- `melee_atk_up`, `ranged_atk_up` 레벨업 카드 추가 (레벨업 카드 풀 15종 → 17종)
+- `melee_atk_up`, `ranged_atk_up` 레벨업 카드 추가
 - `reset_run()`에서 초기화 포함
+
+신규 기준:
+
+- 근거리/원거리 공격력은 특정 장비 계층이 아니라 공격 판정 태그에 적용한다.
+- 무기와 프로토콜 모두 해당 태그를 가질 수 있으나, 밸런스상 적용 범위는 별도 결정한다.
 
 ### 2-13. 상점 아이템 랭크별 가격 티어링
 
@@ -247,14 +275,12 @@
 
 완료:
 
-- `LevelUpUI`에서 카드 제시 수를 3장 → 5장으로 확장
+- `LevelUpUI`에서 카드 제시 수를 3장 -> 5장으로 확장
 - `GameConstants.LEVEL_UP_CARD_COUNT` 기준
 
 ---
 
 ## 3. 현재 보류 중인 항목
-
-아래 항목은 의도적으로 당장 처리하지 않는다.
 
 ### 3-1. 상점 아이템 세부 수치 조정
 
@@ -278,11 +304,11 @@
 - 보스 HP/정합성은 확인되었으나, 보스 보상은 추후 별도 설계한다.
 - 현재 보스 보상은 낮지만 당장 수정하지 않는다.
 
-### 3-3. 고급 조건부 아이템
+### 3-3. 고급 조건부 효과
 
 보류 사유:
 
-- `stat_query` 기반 조건부 아이템은 1차 검증 완료.
+- `stat_query` 기반 조건부 효과는 1차 검증 완료.
 - `weight_ratio_at_least`는 GameState 단독으로 현재 모래 무게를 알 수 없어 context 설계가 필요하다.
 - `attack_hit_side`는 공격 판정 context 설계가 필요하다.
 
@@ -302,188 +328,87 @@
 현재 권장 순서는 아래를 따른다.
 
 ```text
-1. 공격모듈 기본 장비/수치 정리
-2. 블록 material/size/type 스펙 정리 및 데이터 구조 점검
-3. 블록 size spawn weight / 난이도 / Stage 조건 설계
-4. Google Sheets import/export 데이터 파이프라인 정리
-5. Day별 블록 HP/스폰/모래 압박 테스트
-6. 채굴 확장: 보물상자/크립 시스템 설계
-7. HUD/상점 UI 한글화 및 가독성 개선
-8. 모래 렌더링 고도화
-9. 아트 적용 기준 확정
+1. ShopItemCatalog의 기존 항목을 Weapon / Protocol / Module / Item으로 분류표 작성
+2. legacy attack_module 중 입력 기반 공격은 Weapon 후보로 분리
+3. legacy mechanic/auto 계열은 Protocol 후보로 분리
+4. legacy function/enhance 계열은 Module 또는 Item으로 분리
+5. Day pressure snapshot 기반 실제 플레이 테스트
+6. normal/hard 문제 Day 구간을 StageTable 조정 후보로 분리
+7. v2 spawn distribution snapshot의 위험 조합 weight 튜닝
+8. v2 resolver live 전환 전 v1/v2 비교 리포트 재생성
+9. 무기/프로토콜 DPS/피드백 플레이테스트 후 수치 조정 여부 결정
+10. 상점 lock UX와 HUD 가독성 확인
+11. 채굴 확장용 보물상자/크립 데이터 구조 초안 작성
+12. 보물상자 보상 항목을 D~S 등급 보상 아이템 체계로 설계
 ```
-
-현재는 밸런스 기반과 레벨업 시스템이 어느 정도 정리되었으므로, 다음 큰 축은 `공격모듈 정리`와 `블록 시스템 정리`다.
 
 ---
 
 ## 5. 최우선 작업
 
-### 5-1. 공격모듈 기본 장비/수치 정리
+### 5-1. legacy 장비 데이터 재분류
 
 목표:
 
-- 공격모듈을 임시 테스트 구조에서 실제 장비 구조로 정리한다.
-- 시작 장비, 모듈 등급, 합성, 타입별 전투 감각을 안정화한다.
+- 현재 `ShopItemCatalog.tres`의 `attack_module/function_module/enhance_module` 항목을 신규 카테고리로 분류한다.
+- 실제 코드 변경 전, 어떤 항목이 무기/프로토콜/모듈/아이템인지 표로 확정한다.
+
+분류 기준:
+
+| 기존 성격 | 신규 분류 |
+|---|---|
+| 플레이어 입력으로 공격 생성 | Weapon |
+| 자동 타겟팅/자동 공격 | Protocol |
+| 직접 공격을 만들지 않는 패시브 룰 변경 | Module |
+| 단순 스탯 증가/누적 성장 | Item |
+
+산출물:
+
+- 기존 item_id
+- 현재 category
+- 신규 category
+- migration 난이도
+- UI 영향
+- 밸런스 영향
+
+### 5-2. Weapon / Protocol 전투 기준 분리
+
+목표:
+
+- 직접 조작 공격과 자동공격의 밸런스 기준을 분리한다.
+- 기존 공격모듈 DPS 스냅샷을 무기/프로토콜 기준으로 다시 읽을 수 있게 만든다.
 
 작업:
 
-- 현재 공격모듈 목록 정리
-- 각 모듈의 melee/ranged/mechanic 타입 확인
-- damage multiplier / attack speed multiplier / range / shape 확인
-- 등급 D/C/B/A/S 배율 적용 후 예상 DPS 비교
-- 현재 시작 모듈 지급 위치 확인
-- 기본 시작 모듈을 캐릭터 데이터로 이전할지 검토
-- melee/ranged/mechanic 간 밸런스 차이 확인
-- 모듈 합성 시 DPS 상승폭 확인
-- 투사체/레이저/메카닉 피드백 강화
-- 오라형 공격모듈 세부 동작 확정 여부 결정
+- 좌/우 무기 슬롯의 기본 공격 주기 정의
+- 프로토콜 5개 장착 시 기대 자동 DPS 예산 정의
+- 무기와 프로토콜의 공격 대상 범위 정의
+- 모래 피해/모래 제거 정책 재확인
+- 크립 대응 시 무기와 프로토콜 역할 분리
 
 주의:
 
-- mechanic 모듈은 플레이어 공격력 보너스 영향을 받지 않는 예외를 유지한다.
-- ranged/melee는 플레이어 공격력/공속/범위 성장과 연결된다.
-- 먼저 비교표/진단을 만들고, 실제 수치 변경은 별도로 판단한다.
+- 프로토콜이 기본공격보다 항상 강하면 직접 조작 감각이 죽는다.
+- 무기는 플레이어의 주 공격 정체성을 가져야 한다.
+- 프로토콜은 안정적인 보조 처리력과 빌드 시너지를 담당해야 한다.
 
-### 5-2. 블록 material/size/type 스펙 정리 및 데이터 구조 점검
-
-목표:
-
-- 블록 시스템을 `Material x Size + optional Type` 기준으로 완전히 정리한다.
-- Material은 재질만 정의하고, Size는 별도 랜덤 축으로 분리한다.
-- 블록 size의 스폰 확률/최소 등장 조건을 난이도와 Stage에 따라 제어할 수 있게 한다.
-- Google Sheets에서 작성/import/export 가능한 구조를 설계한다.
-
-핵심 원칙:
-
-- 블록 베이스/base/material에는 사이즈가 포함되면 안 된다.
-- Material은 재질을 정의한다.
-- Material은 HP 배율, 보상 배율, 색상, 스폰 확률, 등장 제한 등을 가진다.
-- Size는 Material과 별개로 랜덤 선택된다.
-- Type은 optional modifier/affix로 유지한다.
-
-HP 원칙:
-
-```text
-final_hp =
-  BLOCK_HP_PER_UNIT
-  x material_hp_multiplier
-  x size_area_multiplier
-  x difficulty_hp_multiplier
-  x day_hp_multiplier
-  x type_hp_multiplier
-```
-
-Size 기본 HP 배율:
-
-```text
-1U x 1U = 1x
-2U x 1U = 2x
-1U x 2U = 2x
-2U x 2U = 4x
-```
-
-즉, size는 기본적으로 `width_u * height_u` 면적만큼 HP 요구치를 늘린다.
-
-가로/세로 size의 게임플레이 의미:
-
-- 가로 size 증가는 플레이어의 회피 공간을 직접 제한한다.
-- 가로 size 증가는 공격스탯 요구치와 회피 요구치를 동시에 올린다.
-- 세로 size 증가는 주로 공격스탯 요구치를 올린다.
-- 세로 size는 공간 압박이 없지는 않지만, 가로 size만큼 즉각적인 회피 공간 제한을 만들지는 않는다.
-
-Size 스폰 정책:
-
-- size별 등장 확률은 난이도와 Stage에 따라 달라져야 한다.
-- 높은 난이도일수록 큰 블록이 등장할 확률이 높아진다.
-- 높은 Stage일수록 큰 블록이 등장할 확률이 높아진다.
-- size별 최소 난이도와 최소 Stage를 설정할 수 있어야 한다.
-
-예시 제한:
-
-- Normal 저Stage에서 가로 4U 블록은 등장하면 안 된다.
-- 가로세로 합 8U 수준의 대형 블록은 Hard 이상부터 등장해야 한다.
-
-데이터/툴링 요구:
-
-- Material / Size / Type / Size Spawn Rule은 Google Spreadsheet에서 관리 가능해야 한다.
-- TSV/CSV import/export를 지원해야 한다.
-- Godot `.tres` 데이터와 spreadsheet source가 서로 동기화 가능해야 한다.
-- 데이터 파이프라인은 `data_tsv` 또는 별도 pipeline 로그와 함께 검증 가능해야 한다.
-
-점검 작업:
-
-- 현재 BlockCatalog의 material/size/type 분리 상태 확인
-- 기존 코드에 size가 base/material에 섞여 있는지 확인
-- size별 HP/보상/모래량/등장 제한 확인
-- size spawn weight가 난이도/Stage별로 분리 가능한지 확인
-- BlockSpawnResolver가 material 선택과 size 선택을 독립적으로 수행하는지 확인
-- Google Sheets import/export에서 size spawn rule을 표현할 수 있는지 확인
-
-### 5-3. Day별 블록 HP/스폰/모래 압박 테스트
+### 5-3. Module / Item 역할 분리
 
 목표:
 
-- 공식과 데이터가 실제 플레이 감각에서 맞는지 검증한다.
+- 모듈과 아이템이 모두 “스탯 증가”처럼 보이지 않도록 역할을 분리한다.
 
-검증 Day:
+기준:
 
-- Day 1
-- Day 5
-- Day 10
-- Day 15
-- Day 20
-- Day 25
-- Day 30
-
-확인 항목:
-
-- 평균 블록 처리 시간
-- 평균 모래 생성량
-- 중량 실패까지 걸리는 시간
-- 상점 구매 후 다음 Day 체감 변화
-- 공격모듈 빌드와 채굴 빌드의 차이
-- 보스 Day 압박감
-- 가로로 큰 블록이 회피 공간을 과도하게 막는지
-- 세로로 큰 블록이 공격스탯 요구만 과도하게 올리는지
-
-### 5-4. 채굴 확장: 보물상자/크립 시스템 설계
-
-목표:
-
-- 좌우 벽 채굴을 단순 벽 제거가 아니라 탐사/보상/리스크 관리 루프로 확장한다.
-- 보물상자는 보상형 특수 객체, 크립은 리스크형 특수 객체로 설계한다.
-
-보물상자 설계 작업:
-
-- 빛나는 벽블록 이펙트 규칙 정의
-- 보물상자 Normal/Silver/Gold/Platinum 등급 정의
-- 등급별 보물상자 이미지/연출 방향 정의
-- `E` 상호작용과 보상 팝업 일시정지 구조 정의
-- 랜덤 보상 연출 UI 설계
-- 보물상자 등급별 보상 테이블 설계
-- 고등급 보물상자의 깊이/높이 출현 경향성 설계
-
-보상 체계 원칙:
-
-- 모든 보상은 `D~S` 등급 보상 아이템으로 정의한다.
-- `소량/보통/대량` 표현은 사용하지 않는다.
-- 예시는 `S급 골드주머니`, `B급 경험치 물약`, `C급 모래제거 프로토콜`처럼 작성한다.
-- Gold/XP/Item(Module)/Sand Removal 모두 D~S 등급 보상으로 관리한다.
-- 일정 등급 이상의 보물상자는 D/C급 모듈을 제외하거나, 낮은 등급 보상이 나올 경우 최소 B~S급 XP/Gold/Sand Removal 보상으로 보정한다.
-
-크립 설계 작업:
-
-- 크립의 노출/활성화/경고 규칙 정의
-- 공격형 크립의 공격 패턴 설계
-- 디버프형 크립의 디버프 후보 정의
-- 저난이도/저스테이지 출현 제한 정의
-- 동시 활성 디버프형 크립 수 제한 검토
-
-주의:
-
-- 보물상자는 채굴 중 블록 처리를 포기하는 리스크에 대한 저점을 보장해야 한다.
-- 크립은 불합리한 억까가 아니라 경고 후 대응 가능한 리스크로 설계한다.
+| 효과 성격 | 우선 배치 |
+|---|---|
+| 단순 스탯 증가 | Item |
+| 조건부 스탯 증가 | Module 또는 특수 Item |
+| 장비 간 시너지 | Module |
+| 공격 판정 변형 | Module |
+| 경제 보너스 | Item |
+| 소지 제한 없는 누적 성장 | Item |
+| 소지 제한 있는 강한 룰 변경 | Module 또는 unique Item |
 
 ---
 
@@ -493,7 +418,10 @@ Size 스폰 정책:
 
 - HUD 문자열 한글화
 - 상점 UI 가독성 개선
-- 공격모듈 장착 상태 표시 개선
+- 좌/우 무기 슬롯 표시
+- 드론 프로토콜 5슬롯 표시
+- 패시브 모듈 5슬롯 표시
+- 아이템 누적 목록 표시 방향 결정
 - 스킬 슬롯 2, 3번 활용 방향 결정
 - 세로 센서 HUD 위험도 표시 추가 검토
 - 중량 경고 연출 강화
@@ -506,7 +434,8 @@ Size 스폰 정책:
 - 벽타기 상단 제한 플레이 감각 확인
 - 대시와 모래 충돌 감각 점검
 - 채굴 범위와 리듬 튜닝
-- 공격모듈별 공격속도 체감 점검
+- 무기별 공격속도 체감 점검
+- 프로토콜 자동공격 체감 점검
 
 ### 6-3. 모래 / 중량
 
@@ -533,7 +462,10 @@ Size 스폰 정책:
 
 - 플레이어 최종 도트 스프라이트 적용
 - run/idle 애니메이션 개선
-- 공격모듈 아이콘/공전 에셋 제작
+- 무기 아이콘/공격 에셋 제작
+- 프로토콜/드론 시각 에셋 제작
+- 모듈 아이콘 제작
+- 아이템 아이콘 제작
 - 블록 재질별 비주얼 구분
 - 모래 색상/질감 개선
 - 키오스크 비주얼 개선
@@ -544,10 +476,11 @@ Size 스폰 정책:
 
 ### 7-2. 콘텐츠 확장
 
-- 공격모듈 종류 확장
-- 기능 모듈 확장
-- 강화 모듈 확장
-- 조건부 아이템 확장
+- 무기 종류 확장
+- 프로토콜 종류 확장
+- 모듈 종류 확장
+- 아이템 종류 확장
+- 조건부 효과 확장
 - 블록 재질 확장
 - 블록 특수 결과 확장
 - 보물상자 보상 테이블 확장
@@ -560,7 +493,7 @@ Size 스폰 정책:
 - 성장 트리 설계
 - 업적 조건과 보상 설계
 - 캐릭터 해금 조건 설계
-- 캐릭터별 시작 장비/스탯 차별화
+- 캐릭터별 시작 무기/스탯 차별화
 
 ---
 
@@ -586,18 +519,23 @@ Size 스폰 정책:
 - 업적 실효과 제한적
 - 인벤토리/도감 UI 미완성
 - 모든 블록 특수 결과의 본격 구현 미완성
-- 오라형 공격모듈 세부 동작 미확정
+- Weapon / Protocol / Module / Item 데이터 완전 분리 미완성
+- legacy `attack_module/function_module/enhance_module` 제거 미완성
+- 좌/우 무기 슬롯 미구현
+- 드론 프로토콜 슬롯 미구현
+- 패시브 모듈 슬롯 미구현
+- 아이템 소지 제한/unique 처리 미구현
 - 상점 UI 최종 비주얼/한글화 미완성
-- 공격모듈과 상점 아이템 최종 밸런스 미확정
+- 무기/프로토콜/모듈/아이템 최종 밸런스 미확정
 - 상점 아이템 세부 수치 조정 보류
-- 고급 조건부 아이템 context 미구현
+- 고급 조건부 효과 context 미구현
 - `weight_ratio_at_least` context 미구현
 - `attack_hit_side` context 미구현
 - 채굴 확장용 보물상자/크립 시스템 미구현
 - 보물상자 등급별 D~S 보상 테이블 미정
 - 크립 종류/효과/등장 조건 미정
-- 블록 size spawn rule / 난이도 / Stage별 weight 미정
-- Google Sheets import/export 데이터 파이프라인 정리 필요
+- 블록 v2 spawn rule live 전환 여부 미정
+- TSV -> TRES 파이프라인은 연결되어 있으나, live resolver 전환 전 추가 검증 필요
 - 보스 보상 구조 미정
 - 최종 아트 미적용
 
@@ -605,14 +543,29 @@ Size 스폰 정책:
 
 ## 10. 개발 판단 원칙
 
-### 10-1. 아이템 객체 스키마 선행 원칙
+### 10-1. 장비 4분류 우선 원칙
 
-조건부 아이템은 아이템 객체 스키마를 먼저 정의하고, 데이터 기반으로 표현한다.
+새 장비/성장 요소는 반드시 아래 중 하나로 먼저 분류한다.
+
+```text
+Weapon / Protocol / Module / Item
+```
+
+분류가 애매하면 아래 기준을 따른다.
+
+- 플레이어 입력으로 공격을 생성하면 Weapon
+- 드론이 자동으로 공격하면 Protocol
+- 장착 슬롯을 차지하며 패시브 룰을 바꾸면 Module
+- 기본적으로 무제한 소지되고 스탯을 제공하면 Item
+
+### 10-2. 효과 객체 스키마 선행 원칙
+
+조건부 효과는 객체 스키마를 먼저 정의하고, 데이터 기반으로 표현한다.
 
 권장 순서:
 
 ```text
-아이템 객체 스키마 확정
+효과 객체 스키마 확정
 → condition/effect/apply_timing 타입 정의
 → 기존 stat_bonus 아이템 호환성 검증
 → stat_query 조건부 효과 구현
@@ -626,30 +579,22 @@ Size 스폰 정책:
 아이템 ID별 하드코딩 분기
 ```
 
-새 아이템은 가능한 한 데이터로 정의하고, 코드는 조건/효과/적용 타이밍 해석기를 확장한다.
+새 효과는 가능한 한 데이터로 정의하고, 코드는 조건/효과/적용 타이밍 해석기를 확장한다.
 
-### 10-2. 밸런스 개선과 블록 고도화 순서
+### 10-3. 밸런스 개선과 블록 고도화 순서
 
 권장 순서:
 
 ```text
-공격모듈 수치 정리
+장비 4분류 정리
+→ 무기/프로토콜 수치 분리
 → 블록 material/size/type 스펙 정리
-→ size spawn rule / spreadsheet pipeline 정리
-→ Day별 실전 테스트
+→ TSV 기반 size spawn rule / material-size weight rule 검증
+→ Day별 실전 테스트와 pressure snapshot 비교
 → 채굴 확장 보상/리스크 시스템 설계
 ```
 
-블록 고도화에서 중요한 점:
-
-- Material과 Size는 반드시 분리한다.
-- Size는 HP와 회피 공간 압박의 핵심 축이다.
-- 가로 size는 회피 난이도에 직접 영향을 준다.
-- 세로 size는 공격스탯 요구치를 주로 올린다.
-- size별 spawn weight는 난이도와 Stage에 따라 달라져야 한다.
-- Google Sheets 기반 데이터 관리가 가능해야 한다.
-
-### 10-3. 환경대응 카드 원칙
+### 10-4. 환경대응 카드 원칙
 
 레벨업 카드는 플레이어 본체 성장 중심으로 유지한다.
 
@@ -662,7 +607,7 @@ Size 스폰 정책:
 - 특정 블록 제거
 - Day 종료 시 환경 정리
 
-환경대응 성격의 효과는 상점 아이템, 기능 모듈, 보물상자 보상, 특수 이벤트로 제한한다.
+환경대응 성격의 효과는 상점 아이템, 보물상자 보상, 특수 이벤트로 제한한다.
 
 ---
 
@@ -671,16 +616,16 @@ Size 스폰 정책:
 다음 Codex 작업은 아래 순서가 좋다.
 
 ```text
-1. 공격모듈별 실제 DPS 비교표 작성
-2. 현재 시작 모듈 지급 위치와 캐릭터 데이터 이전 필요성 조사
-3. BlockCatalog의 Material/Size/Type 분리 상태 조사
-4. size가 material/base에 섞여 있는 코드/데이터가 있는지 확인
-5. size별 HP/보상/모래량/등장 제한 비교표 작성
-6. size spawn rule을 난이도/Stage별로 표현하는 데이터 구조 초안 작성
-7. Google Sheets/TSV import-export 파이프라인 요구사항 정리
-8. Day별 블록 HP/스폰/모래 압박 계측
-9. 채굴 확장용 보물상자/크립 데이터 구조 초안 작성
-10. 보물상자 보상 항목을 D~S 등급 보상 아이템 체계로 설계
+1. ShopItemCatalog.tres 전체 항목을 Weapon / Protocol / Module / Item으로 분류하는 리포트 작성
+2. legacy attack_module 중 Weapon 후보와 Protocol 후보를 분리
+3. legacy function_module/enhance_module 중 Module 후보와 Item 후보를 분리
+4. 분류표 기준으로 UI/상점/상태 migration 영향도 작성
+5. 무기 좌/우 슬롯 상태 모델 초안 작성
+6. 프로토콜 5슬롯 상태 모델 초안 작성
+7. 모듈 5슬롯 상태 모델 초안 작성
+8. 아이템 stack/unique 소지 모델 초안 작성
+9. Day pressure snapshot 기반 실제 플레이 테스트
+10. normal/hard 문제 Day 구간을 StageTable 조정 후보로 분리
 ```
 
 이 작업들은 우선 조사/비교표/데이터 구조 초안 중심으로 진행하고, 실제 수치 변경은 별도 판단 후 진행한다.
