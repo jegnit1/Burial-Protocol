@@ -1,6 +1,6 @@
 # Burial Protocol - Balance Formula Specification
 
-기준일: `2026-04-28`  
+기준일: `2026-06-05`
 기준 브랜치: `main`
 
 ---
@@ -14,13 +14,26 @@
 - 기본 플레이어 스탯
 - Day별 블록 체력 증가
 - 난이도 배율
-- 공격모듈 등급별 고정 기본데미지
-- 상점 아이템 랭크별 스탯 증가량
+- 무기 등급별 기본데미지
+- 프로토콜 등급별 기본데미지
+- 상점 상품 랭크별 스탯 증가량
 - 레벨업 카드 희귀도와 스탯 증가량
 - 행운에 따른 레벨업 카드 희귀도 보정
 
 이 문서는 `02_systems_spec.md`의 시스템 설명과 다르다.
 `02_systems_spec.md`는 시스템이 어떻게 동작하는지 설명하고, 이 문서는 수치가 어떤 기준으로 증가해야 하는지 설명한다.
+
+장비/성장 객체는 아래 네 계층을 기준으로 한다.
+
+```text
+Weapon   = 좌/우 슬롯 기본공격
+Protocol = 드론 자동공격
+Module   = 패시브 스킬
+Item     = 누적 스탯 제공품
+```
+
+현재 코드에 남아 있는 `attack_module/function_module/enhance_module` 표현은 legacy 구현명이다.
+신규 밸런스 기준에서는 위 네 계층으로 재분류한다.
 
 ---
 
@@ -60,9 +73,9 @@ Day 21~30:
 
 | 스탯 | 기본값 | 기준 |
 |---|---:|---|
-| 기본 모듈 데미지 | `10` | `sword_module.module_base_damage` |
-| 근거리 공격력 | `0` | melee 모듈에 더하는 flat 보너스 |
-| 원거리 공격력 | `0` | ranged 모듈에 더하는 flat 보너스 |
+| 기본 무기 데미지 | `10` | D등급 기본 무기 기준 |
+| 근거리 공격력 | `0` | melee 태그 공격에 더하는 flat 보너스 |
+| 원거리 공격력 | `0` | ranged/projectile 태그 공격에 더하는 flat 보너스 |
 | 데미지 | `0%` | 모든 최종 피해에 곱하는 전역 보너스 |
 | 공격 쿨다운 | `0.30초` | `PLAYER_ATTACK_COOLDOWN` |
 | 기본 공격속도 | `3.33/sec` | `1 / 0.30` |
@@ -82,7 +95,7 @@ Day 21~30:
 핵심 기준:
 
 ```text
-소드 D등급 module_base_damage 10 = 기본 1U 블록 HP 10
+D등급 기본 무기 데미지 10 = 기본 1U 블록 HP 10
 ```
 
 즉, 아무 배율도 없는 기본 1U 블록은 이론상 기본 공격 1타로 처리 가능한 기준이다.
@@ -91,34 +104,81 @@ Day 21~30:
 
 ## 3. 기본 DPS 기준
 
-현재 소드 D등급 기준 DPS:
+현재 기본 무기 기준 DPS:
 
 ```text
-base_dps = sword_module.module_base_damage / PLAYER_ATTACK_COOLDOWN
+base_dps = base_weapon_damage / PLAYER_ATTACK_COOLDOWN
 base_dps = 10 / 0.30 ≈ 33.33
 ```
 
-공격모듈 피해는 module_base_damage 기반으로 계산한다.
+### 3-1. Weapon 데미지
+
+무기는 좌/우 슬롯에 장착되는 기본공격 장비다.
+무기 피해는 등급별 기본데미지와 공격 태그별 flat 보너스, 전역 데미지 배율로 계산한다.
 
 ```text
-melee_damage =
-  floor((module_base_damage + melee_attack_damage_flat)
-  x global_damage_multiplier)
-
-ranged_damage =
-  floor((module_base_damage + ranged_attack_damage_flat)
-  x global_damage_multiplier)
-
-mechanic_damage =
-  floor(module_base_damage
+weapon_damage =
+  floor((grade_base_damage + matching_attack_damage_flat)
   x global_damage_multiplier)
 ```
 
-`damage_multiplier`는 기존 데이터 호환용이다.
-`module_base_damage`가 없을 때만 `round(10 x damage_multiplier)`로 base damage를 계산한다.
-등급별 base damage 데이터가 아직 없으면, 기존 등급 피해 배율표는 최종 배율이 아니라 등급별 고정 `module_base_damage` 산정에만 사용한다.
-최종 데미지 단계에서 곱해지는 배율은 `global_damage_multiplier` 하나뿐이다.
-메카닉 모듈은 근거리/원거리 flat 공격력은 받지 않고, 전역 데미지 %만 받는다.
+`matching_attack_damage_flat` 예시:
+
+- melee 태그 무기: `melee_attack_damage_flat`
+- ranged/projectile 태그 무기: `ranged_attack_damage_flat`
+- 둘 다 해당하지 않으면 `0`
+
+### 3-2. Protocol 데미지
+
+프로토콜은 드론에 장착되는 자동공격 장비다.
+프로토콜 피해는 자동공격 밸런스 예산을 별도로 가져야 한다.
+
+```text
+protocol_damage =
+  floor((grade_base_damage + protocol_attack_damage_flat)
+  x global_damage_multiplier)
+```
+
+현재 별도 `protocol_attack_damage_flat`이 없다면 초기 migration 단계에서는 아래 중 하나를 선택한다.
+
+```text
+A안: protocol_damage = floor(grade_base_damage x global_damage_multiplier)
+B안: protocol 태그에 따라 melee/ranged flat 보너스를 제한적으로 적용
+```
+
+기본 권장은 A안이다.
+프로토콜이 무기와 같은 flat 보너스를 모두 받으면 자동공격이 과도하게 강해질 수 있다.
+
+### 3-3. Module / Item 효과
+
+모듈과 아이템은 기본적으로 직접 공격 판정을 만들지 않는다.
+대신 아래 방식으로 무기와 프로토콜 수치에 영향을 준다.
+
+```text
+final_damage =
+  source_damage
+  x module_conditional_multiplier
+  x item_global_multiplier
+```
+
+원칙:
+
+- 단순 스탯 증가는 아이템에 우선 배치한다.
+- 조건부 배율, 장비 시너지, 룰 변경은 모듈에 우선 배치한다.
+- 모듈이 직접 공격 인스턴스를 생성하면 프로토콜과 역할이 겹치므로 피한다.
+
+### 3-4. legacy attack_module 계산 처리
+
+현재 코드에 남아 있는 legacy `attack_module` 데미지는 아래 기준으로 해석한다.
+
+| legacy 성격 | 신규 해석 |
+|---|---|
+| 좌클릭 기반 melee/ranged | Weapon 데미지 계산으로 이전 |
+| mechanic/auto attack | Protocol 데미지 계산으로 이전 |
+| 직접 공격 없는 보조 효과 | Module 또는 Item으로 이전 |
+
+legacy `damage_multiplier` fallback은 신규 기준에서 사용하지 않는다.
+데미지 기준은 등급별 `grade_base_damage` 또는 명시적 `base_damage_by_grade`를 우선한다.
 
 ---
 
@@ -208,33 +268,66 @@ Nightmare Day 30 = 33.40x
 
 ---
 
-## 6. 공격모듈 등급과 고정 기본데미지
+## 6. 장비 랭크와 등급별 기본데미지
 
-공격모듈은 장착 장비이며, 데이터의 `rank`를 장착 `grade`로 사용한다.
+무기, 프로토콜, 모듈, 아이템은 모두 `D/C/B/A/S` 랭크를 사용할 수 있다.
+다만 랭크가 의미하는 바는 계층마다 다르다.
 
-등급:
+| 계층 | 랭크 의미 |
+|---|---|
+| Weapon | 기본공격 장비 성능 |
+| Protocol | 자동공격 장비 성능 |
+| Module | 패시브 효과 희귀도/강도 |
+| Item | 스탯 제공량/가격 |
+
+### 6-1. 등급
 
 ```text
 D / C / B / A / S
 ```
 
-현재 공격모듈 등급별 피해 계수는 최종 데미지 배율이 아니다.
-등급별 `module_base_damage` 데이터가 준비되기 전까지, D 기준 `module_base_damage`를 등급별 고정 기본데미지로 환산하는 마이그레이션 계수다.
+### 6-2. Weapon 기본데미지
+
+무기는 가능하면 `base_damage_by_grade`에 D/C/B/A/S별 고정 기본데미지를 직접 가진다.
+
+선택 우선순위:
 
 ```text
-grade_module_base_damage =
-  round(d_grade_module_base_damage x legacy_grade_damage_factor)
+1. base_damage_by_grade[current_grade]
+2. module_base_damage 또는 legacy base_damage
+3. 둘 다 없거나 0이면 warning 출력 후 1
 ```
 
-| 등급 | base damage 환산 계수 |
-|---|---:|
-| D | `1.00` |
-| C | `1.15` |
-| B | `1.35` |
-| A | `1.60` |
-| S | `2.00` |
+주의:
 
-현재 공격모듈 등급별 공격속도 배율:
+- `grade_damage_mult`는 최종 데미지에 곱하지 않는다.
+- 등급은 해당 등급의 기본데미지를 선택하는 데 사용한다.
+
+### 6-3. Protocol 기본데미지
+
+프로토콜도 `base_damage_by_grade`를 가질 수 있다.
+단, 프로토콜은 자동공격이므로 같은 랭크의 무기보다 총 DPS 예산을 낮게 잡는 것이 안전하다.
+
+권장 감각:
+
+```text
+단일 Protocol의 독립 DPS < 단일 Weapon의 직접 공격 DPS
+프로토콜 5개 완성 DPS는 강하지만, 직접 공격을 대체하지는 않음
+```
+
+초기 예산 예시:
+
+| 비교 | 권장 |
+|---|---:|
+| D등급 단일 Protocol DPS | D등급 기본 Weapon DPS의 30~60% |
+| 프로토콜 5개 총합 DPS | 좋은 빌드일 때 무기 DPS와 비슷하거나 약간 낮음 |
+| S등급 Protocol | 강력하되 자동 클리어 수준 금지 |
+
+### 6-4. 공격속도/범위 등급 배율
+
+현재 legacy 기준의 등급별 공격속도/범위 배율은 신규 장비 체계에서도 참고값으로 사용할 수 있다.
+
+현재 등급별 공격속도 배율:
 
 | 등급 | 속도 배율 |
 |---|---:|
@@ -244,7 +337,7 @@ grade_module_base_damage =
 | A | `1.15` |
 | S | `1.25` |
 
-현재 공격모듈 등급별 범위 배율:
+현재 등급별 범위 배율:
 
 | 등급 | 범위 배율 |
 |---|---:|
@@ -256,30 +349,24 @@ grade_module_base_damage =
 
 원칙:
 
-- 공격모듈 등급은 장비 자체의 성장이다.
-- 공격모듈의 `rank`는 장착 `grade`와 같다.
-- 빈 슬롯에 B급 공격모듈을 구매하면 B급 모듈로 장착된다.
-- 같은 `module_id`와 같은 `grade`를 다시 구매하면 합성 대상이 된다.
-- 최종 데미지 계산에서 grade damage multiplier를 곱하지 않는다.
-- 등급은 해당 grade의 고정 `module_base_damage`를 결정하는 데만 사용한다.
-- 레벨업 카드 희귀도와 이름 체계를 섞지 않는다.
-- 공격모듈은 `D/C/B/A/S`, 레벨업 카드는 `Normal/Silver/Gold/Platinum`을 사용한다.
-
-예: `laser_module`은 B급 공격모듈이며 D 기준 `module_base_damage = 2`다.
-B급 고정 기본데미지는 `round(2 x 1.35) = 3`으로 산정한다.
-원거리 공격력 `+1`이면 `floor((3 + 1) x 1.0) = 4`가 정상이다.
+- 무기 등급은 기본공격의 성장이다.
+- 프로토콜 등급은 자동공격의 성장이다.
+- 모듈 등급은 패시브 효과의 강도다.
+- 아이템 등급은 스탯 제공량과 가격의 기준이다.
+- 레벨업 카드 희귀도와 장비 랭크 체계를 섞지 않는다.
+- 장비/상점 랭크는 `D/C/B/A/S`, 레벨업 카드는 `Normal/Silver/Gold/Platinum`을 사용한다.
 
 ---
 
-## 7. 상점 아이템 랭크별 스탯 증가 공식
+## 7. 상점 상품 랭크별 스탯 증가 공식
 
-상점 아이템 랭크:
+상점 상품 랭크:
 
 ```text
 D / C / B / A / S
 ```
 
-상점 아이템은 골드를 지불하고 구매하는 선택지이므로, 레벨업 카드보다 평균 기대값이 높아도 된다.
+상점 상품은 골드를 지불하고 구매하는 선택지이므로, 레벨업 카드보다 평균 기대값이 높아도 된다.
 
 권장 랭크 파워:
 
@@ -302,11 +389,20 @@ shop_item_value =
 정수 스탯은 반올림 또는 스탯별 지정 반올림을 사용한다.
 퍼센트 스탯은 소수점 1자리 이하를 버리거나 데이터에 직접 입력한다.
 
+적용 기준:
+
+| 계층 | 이 공식 사용 여부 |
+|---|---|
+| Weapon | 기본데미지/공격속도/범위는 별도 장비 밸런스 우선 |
+| Protocol | 자동공격 DPS 예산 별도 적용 |
+| Module | 조건부 효과 강도 산정에 참고 |
+| Item | 스탯 증가량 산정에 직접 사용 |
+
 ---
 
-## 8. 상점 아이템 스탯별 기준 증가량
+## 8. 아이템 스탯별 기준 증가량
 
-아래 값은 D랭크 기준 증가량이다.
+아래 값은 D랭크 아이템 기준 증가량이다.
 
 | 스탯 | D 기준값 | 비고 |
 |---|---:|---|
@@ -330,11 +426,12 @@ shop_item_value =
 
 - 환경대응 전용 카드는 만들지 않는다.
 - 모래 직접 제거, 모래 자동 정리, 중량 직접 증가 같은 카드는 레벨업 카드 풀에서 제외한다.
-- 최대 중량은 생존 스탯에 가깝지만 환경대응성이 강하므로 레벨업 카드에서는 기본 제외한다. 상점 아이템으로만 제한적으로 다룬다.
+- 최대 중량은 생존 스탯에 가깝지만 환경대응성이 강하므로 레벨업 카드에서는 기본 제외한다.
+- 환경대응 효과는 상점 아이템, 보물상자 보상, 특수 이벤트로 제한한다.
 
 ---
 
-## 9. 상점 아이템 랭크별 예시 증가량
+## 9. 아이템 랭크별 예시 증가량
 
 ### 데미지
 
@@ -386,9 +483,9 @@ D 기준값: `+1%p`
 
 ---
 
-## 10. 상점 아이템 랭크별 가격
+## 10. 상점 상품 랭크별 가격
 
-상점 아이템 가격 결정 순서:
+상점 상품 가격 결정 순서:
 
 ```text
 1. item 데이터에 price_gold > 0이 있으면 그 값을 사용한다.
@@ -407,22 +504,16 @@ D 기준값: `+1%p`
 
 의도:
 
-- 고랭크 아이템은 더 비싸게, 저랭크 아이템은 더 싸게 판매한다.
+- 고랭크 상품은 더 비싸게, 저랭크 상품은 더 싸게 판매한다.
 - 상점 가격이 골드 수입과 맞게 스케일링되어야 후반 S랭크 선택이 의미 있어진다.
-- 특별한 조건부 아이템(`melee_purity_core` 등)은 데이터에 직접 explicit price를 설정할 수 있다.
+- 특별한 조건부 아이템은 데이터에 직접 explicit price를 설정할 수 있다.
 - 표시 가격과 실제 구매 차감 가격은 반드시 일치한다.
-
-예외:
-
-| 아이템 | 랭크 | 데이터 price_gold | 실제 가격 | 비고 |
-|---|---|---:|---:|---|
-| `melee_purity_core` | A | `320G` | `320G` | 조건부 아이템 프리미엄 |
-| `module_focus_circuit` | B | `240G` | `240G` | 조건부 아이템 프리미엄 |
 
 ### Shop Reroll Cost
 
 Shop reroll only refreshes the current intermission shop list.
 It does not change item price tiering.
+Locked shop slots are preserved as part of the fixed shop item count; they are not added as extra offers.
 
 Formula:
 
@@ -455,7 +546,7 @@ when a new intermission shop is generated.
 
 ## 11. 레벨업 카드 희귀도
 
-레벨업 카드는 상점 아이템과 다른 희귀도 체계를 사용한다.
+레벨업 카드는 상점 상품과 다른 희귀도 체계를 사용한다.
 
 희귀도:
 
@@ -467,8 +558,8 @@ Normal / Silver / Gold / Platinum
 
 - 레벨업 선택 순간의 기대감을 만든다.
 - 행운 스탯의 가치를 높인다.
-- 상점 아이템 랭크와 혼동하지 않는다.
-- 레벨업 보상이 상점 아이템을 완전히 대체하지 않게 한다.
+- 상점 상품 랭크와 혼동하지 않는다.
+- 레벨업 보상이 상점 상품을 완전히 대체하지 않게 한다.
 
 ---
 
@@ -546,8 +637,8 @@ level_up_card_value =
 전투:
 
 - 데미지 % (전역)
-- 근거리 공격력 (melee 모듈 전용)
-- 원거리 공격력 (ranged 모듈 전용)
+- 근거리 공격력
+- 원거리 공격력
 - 공격속도
 - 공격범위
 - 치명타 확률
@@ -574,6 +665,9 @@ level_up_card_value =
 
 레벨업 카드에서 제외하는 항목:
 
+- 무기 직접 지급
+- 프로토콜 직접 지급
+- 모듈 직접 지급
 - 모래 직접 제거
 - 모래 자동 정리
 - 벽 복구
@@ -584,9 +678,10 @@ level_up_card_value =
 
 제외 이유:
 
+- 레벨업은 플레이어 본체 스탯 성장을 중심으로 한다.
+- 장비 획득은 상점, 보물상자, 특수 이벤트의 역할로 둔다.
 - 환경대응 카드는 선택지가 너무 방어적으로 흘러갈 수 있다.
-- Burial Protocol의 레벨업은 플레이어 본체 성장을 중심으로 한다.
-- 환경대응은 상점 아이템, 기능 모듈, 특수 이벤트로 제한하는 편이 역할 분리가 좋다.
+- 환경대응은 상점 아이템, 보물상자 보상, 특수 이벤트로 제한하는 편이 역할 분리가 좋다.
 
 ---
 
@@ -706,15 +801,15 @@ Normal 공격력
 
 ---
 
-## 18. 레벨업 카드와 상점 아이템의 관계
+## 18. 레벨업 카드와 상점 상품의 관계
 
-레벨업 카드는 상점 아이템보다 평균적으로 약해야 한다.
-상점 아이템은 골드를 지불하고 구매하는 선택지이기 때문이다.
+레벨업 카드는 상점 상품보다 평균적으로 약해야 한다.
+상점 상품은 골드를 지불하고 구매하는 선택지이기 때문이다.
 
 권장 관계:
 
 ```text
-Normal 레벨업 카드 = D랭크 상점 아이템의 60~80%
+Normal 레벨업 카드 = D랭크 아이템의 60~80%
 Silver 레벨업 카드 = D~C 사이
 Gold 레벨업 카드 = C~B 사이
 Platinum 레벨업 카드 = B~A 사이
@@ -728,6 +823,12 @@ Platinum 레벨업 카드가 떠도 S랭크 상점 아이템보다 강하면 안
 
 이렇게 해야 상점의 존재감이 유지된다.
 
+장비 획득과 레벨업 카드의 역할 분리:
+
+- 무기/프로토콜/모듈 획득은 상점, 보물상자, 특수 이벤트 중심이다.
+- 레벨업 카드는 본체 스탯 성장 중심이다.
+- 아이템은 상점/보상으로 누적되는 스탯 제공품이다.
+
 ---
 
 ## 19. 구현 시 주의사항
@@ -738,7 +839,8 @@ Platinum 레벨업 카드가 떠도 S랭크 상점 아이템보다 강하면 안
 - 행운이 너무 강해지지 않도록 확률 상한을 반드시 둔다.
 - 환경대응 효과는 레벨업 카드 풀에서 제외한다.
 - 레벨업 카드는 플레이어 본체 스탯 성장 중심으로 유지한다.
-- 상점 아이템은 장비/기능/강화의 선택지로 유지한다.
+- 상점 상품은 무기/프로토콜/모듈/아이템 획득과 강화를 담당한다.
+- legacy `attack_module` 데미지 기준을 신규 무기/프로토콜 밸런스와 혼동하지 않는다.
 
 ---
 
@@ -747,7 +849,10 @@ Platinum 레벨업 카드가 떠도 S랭크 상점 아이템보다 강하면 안
 밸런스 조정 시 아래를 확인한다.
 
 - Day 1 기본 1U 블록이 너무 오래 버티지 않는가
-- Day 10 전후에 공격력/공속 빌드가 정상 작동하는가
+- Day 10 전후에 무기 공격이 정상 작동하는가
+- 프로토콜 자동공격이 직접 조작 공격을 완전히 대체하지 않는가
+- 모듈 효과가 단순 아이템 스탯 증가와 구분되는가
+- 아이템 누적 스탯이 과도하게 눈덩이처럼 불어나지 않는가
 - Day 20 이후 빌드가 약하면 실제로 밀리는가
 - Day 30에서 좋은 빌드가 클리어 가능하지만 자동 승리는 아닌가
 - 레벨업 Platinum이 너무 자주 뜨지 않는가
